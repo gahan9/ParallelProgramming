@@ -16,6 +16,8 @@ A Graphics Processing Unit (GPU) is a specialized processor designed to accelera
 
 A Quantum Processing Unit (QPU) is a type of processor that uses the principles of quantum mechanics to perform computations. QPUs are designed to solve complex problems that are intractable for classical computers, such as factoring large numbers, simulating quantum systems, and optimizing large-scale problems. Quantum computing is still in its early stages, but it has the potential to revolutionize fields such as cryptography, materials science, and artificial intelligence.
 
+> Detailed videos of System Design concepts for Parallel Programming available at: [System Design for Parallel Programming](https://youtube.com/playlist?list=PLWyBQeJgIuzD2o9ZVw5oI-P2fX4uyNKZA&si=947INnGI2lcnDbJE)
+
 ## Parallel Programming Models
 
 ### OpenMP
