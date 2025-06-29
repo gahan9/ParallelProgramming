@@ -52,4 +52,7 @@ clean:
 	rm -rf .rocprofv3
 
 profile: $(EXECUTABLE)
-	rocprofv3 --hip-trace --output-format csv -d $(OUTPUT_DIR) -- $(EXECUTABLE)
+	rocprofv3 --summary --sys-trace --hsa-trace --output-format csv -d $(OUTPUT_DIR) -- $(EXECUTABLE)
+
+clean_profile: clean $(EXECUTABLE)
+	profile
