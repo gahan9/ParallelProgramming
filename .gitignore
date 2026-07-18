@@ -1,3 +1,19 @@
+# ---- GPU / C / C++ build artifacts ----
+*.exe
+*.o
+*.obj
+*.out
+*.a
+*.lib
+# Profiling output (rocprofv3 / Nsight)
+profiling_output/
+.rocprofv3/
+*.rocprof/
+*.nsys-rep
+*.ncu-rep
+*.sqlite
+*.qdrep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
