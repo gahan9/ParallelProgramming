@@ -207,3 +207,4 @@ Tracks how much effort has gone into *authoring* the curriculum, per the trackin
 |------|------|-------|
 | 2026-07-18 | Scaffold + shared docs + Module A01 | Initial build: README, CURRICULUM, 4 shared docs, A01 complete, legacy folders migrated under Track A. |
 | 2026-07-18 | Brand + visuals | Parallel Spectrum theme, BRAND.md, agent skill, Mermaid diagrams across docs. |
+| 2026-07-19 | A01 depth pass | Added overflow-safe size-math reference callout + sample sandbox outputs for exercises. |

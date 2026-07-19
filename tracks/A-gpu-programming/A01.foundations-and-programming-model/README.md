@@ -354,17 +354,19 @@ flowchart TD
   BUG -->|silent corruption| E2["Add if idx less than n"]
   BUG -->|time reads zero| E3["Use GPU events or sync"]
   BUG -->|slow end-to-end| E4["Profile PCIe vs kernel"]
+  BUG -->|crash only at large N| E5["Check size_t overflow in byte math"]
 
   E1 --> FIX1["Fix at failing API call"]
   E2 --> FIX2["Guard partial last block"]
   E3 --> FIX3["Record events around kernel"]
   E4 --> FIX4["Keep data on device / fuse / streams"]
+  E5 --> FIX5["static_cast size_t before multiply"]
 
   classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A
   classDef success fill:#10B981,stroke:#0F172A,color:#fff
   class BUG warn
-  class E1,E2,E3,E4 warn
-  class FIX1,FIX2,FIX3,FIX4 success
+  class E1,E2,E3,E4,E5 warn
+  class FIX1,FIX2,FIX3,FIX4,FIX5 success
 ```
 
 ### Pitfall 1 — Ignoring errors (the legacy code's real bug)
@@ -404,6 +406,75 @@ usually costs *more* than the kernel (HBM at TB/s + trivial math). The lesson ge
 movement, not computation, dominates** many real workloads. The fixes you'll meet later — keeping
 data resident on the GPU, fusing kernels, overlapping copy with compute via streams — all attack
 this. For now, just *see* it in the profiler (Lab 4).
+
+### Pitfall 5 — Integer overflow in byte-size math
+
+Every allocation computes `count * sizeof(T)`. The habit in this module's code is to widen the
+count to `size_t` *before* the multiply (see `vector_add.cpp` line 28). The reference note below
+explains exactly when this stops being style and starts being a real, silent bug.
+
+> [!NOTE]
+> ### 📐 Reference — `static_cast<size_t>` and overflow-safe size math
+>
+> **Claim.** `const size_t bytes = static_cast<size_t>(n) * sizeof(float);` — the cast is a
+> *load-bearing habit*, not decoration. It keeps the multiplication in 64-bit unsigned space so a
+> large element count cannot overflow before it is widened.
+>
+> **Platform integer widths** (why the bug is platform-dependent):
+>
+> | Platform | `int` | `size_t` | Data model |
+> |---|---:|---:|---|
+> | Windows x64 (MSVC) | 32-bit | **64-bit** | LLP64 |
+> | Linux x64 (GCC/Clang) | 32-bit | **64-bit** | LP64 |
+> | macOS arm64 / x64 | 32-bit | **64-bit** | LP64 |
+> | 32-bit x86 (legacy) | 32-bit | **32-bit** | ILP32 |
+>
+> On every 64-bit desktop/server target, `int` is 32-bit signed (max `2,147,483,647`) while
+> `size_t` is 64-bit unsigned. That width gap is the trap.
+>
+> **Worked example — the bug fires at `n = 1 << 30`:**
+>
+> ```cpp
+> int n = 1 << 30;               // 1,073,741,824 elements (~1G floats)
+> int bytes = n * sizeof(float); // int math: 1,073,741,824 * 4 = 4,294,967,296 = 2^32
+>                                // > INT_MAX  ->  signed overflow (undefined behavior)
+> // Typical outcome: `bytes` wraps to 0 (or negative). hipMalloc(&p, 0) "succeeds",
+> // then the first kernel access corrupts memory or segfaults far from the real cause.
+> ```
+>
+> **The fix — widen first:**
+>
+> ```cpp
+> size_t bytes = static_cast<size_t>(n) * sizeof(float);
+> // 1,073,741,824 * 4 = 4,294,967,296  ->  fits in 64-bit size_t. Correct.
+> ```
+>
+> **Two-dimensional trap (image / tensor flattening):** casting only at the end is *too late* —
+> the intermediate product already overflowed:
+>
+> ```cpp
+> int  n     = width * height;                                  // 50000*50000 overflows int FIRST
+> size_t bad = static_cast<size_t>(n) * sizeof(float);          // garbage in, garbage out
+> size_t ok  = static_cast<size_t>(width) * height * sizeof(float); // widen BEFORE the product
+> ```
+>
+> **When does line 28 actually need the cast?**
+>
+> | `n` | `n * 4` bytes | Fits in 32-bit `int`? |
+> |---|---:|:---:|
+> | `1 << 24` (this module, ~16.7M) | ~64 MiB | ✅ yes — safe today |
+> | `1 << 28` (~268M) | ~1 GiB | ✅ yes (1,073,741,824) |
+> | `1 << 30` (~1.07G) | ~4 GiB | ❌ **overflows** |
+> | `width * height`, large dims | > 2 GiB | ❌ **overflows** |
+>
+> **Rule of thumb.** Any `count * sizeof(T)` (or `w * h * c * sizeof(T)`): cast the counts to
+> `size_t` *before* multiplying, keep the whole chain in `size_t`/`uint64_t`, and never store a
+> byte count in `int`. Cost of the habit: zero. Cost of skipping it: a silent heap corruption at
+> scale.
+>
+> **See also:** cppreference [`static_cast`](https://en.cppreference.com/w/cpp/language/static_cast) ·
+> [fixed-width & `size_t`](https://en.cppreference.com/w/cpp/types/size_t) ·
+> data models [LP64/LLP64/ILP32](https://en.cppreference.com/w/cpp/language/types#Data_models).
 
 ### Tradeoffs to hold in mind
 
@@ -485,7 +556,9 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
 ### Coding & Algorithms drills
 
 Do these in [`exercises/`](exercises/); reference answers in [`solutions/`](solutions/). Write real,
-compiling, edge-case-correct code — no pseudo-code.
+compiling, edge-case-correct code — no pseudo-code. Each drill's expected terminal output (PASS and
+the instructive FAIL states) is captured in
+[`exercises/README.md` → *Sample sandbox output*](exercises/README.md#sample-sandbox-output).
 
 1. **SAXPY** (`exercises/01_saxpy.cpp`) — implement `Y[i] = a * X[i] + Y[i]` as a kernel, with the
    bounds guard, full error checking, and a CPU verification. This is the "hello world" of BLAS.
