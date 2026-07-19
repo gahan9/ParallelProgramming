@@ -7,7 +7,7 @@ fast version is fast.
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#F8FAFC', 'primaryBorderColor': '#0891B2', 'lineColor': '#64748B'}}}%%
 flowchart LR
-  A01["A01 Foundations<br/>DONE"] --> A02["A02 Memory"]
+  A01["A01 Foundations<br/>DONE"] --> A02["A02 Memory<br/>DONE"]
   A02 --> A03["A03 Execution"]
   A03 --> A04["A04 Reduction"]
   A04 --> A06["A06 Matmul"]
@@ -17,8 +17,8 @@ flowchart LR
   classDef trackA fill:#0891B2,stroke:#0F172A,color:#fff
   classDef success fill:#10B981,stroke:#0F172A,color:#fff
   classDef neutral fill:#F8FAFC,stroke:#64748B,color:#0F172A
-  class A01 success
-  class A02,A03,A04,A06,A07,A08 trackA
+  class A01,A02 success
+  class A03,A04,A06,A07,A08 trackA
 ```
 
 ## Modules
@@ -26,7 +26,7 @@ flowchart LR
 | ID | Module | Status |
 |----|--------|--------|
 | [A01](A01.foundations-and-programming-model/) | Foundations & programming model | **DONE** |
-| A02 | Memory hierarchy & coalescing | planned |
+| [A02](A02.memory-hierarchy-and-coalescing/) | Memory hierarchy & coalescing | **DONE** |
 | A03 | Execution model: warps/wavefronts, occupancy, divergence | planned |
 | A04 | Parallel reduction (7-stage optimization) | planned |
 | A05 | Parallel scan / prefix sum | planned |

@@ -54,7 +54,7 @@ flowchart TD
 | ID | Module | Status | Est. hours | Depth |
 |----|--------|--------|-----------:|:-----:|
 | A01 | Foundations & programming model | **DONE** | 6 | 1 |
-| A02 | Memory hierarchy & coalescing | PLANNED | 6 | 2 |
+| A02 | Memory hierarchy & coalescing | **DONE** | 6 | 2 |
 | A03 | Execution model: warps/wavefronts, occupancy, divergence | PLANNED | 7 | 2 |
 | A04 | Parallel reduction (7-stage optimization) | PLANNED | 6 | 3 |
 | A05 | Parallel scan / prefix sum (Blelloch) | PLANNED | 6 | 3 |
@@ -194,8 +194,9 @@ Update this table as modules are completed. It is the single source of truth for
 | Date | Module | Change | Learner est. hours |
 |------|--------|--------|-------------------:|
 | 2026-07-18 | A01 | Gold-standard module built (README + cuda/hip/triton + exercises/solutions + Makefile) | 6 |
+| 2026-07-19 | A02 | Memory hierarchy & coalescing built (bandwidth + transpose labs, tiling, bank conflicts, exercises/solutions) | 6 |
 
-**Totals:** 1 module DONE / 24 planned · ~6 of ~187 est. learner-hours authored.
+**Totals:** 2 modules DONE / 24 planned · ~12 of ~187 est. learner-hours authored.
 
 ---
 
@@ -208,3 +209,4 @@ Tracks how much effort has gone into *authoring* the curriculum, per the trackin
 | 2026-07-18 | Scaffold + shared docs + Module A01 | Initial build: README, CURRICULUM, 4 shared docs, A01 complete, legacy folders migrated under Track A. |
 | 2026-07-18 | Brand + visuals | Parallel Spectrum theme, BRAND.md, agent skill, Mermaid diagrams across docs. |
 | 2026-07-19 | A01 depth pass | Added overflow-safe size-math reference callout + sample sandbox outputs for exercises. |
+| 2026-07-19 | A02 module | Built A02 (memory hierarchy, coalescing, tiled transpose, bank conflicts) with brand-themed diagrams + sample outputs. |
