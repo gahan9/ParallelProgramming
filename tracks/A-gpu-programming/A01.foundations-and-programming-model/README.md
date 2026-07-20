@@ -232,6 +232,18 @@ make run-cuda                           # run them
 python triton/vector_add.py
 ```
 
+> **Match `GPU_ARCH` to your GPU.** `gfx950` = MI350, `gfx942` = MI300, `gfx90a` = MI200,
+> `gfx1100` = RDNA3. Find yours with `/opt/rocm/bin/offload-arch` (or `rocminfo | grep gfx`).
+>
+> **Troubleshooting**
+> - `error while loading shared libraries: libamdhip64.so.7` — the loader can't find the ROCm
+>   runtime (`/opt/rocm/lib` not on the loader path, empty `LD_LIBRARY_PATH`/`ROCM_PATH`). The
+>   Makefile already bakes an rpath to `$(HIP_PATH)/lib` so freshly built binaries are
+>   self-contained; if you build by hand, add `-Wl,-rpath,/opt/rocm/lib` or
+>   `export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH`.
+> - `hipErrorNoBinaryForGpu` / `device kernel image is invalid` — the binary was built for a
+>   different arch than the GPU. Rebuild with the correct `GPU_ARCH` (e.g. `make hip GPU_ARCH=gfx950`).
+
 ### Lab 1 — Hello, thousands of threads (`hello`)
 
 Files: [`hip/hello.cpp`](hip/hello.cpp) · [`cuda/hello.cu`](cuda/hello.cu).
@@ -268,6 +280,132 @@ Same amount of work, two access patterns:
 strided kernel can be *several times slower* doing identical arithmetic. This is the single most
 important performance lesson for memory-bound kernels, and it's the on-ramp to the roofline model
 (Track B02). We measure it here so the idea is concrete before it's formalized.
+
+#### The whole experiment is two lines
+
+The kernel body is deliberately tiny — the lesson lives entirely in how one index is computed:
+
+```cpp
+// hip/coalescing.cpp — strided_copy kernel body
+long long i   = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+long long idx = i * stride;                 // <-- the ONLY thing that changes
+if (idx < n) {
+    out[idx] = in[idx] + 1.0f;
+}
+```
+
+**Plain-language intuition.** Every thread first works out *who it is* — a single global ID `i`
+across the whole launch (`i = blockIdx.x * blockDim.x + threadIdx.x`). Then it decides *which
+array element to touch* with `idx = i * stride`. That multiply is the only knob. With
+`stride = 1`, neighbouring threads touch neighbouring elements; with `stride = 2`, each thread
+skips one; and so on. `long long` is used so the address math stays correct even when `n` is in
+the hundreds of millions (a 32-bit `int` would overflow).
+
+**Why one multiply changes everything.** The GPU never fetches a single float — it always moves
+memory in fixed-size *cache lines / transactions* (e.g. 64 or 128 bytes). A wavefront (AMD) or
+warp (NVIDIA) issues its lanes' loads together:
+
+- **`stride = 1` (coalesced):** the lanes' addresses are contiguous, so they fall inside the
+  *same* line. The hardware **merges (coalesces)** them into one wide transaction — nearly every
+  byte fetched is used. Result: near-peak bandwidth.
+- **`stride > 1` (scattered):** the lanes land in *different* lines. Each lane drags in a whole
+  line but uses only one element of it, so most of the bytes moved are wasted. Effective
+  bandwidth falls roughly like `1 / stride`.
+
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#F8FAFC',
+    'primaryTextColor': '#0F172A',
+    'primaryBorderColor': '#0891B2',
+    'lineColor': '#64748B',
+    'secondaryColor': '#E0F2FE',
+    'tertiaryColor': '#EEF2FF',
+    'fontFamily': 'Inter, Segoe UI, sans-serif'
+  }
+}}%%
+flowchart TB
+  tid["threadIdx.x (0..blockDim-1)"] --> gid
+  bid["blockIdx.x"] --> gid
+  bdim["blockDim.x"] --> gid
+  gid["i = blockIdx.x * blockDim.x + threadIdx.x<br/>(unique global thread id)"] --> map
+  stride["stride (1, 2, 4, ...)"] --> map
+  map["idx = i * stride<br/>(which element this thread touches)"] --> guard
+  guard{"idx &lt; n ?"} -->|yes| work["out[idx] = in[idx] + 1"]
+  guard -->|no| skip["thread does nothing"]
+
+  class gid,map neutral
+  class work success
+  class skip warn
+  classDef neutral fill:#F8FAFC,stroke:#0891B2,color:#0F172A
+  classDef success fill:#10B981,stroke:#0F172A,color:#fff
+  classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A
+```
+
+*The logic is trivial; the performance is not.* The next diagram shows why the same four threads
+behave so differently once `stride` changes — it's purely about which memory line each lane hits.
+
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#F8FAFC',
+    'primaryTextColor': '#0F172A',
+    'primaryBorderColor': '#0891B2',
+    'lineColor': '#64748B',
+    'secondaryColor': '#E0F2FE',
+    'tertiaryColor': '#EEF2FF',
+    'fontFamily': 'Inter, Segoe UI, sans-serif'
+  }
+}}%%
+flowchart LR
+  subgraph COAL["stride = 1 — coalesced (fast)"]
+    direction TB
+    c0["t0"] --> e0["elem 0"]
+    c1["t1"] --> e1["elem 1"]
+    c2["t2"] --> e2["elem 2"]
+    c3["t3"] --> e3["elem 3"]
+    e0 --- oneT["1 line covers all 4<br/>-> 1 transaction, ~0% waste"]
+    e1 --- oneT
+    e2 --- oneT
+    e3 --- oneT
+  end
+  subgraph SCAT["stride = 2 — scattered (slow)"]
+    direction TB
+    d0["t0"] --> f0["elem 0"]
+    d1["t1"] --> f2["elem 2"]
+    d2["t2"] --> f4["elem 4"]
+    d3["t3"] --> f6["elem 6"]
+    f0 --- manyT["each lane pulls its own line<br/>-> more transactions, ~50% waste"]
+    f2 --- manyT
+    f4 --- manyT
+    f6 --- manyT
+  end
+
+  class c0,c1,c2,c3,d0,d1,d2,d3 neutral
+  class oneT success
+  class manyT warn
+  classDef neutral fill:#F8FAFC,stroke:#0891B2,color:#0F172A
+  classDef success fill:#10B981,stroke:#0F172A,color:#fff
+  classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A
+```
+
+**Representative result** (measured on an MI350X / `gfx950`; absolute numbers vary by GPU, but the
+*shape* is universal — bandwidth roughly halves each time the stride doubles):
+
+| stride | effective GB/s | useful-byte efficiency |
+|-------:|---------------:|------------------------|
+| 1  | ~3600 | ~100% (coalesced) |
+| 2  | ~1550 | ~50% |
+| 4  | ~760  | ~25% |
+| 8  | ~380  | ~12% |
+| 16 | ~190  | ~6% |
+| 32 | ~104  | ~3% |
+
+**Takeaway:** identical arithmetic, identical thread count — only `idx` changed. Keep the innermost
+index contiguous across threads and the hardware does the coalescing for you; scatter it and you
+pay for bytes you never use.
 
 ### Lab 4 (optional) — Profile it
 

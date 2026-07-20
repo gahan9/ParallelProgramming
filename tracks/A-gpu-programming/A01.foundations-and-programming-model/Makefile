@@ -15,11 +15,14 @@ HIPCC    := $(HIP_PATH)/bin/hipcc
 NVCC     := nvcc
 
 # ---- Architectures (override on the command line for your GPU) ----
-GPU_ARCH ?= gfx942      # AMD: gfx942 (MI300), gfx90a (MI200), gfx1100 (RDNA3)...
+GPU_ARCH ?= gfx942      # AMD: gfx950 (MI350), gfx942 (MI300), gfx90a (MI200), gfx1100 (RDNA3)...
 SM_ARCH  ?= sm_90       # NVIDIA: sm_90 (Hopper), sm_80 (Ampere), sm_89 (Ada)...
 
 # ---- Flags ----
-HIP_FLAGS  := -O3 -g --offload-arch=$(GPU_ARCH) -Ihip
+# rpath keeps binaries self-contained: they locate libamdhip64.so under the
+# ROCm install even when /opt/rocm/lib is not on the system loader path
+# (no ldconfig entry / empty LD_LIBRARY_PATH).
+HIP_FLAGS  := -O3 -g --offload-arch=$(GPU_ARCH) -Wl,-rpath,$(HIP_PATH)/lib -Ihip
 CUDA_FLAGS := -O3 -g -arch=$(SM_ARCH) -Icuda
 
 # ---- Programs (one per source file) ----
