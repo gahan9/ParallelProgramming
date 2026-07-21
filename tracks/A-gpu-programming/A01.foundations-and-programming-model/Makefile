@@ -10,9 +10,12 @@
 #   make clean
 
 # ---- Toolchains ----
-HIP_PATH ?= $(wildcard /opt/rocm)
-HIPCC    := $(HIP_PATH)/bin/hipcc
-NVCC     := nvcc
+# Call ROCm tools by absolute path: /opt/rocm/bin is often NOT on PATH
+# (empty ROCM_PATH), so bare `hipcc`/`rocprofv3` would fail with "No such file".
+HIP_PATH  ?= $(wildcard /opt/rocm)
+HIPCC     := $(HIP_PATH)/bin/hipcc
+ROCPROFV3 := $(HIP_PATH)/bin/rocprofv3
+NVCC      := nvcc
 
 # ---- Architectures (override on the command line for your GPU) ----
 GPU_ARCH ?= gfx942      # AMD: gfx950 (MI350), gfx942 (MI300), gfx90a (MI200), gfx1100 (RDNA3)...
@@ -54,7 +57,7 @@ run-hip: hip
 	@for b in $(HIP_BINS); do echo "== $$b =="; $$b; echo; done
 
 profile-hip: hip/vector_add.exe
-	rocprofv3 --summary --sys-trace --output-format csv -d $(OUTPUT_DIR) -- ./hip/vector_add.exe
+	$(ROCPROFV3) --summary --sys-trace --output-format csv -d $(OUTPUT_DIR) -- ./hip/vector_add.exe
 
 # ---- NVIDIA / CUDA ----
 cuda: $(CUDA_BINS)
