@@ -420,6 +420,147 @@ make profile-cuda       # nsys timeline; then: ncu --set full ./cuda/vector_add.
 kernel itself* for this tiny amount of arithmetic — the payoff for Section 6's "PCIe is the hidden
 bottleneck" point.
 
+#### Reading the `rocprofv3` output
+
+Below is a **real** `make profile-hip` run, with machine-specific identifiers replaced by
+placeholders (`<host>` for the node name, `<pid>` for the process id, `<ts>` for timestamps) — a
+good habit before sharing profiler logs, since raw output leaks internal hostnames and paths.
+
+```text
+$ /opt/rocm/bin/rocprofv3 --summary --sys-trace --output-format csv -d profiling_output -- ./hip/vector_add.exe
+W<ts> <pid> simple_timer.cpp:55] [rocprofv3] tool initialization :: 0.007193 sec
+W<ts> <pid> tool.cpp:3082] HIP (compiler) version 7.14.0 initialized (instance=0)
+W<ts> <pid> tool.cpp:3082] HIP (runtime)  version 7.14.0 initialized (instance=0)
+W<ts> <pid> tool.cpp:3082] HSA version 1.21.0 initialized (instance=0)
+n = 16777216, block = 256, grid = 65536          <-- your program's own stdout
+kernel time      : 0.986 ms
+effective BW     : 204.1 GB/s
+result           : PASSED
+E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_kernel_trace.csv
+E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_hsa_api_trace.csv
+E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_hip_api_trace.csv
+E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_memory_copy_trace.csv
+E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_memory_allocation_trace.csv
+E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_agent_info.csv
+
+    ROCPROFV3 SUMMARY:
+    |                     NAME                     |    DOMAIN     | CALLS | DURATION (nsec) | PERCENT (INC) |
+    |----------------------------------------------|---------------|-------|-----------------|---------------|
+    | hipMemcpy                                    | HIP_API       |     3 |     193,410,768 |     62.588122 |
+    | hipMalloc                                    | HIP_API       |     3 |      68,111,763 |     22.041107 |
+    | hsa_queue_create                             | HSA_API       |     1 |      14,636,526 |      4.736410 |
+    | hsa_amd_memory_lock_to_pool                  | HSA_API       |     6 |      10,747,668 |      3.477967 |
+    | hsa_amd_memory_async_copy_on_engine          | HSA_API       |     6 |       9,388,748 |      3.038218 |
+    | MEMORY_COPY_HOST_TO_DEVICE                    | MEMORY_COPY   |     4 |       2,357,053 |      0.762747 |
+    | MEMORY_COPY_DEVICE_TO_HOST                    | MEMORY_COPY   |     2 |       1,205,206 |      0.390007 |
+    | hipLaunchKernel                              | HIP_API       |     1 |         929,461 |      0.300775 |
+    | hipFree                                      | HIP_API       |     3 |         654,681 |      0.211856 |
+    | vector_add(float const*, ...)                | KERNEL_DISPATCH |   1 |          44,242 |      0.014317 |
+    | ... (HSA/HIP bookkeeping calls omitted) ...  |               |       |                 |               |
+```
+
+**1. Startup banner (`W...` lines).** `W` = warning-level *info* (not an error): rocprofv3
+initializes its timers and reports the HIP compiler, HIP runtime, and HSA (the low-level AMD
+runtime) versions it hooked into. These always appear on `stderr`.
+
+**2. Your program's stdout** appears inline — `n = ...`, `kernel time`, `effective BW`, `PASSED`.
+The program still runs normally under the profiler; rocprofv3 just instruments it.
+
+**3. Trace files (`E...` "Opened result file" lines).** `--output-format csv` writes one CSV per
+*domain* into `profiling_output/<host>/`:
+
+| File | What it contains |
+|------|------------------|
+| `<pid>_kernel_trace.csv` | Every GPU kernel dispatch: name, start/end, grid/block, duration |
+| `<pid>_hip_api_trace.csv` | Every HIP API call (`hipMalloc`, `hipMemcpy`, `hipLaunchKernel`, …) |
+| `<pid>_hsa_api_trace.csv` | Lower-level HSA runtime calls the HIP calls expand into |
+| `<pid>_memory_copy_trace.csv` | Each H2D / D2H transfer with direction, bytes, duration |
+| `<pid>_memory_allocation_trace.csv` | Each allocate/free on the device pools |
+| `<pid>_agent_info.csv` | The GPU/CPU "agents" present (arch, pools) — your device inventory |
+
+**4. The `ROCPROFV3 SUMMARY` table** aggregates the traces. Columns:
+
+- **NAME / DOMAIN** — the operation and which layer it belongs to: `HIP_API` (what your code
+  calls), `HSA_API` (what HIP lowers to), `MEMORY_COPY` and `MEMORY_ALLOCATION` (device data
+  movement), `KERNEL_DISPATCH` (actual GPU compute).
+- **CALLS** — how many times it fired.
+- **DURATION (nsec)** — total nanoseconds across all calls.
+- **PERCENT (INC)** — *inclusive* share of captured time. "Inclusive" means a HIP call's time
+  **contains** the HSA calls and copies it triggers, so percentages across nested domains overlap
+  and do **not** sum to 100. Read it as "which operations dominate," not as a clean pie.
+- **AVERAGE / MIN / MAX / STDDEV** (elided above) — per-call distribution; a large MAX-vs-MIN
+  spread usually means the *first* call paid a one-time cost (lazy context init, first-touch).
+
+#### What this run is telling you
+
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#F8FAFC',
+    'primaryTextColor': '#0F172A',
+    'primaryBorderColor': '#0891B2',
+    'lineColor': '#64748B',
+    'fontFamily': 'Inter, Segoe UI, sans-serif'
+  }
+}}%%
+flowchart LR
+  A["hipMalloc x3<br/>allocate d_A,d_B,d_C<br/>~68 ms (22%)"] --> B["hipMemcpy H2D<br/>copy A,B to device<br/>dominant (63% incl.)"]
+  B --> C["vector_add kernel<br/>44 us (0.014%)"]
+  C --> D["hipMemcpy D2H<br/>copy C back"]
+  D --> E["hipFree x3<br/>teardown"]
+
+  class A warn
+  class B warn
+  class C success
+  class D,E neutral
+  classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A
+  classDef success fill:#10B981,stroke:#0F172A,color:#fff
+  classDef neutral fill:#F8FAFC,stroke:#0891B2,color:#0F172A
+```
+
+The single most important observation: the **`vector_add` kernel is 44 microseconds — 0.014%** of
+the captured time. Allocation (`hipMalloc`, 22%) and the host↔device copies (`hipMemcpy`, 63%
+inclusive) utterly dominate. Even looking at *device-only* activity (the non-overlapping
+`MEMORY_COPY` + `KERNEL_DISPATCH` traces), the PCIe copies (H2D 2.36 ms + D2H 1.21 ms ≈ 3.6 ms)
+outweigh the kernel by ~80×:
+
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#F8FAFC',
+    'primaryTextColor': '#0F172A',
+    'primaryBorderColor': '#0891B2',
+    'lineColor': '#64748B',
+    'fontFamily': 'Inter, Segoe UI, sans-serif'
+  }
+}}%%
+pie showData
+  title GPU device activity (non-overlapping traces, nsec)
+  "H2D copy" : 2357053
+  "D2H copy" : 1205206
+  "vector_add kernel" : 44242
+```
+
+**Takeaways (the lesson this pays off):**
+- For tiny/one-shot kernels, **setup and data movement dominate** — the classic "PCIe is the hidden
+  bottleneck" from Section 6. Amortize allocations (reuse buffers) and **overlap copies with
+  compute** (streams/events) to hide transfer cost.
+- The kernel's own 0.986 ms wall time (from your timer) at 204 GB/s is the *memory-bound* number to
+  compare against peak HBM — the profiler confirms the arithmetic itself is negligible.
+- First-call costs are real: the huge MAX on `hipMalloc`/`hipMemcpy` is one-time context/lazy init,
+  which is why benchmarks **warm up** before timing (see Lab 3's `time_stride` warmup).
+
+> **Interactive/animated view:** an animated timeline + breakdown of this exact profile is available
+> as a Cursor Canvas — see the link in the chat, or open
+> `~/.cursor/projects/c-Projects-ParallelProgramming/canvases/rocprofv3-vector-add-profile.canvas.tsx`.
+
+> **Sanitizing your own logs before sharing:** strip the node name and pids with, e.g.:
+> ```bash
+> make profile-hip GPU_ARCH=gfx950 2>&1 | sed -E "s#profiling_output/[^/]+/#profiling_output/<host>/#g; s/[0-9]{6,}/<pid>/g"
+> ```
+
 ---
 
 ## 5. Performance Analysis
