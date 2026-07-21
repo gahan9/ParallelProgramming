@@ -1,0 +1,4 @@
+# Documentation site toolchain (GitHub Pages build).
+# mkdocs-material pulls in compatible mkdocs + pymdown-extensions.
+# Compatible-release pins keep CI reproducible while allowing patch fixes.
+mkdocs-material~=9.5
