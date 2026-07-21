@@ -552,10 +552,6 @@ pie showData
 - First-call costs are real: the huge MAX on `hipMalloc`/`hipMemcpy` is one-time context/lazy init,
   which is why benchmarks **warm up** before timing (see Lab 3's `time_stride` warmup).
 
-> **Interactive/animated view:** an animated timeline + breakdown of this exact profile is available
-> as a Cursor Canvas — see the link in the chat, or open
-> `~/.cursor/projects/c-Projects-ParallelProgramming/canvases/rocprofv3-vector-add-profile.canvas.tsx`.
-
 > **Sanitizing your own logs before sharing:** strip the node name and pids with, e.g.:
 > ```bash
 > make profile-hip GPU_ARCH=gfx950 2>&1 | sed -E "s#profiling_output/[^/]+/#profiling_output/<host>/#g; s/[0-9]{6,}/<pid>/g"
