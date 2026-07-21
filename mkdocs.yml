@@ -1,0 +1,112 @@
+site_name: Parallel Programming — GPU + ML Expert Tutor
+site_description: >-
+  A hands-on curriculum for GPU programming (HIP/CUDA), ML performance
+  engineering, and ML system design.
+site_author: gahan9
+repo_url: https://github.com/gahan9/ParallelProgramming
+repo_name: gahan9/ParallelProgramming
+edit_uri: edit/main/
+
+# The curriculum's Markdown lives at the repo root (README, CURRICULUM) and under
+# tracks/ and docs/, so the docs root IS the repo root. Non-doc assets are pruned
+# via exclude_docs below; dotfiles/dirs (.git, .github, .cursor) are ignored by
+# MkDocs automatically, as is the generated site_dir.
+docs_dir: .
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: cyan
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: cyan
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+
+extra_css:
+  - docs/stylesheets/brand.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        # Renders ```mermaid fences via Material's bundled Mermaid.js.
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+
+# Do not fail the build on the curriculum's intra-repo relative links (many point
+# at source files like hip/vector_add.cpp that are intentionally not published).
+validation:
+  omitted_files: info
+  absolute_links: ignore
+  unrecognized_links: ignore
+  nav:
+    omitted_files: info
+
+# Keep source, build, and tooling files out of the published site.
+exclude_docs: |
+  *.cpp
+  *.cu
+  *.cuh
+  *.h
+  *.hpp
+  *.py
+  *.ipynb
+  Makefile
+  requirements*.txt
+  LICENSE
+  profiling_output/
+  **/profiling_output/
+
+nav:
+  - Home: README.md
+  - Curriculum: CURRICULUM.md
+  - Setup: docs/SETUP.md
+  - Track A — GPU Programming:
+      - Overview: tracks/A-gpu-programming/README.md
+      - A01 · Foundations: tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md
+      - A01 · Exercises: tracks/A-gpu-programming/A01.foundations-and-programming-model/exercises/README.md
+      - A01 · Solutions: tracks/A-gpu-programming/A01.foundations-and-programming-model/solutions/README.md
+      - A02 · Memory Hierarchy & Coalescing: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md
+      - A02 · Exercises: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/exercises/README.md
+      - A02 · Solutions: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/solutions/README.md
+  - Track B — ML Performance: tracks/B-gpu-ml-performance/README.md
+  - Track C — ML System Design: tracks/C-ml-system-design/README.md
+  - Reference:
+      - Brand & Visual Identity: docs/BRAND.md
+      - Glossary: docs/GLOSSARY.md
+      - References: docs/REFERENCES.md
+      - Module Template: docs/MODULE_TEMPLATE.md

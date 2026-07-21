@@ -1,0 +1,13 @@
+/* Parallel Spectrum brand palette (see docs/BRAND.md).
+   Overrides Material's named "cyan" primary with the exact brand tokens. */
+:root {
+  --md-primary-fg-color:        #0891B2; /* brand-primary  */
+  --md-primary-fg-color--light: #22B8CF;
+  --md-primary-fg-color--dark:  #0E7490;
+  --md-accent-fg-color:         #6366F1; /* brand-accent   */
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #0891B2;
+  --md-accent-fg-color:         #818CF8;
+}
