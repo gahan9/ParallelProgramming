@@ -36,7 +36,9 @@ Links were valid at authoring time; vendor docs move — search the title if a l
   <https://www.amd.com/en/technologies/cdna.html>
 - Harris, M. *Optimizing Parallel Reduction in CUDA* (classic slides).
   <https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf>
-- Harris, Sengupta, Owens. *Parallel Prefix Sum (Scan) with CUDA* (GPU Gems 3, Ch. 39).
+- Harris, M. *How to Access Global Memory Efficiently in CUDA C/C++ Kernels* — the coalescing model.
+  <https://developer.nvidia.com/blog/how-access-global-memory-efficiently-cuda-c-kernels/>
+- Harris, Sengupta, Owens. *Parallel Prefix Sum (Scan) with CUDA* (GPU Gems 3).
   <https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda>
 - **CUTLASS / CuTe documentation** — NVIDIA.
   <https://github.com/NVIDIA/cutlass>
@@ -91,7 +93,8 @@ Links were valid at authoring time; vendor docs move — search the title if a l
 
 - Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* NeurIPS.
   <https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
-- Huyen, C. *Designing Machine Learning Systems* (O'Reilly, 2022). Book.
+- Huyen, C. *Designing Machine Learning Systems* (O'Reilly, 2022).
+  <https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/>
 - **Google Rules of Machine Learning** — Martin Zinkevich.
   <https://developers.google.com/machine-learning/guides/rules-of-ml>
 - Breck et al. (2017). *The ML Test Score: A Rubric for ML Production Readiness.*
@@ -114,4 +117,5 @@ Links were valid at authoring time; vendor docs move — search the title if a l
 
 - **Google C++ Style Guide.** <https://google.github.io/styleguide/cppguide.html>
 - **Conventional Comments.** <https://conventionalcomments.org/>
-- Martin, R. C. *Clean Code* (2008). Book.
+- Martin, R. C. *Clean Code: A Handbook of Agile Software Craftsmanship* (2008).
+  <https://www.oreilly.com/library/view/clean-code-a/9780136083238/>

@@ -4,8 +4,10 @@
 //   stride = 1  -> consecutive addresses within a wavefront -> coalesced -> fast
 //   stride > 1  -> scattered addresses -> many wasted transactions -> slow
 // We sweep strides and report the effective bandwidth of USEFUL bytes moved.
-// This is the classic stride experiment (Harris, "How to Access Global Memory
-// Efficiently"); it is the concrete on-ramp to the roofline model (Track B02).
+// This is the classic stride experiment described in Mark Harris, "How to Access
+// Global Memory Efficiently in CUDA C/C++ Kernels" (NVIDIA Technical Blog):
+//   https://developer.nvidia.com/blog/how-access-global-memory-efficiently-cuda-c-kernels/
+// It is the concrete on-ramp to the roofline model covered later in the curriculum.
 //
 // Build: hipcc -O3 --offload-arch=gfx942 coalescing.cpp -o coalescing.exe
 // Run:   ./coalescing.exe
