@@ -1,32 +1,25 @@
 # A01 - Foundations. Dual-backend build: AMD (hipcc) and NVIDIA (nvcc).
 #
+# This Makefile builds the worked examples in hip/ and cuda/. The drills have
+# their own Makefiles (exercises/, solutions/) and can be driven from here too.
+#
 # Quick start:
-#   make hip   GPU_ARCH=gfx942     # build all hip/ programs
+#   make hip   GPU_ARCH=gfx942     # build all hip/ examples
 #   make run-hip                    # run them
-#   make cuda  SM_ARCH=sm_90        # build all cuda/ programs
+#   make cuda  SM_ARCH=sm_90        # build all cuda/ examples
 #   make run-cuda                   # run them
+#   make exercises                  # build the exercises/ drills
+#   make solutions                  # build the solutions/ reference answers
 #   make profile-hip                # rocprofv3 summary + traces
 #   make profile-cuda               # nsys timeline
-#   make clean
+#   make clean                      # clean here + exercises/ + solutions/
 
-# ---- Toolchains ----
-# Call ROCm tools by absolute path: /opt/rocm/bin is often NOT on PATH
-# (empty ROCM_PATH), so bare `hipcc`/`rocprofv3` would fail with "No such file".
-HIP_PATH  ?= $(wildcard /opt/rocm)
-HIPCC     := $(HIP_PATH)/bin/hipcc
-ROCPROFV3 := $(HIP_PATH)/bin/rocprofv3
-NVCC      := nvcc
-
-# ---- Architectures (override on the command line for your GPU) ----
-GPU_ARCH ?= gfx942      # AMD: gfx950 (MI350), gfx942 (MI300), gfx90a (MI200), gfx1100 (RDNA3)...
-SM_ARCH  ?= sm_90       # NVIDIA: sm_90 (Hopper), sm_80 (Ampere), sm_89 (Ada)...
+# Toolchain, arch, and base flags are shared across Track A (see ../common.mk).
+include ../common.mk
 
 # ---- Flags ----
-# rpath keeps binaries self-contained: they locate libamdhip64.so under the
-# ROCm install even when /opt/rocm/lib is not on the system loader path
-# (no ldconfig entry / empty LD_LIBRARY_PATH).
-HIP_FLAGS  := -O3 -g --offload-arch=$(GPU_ARCH) -Wl,-rpath,$(HIP_PATH)/lib -Ihip
-CUDA_FLAGS := -O3 -g -arch=$(SM_ARCH) -Icuda
+HIP_FLAGS  := $(HIP_BASE_FLAGS) -Ihip
+CUDA_FLAGS := $(CUDA_BASE_FLAGS) -Icuda
 
 # ---- Programs (one per source file) ----
 PROGS       := hello vector_add coalescing
@@ -35,15 +28,19 @@ CUDA_BINS   := $(addprefix cuda/, $(addsuffix .exe, $(PROGS)))
 
 OUTPUT_DIR := profiling_output
 
-.PHONY: help all hip cuda run-hip run-cuda profile-hip profile-cuda clean
+.PHONY: help all hip cuda run-hip run-cuda exercises solutions \
+        run-exercises run-solutions profile-hip profile-cuda clean
 
 help:
 	@echo "Targets:"
-	@echo "  make hip   GPU_ARCH=$(GPU_ARCH)   - build hip/  programs with hipcc"
-	@echo "  make cuda  SM_ARCH=$(SM_ARCH)     - build cuda/ programs with nvcc"
-	@echo "  make run-hip / run-cuda           - build + run all programs"
+	@echo "  make hip   GPU_ARCH=$(GPU_ARCH)   - build hip/  examples with hipcc"
+	@echo "  make cuda  SM_ARCH=$(SM_ARCH)     - build cuda/ examples with nvcc"
+	@echo "  make run-hip / run-cuda           - build + run all examples"
+	@echo "  make exercises / solutions        - build the drills (own Makefiles)"
+	@echo "  make run-exercises / run-solutions- build + run the drills"
 	@echo "  make profile-hip / profile-cuda   - profile vector_add"
 	@echo "  make clean                        - remove binaries + profiler output"
+	@echo "ROCm: $(HIP_TOOLCHAIN_INFO)"
 
 all: hip cuda
 
@@ -72,7 +69,23 @@ profile-cuda: cuda/vector_add.exe
 	nsys profile --stats=true -o $(OUTPUT_DIR)/vector_add ./cuda/vector_add.exe
 	@echo "For kernel-level counters: ncu --set full ./cuda/vector_add.exe"
 
+# ---- Drills (delegate to their own Makefiles) ----
+# Command-line overrides such as GPU_ARCH=gfx950 propagate to the sub-make.
+exercises:
+	$(MAKE) -C exercises all
+
+solutions:
+	$(MAKE) -C solutions all
+
+run-exercises:
+	$(MAKE) -C exercises run
+
+run-solutions:
+	$(MAKE) -C solutions run
+
 # ---- Housekeeping ----
 clean:
 	rm -f $(HIP_BINS) $(CUDA_BINS)
 	rm -rf $(OUTPUT_DIR) .rocprofv3 *.nsys-rep *.sqlite
+	$(MAKE) -C exercises clean
+	$(MAKE) -C solutions clean

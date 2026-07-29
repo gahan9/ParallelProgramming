@@ -232,6 +232,10 @@ make run-cuda                           # run them
 python triton/vector_add.py
 ```
 
+The drills are self-contained too: [`exercises/`](exercises/) and [`solutions/`](solutions/) each
+have their own `Makefile`, so you can `cd exercises && make run` without coming back here. From this
+directory, `make exercises` / `make solutions` build them in place, and `make clean` cleans all three.
+
 > **Match `GPU_ARCH` to your GPU.** `gfx950` = MI350, `gfx942` = MI300, `gfx90a` = MI200,
 > `gfx1100` = RDNA3. Find yours with `/opt/rocm/bin/offload-arch` (or `rocminfo | grep gfx`).
 >

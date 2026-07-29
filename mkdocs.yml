@@ -86,6 +86,7 @@ exclude_docs: |
   *.py
   *.ipynb
   Makefile
+  *.mk
   requirements*.txt
   LICENSE
   profiling_output/

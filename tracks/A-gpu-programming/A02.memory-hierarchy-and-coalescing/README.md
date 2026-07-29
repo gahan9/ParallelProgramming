@@ -186,6 +186,10 @@ make run-cuda
 python triton/transpose.py
 ```
 
+The drills are self-contained too: [`exercises/`](exercises/) and [`solutions/`](solutions/) each
+have their own `Makefile`, so you can `cd exercises && make run` without coming back here. From this
+directory, `make exercises` / `make solutions` build them in place, and `make clean` cleans all three.
+
 ### Lab 1 — Find your HBM ceiling (`bandwidth`)
 
 Files: [`hip/bandwidth.cpp`](hip/bandwidth.cpp) · [`cuda/bandwidth.cu`](cuda/bandwidth.cu).

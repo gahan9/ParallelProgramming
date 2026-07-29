@@ -1,7 +1,20 @@
 # A02 Exercises
 
 Do these yourself before peeking at [`../solutions/`](../solutions/). Write real, compiling,
-edge-case-correct code. Build with the module `Makefile` pattern, e.g.:
+edge-case-correct code.
+
+This directory has its own `Makefile`, so you can build and run without leaving it:
+
+```bash
+make                          # list targets
+make all GPU_ARCH=gfx950      # build every exercise for your GPU
+make 01_coalesce.exe          # build just one
+make run                      # build + run all (FAIL is expected until solved)
+make clean
+```
+
+Set `GPU_ARCH` to your device (`gfx950` MI350, `gfx942` MI300, `gfx90a` MI200); find it with
+`/opt/rocm/bin/offload-arch`. The equivalent raw command, if you prefer to see it spelled out:
 
 ```bash
 hipcc -O3 --offload-arch=gfx942 -I../hip 01_coalesce.cpp -o 01_coalesce.exe && ./01_coalesce.exe
