@@ -1,0 +1,23 @@
+# B05 - Transformer performance
+#
+# tools/model_calculator.py needs NOTHING from this file. It is deliberately
+# stdlib-only so you can size a model on a login node, in a fresh container, or on
+# your laptop mid-interview. If all you want is the analysis, skip the install.
+#
+# Only bench/ needs torch, because only bench/ measures a real GPU.
+#
+# IMPORTANT: do NOT `pip install torch` blindly for GPU work. The default PyPI
+# wheel is CPU-only on some platforms and CUDA-only on others; neither is what you
+# want on an AMD box. Install the build that matches your accelerator FIRST, from
+# the vendor index, then install this file to pick up anything missing:
+#
+#   AMD / ROCm    pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
+#   NVIDIA / CUDA pip install torch --index-url https://download.pytorch.org/whl/cu124
+#
+# Check the ROCm/CUDA version tag against your driver, and see
+# ../../../docs/SETUP.md for the full environment walkthrough.
+#
+# Verify the install actually sees the GPU before benchmarking:
+#   python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+
+torch>=2.1
