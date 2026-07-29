@@ -92,20 +92,120 @@ exclude_docs: |
   profiling_output/
   **/profiling_output/
 
+# Only module READMEs and their exercises/solutions pages are published. Each module's
+# drill pages sit under the module entry so the sidebar mirrors the folder layout.
 nav:
   - Home: README.md
   - Curriculum: CURRICULUM.md
   - Setup: docs/SETUP.md
   - Track A — GPU Programming:
       - Overview: tracks/A-gpu-programming/README.md
-      - A01 · Foundations: tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md
-      - A01 · Exercises: tracks/A-gpu-programming/A01.foundations-and-programming-model/exercises/README.md
-      - A01 · Solutions: tracks/A-gpu-programming/A01.foundations-and-programming-model/solutions/README.md
-      - A02 · Memory Hierarchy & Coalescing: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md
-      - A02 · Exercises: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/exercises/README.md
-      - A02 · Solutions: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/solutions/README.md
-  - Track B — ML Performance: tracks/B-gpu-ml-performance/README.md
-  - Track C — ML System Design: tracks/C-ml-system-design/README.md
+      - A01 · Foundations:
+          - Module: tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md
+          - Exercises: tracks/A-gpu-programming/A01.foundations-and-programming-model/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A01.foundations-and-programming-model/solutions/README.md
+      - A02 · Memory Hierarchy & Coalescing:
+          - Module: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md
+          - Exercises: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/solutions/README.md
+      - A03 · Execution Model & Occupancy:
+          - Module: tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md
+          - Exercises: tracks/A-gpu-programming/A03.execution-model-and-occupancy/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A03.execution-model-and-occupancy/solutions/README.md
+      - A04 · Parallel Reduction:
+          - Module: tracks/A-gpu-programming/A04.parallel-reduction/README.md
+          - Exercises: tracks/A-gpu-programming/A04.parallel-reduction/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A04.parallel-reduction/solutions/README.md
+      - A05 · Parallel Scan & Prefix Sum:
+          - Module: tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/README.md
+          - Exercises: tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/solutions/README.md
+      - A06 · Tiled Matrix Multiply:
+          - Module: tracks/A-gpu-programming/A06.tiled-matrix-multiply/README.md
+          - Exercises: tracks/A-gpu-programming/A06.tiled-matrix-multiply/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A06.tiled-matrix-multiply/solutions/README.md
+      - A07 · Softmax & Fused Kernels:
+          - Module: tracks/A-gpu-programming/A07.softmax-and-fused-kernels/README.md
+          - Exercises: tracks/A-gpu-programming/A07.softmax-and-fused-kernels/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A07.softmax-and-fused-kernels/solutions/README.md
+      - A08 · Triton Foundations:
+          - Module: tracks/A-gpu-programming/A08.triton-foundations/README.md
+          - Exercises: tracks/A-gpu-programming/A08.triton-foundations/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A08.triton-foundations/solutions/README.md
+      - A09 · Advanced Triton & FlashAttention:
+          - Module: tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md
+          - Exercises: tracks/A-gpu-programming/A09.advanced-triton-flash-attention/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A09.advanced-triton-flash-attention/solutions/README.md
+      - A10 · CuTe, CUTLASS & cuTile (NVIDIA-only):
+          - Module: tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/README.md
+          - Exercises: tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/exercises/README.md
+          - Solutions: tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/solutions/README.md
+  - Track B — ML Performance:
+      - Overview: tracks/B-gpu-ml-performance/README.md
+      - B01 · Accelerator Architecture:
+          - Module: tracks/B-gpu-ml-performance/B01.accelerator-architecture/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B01.accelerator-architecture/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B01.accelerator-architecture/solutions/README.md
+      - B02 · Roofline & Arithmetic Intensity:
+          - Module: tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/solutions/README.md
+      - B03 · Profiling & Bottleneck Analysis:
+          - Module: tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/solutions/README.md
+      - B04 · Precision & Quantization:
+          - Module: tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B04.precision-and-quantization/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B04.precision-and-quantization/solutions/README.md
+      - B05 · Transformer Performance:
+          - Module: tracks/B-gpu-ml-performance/B05.transformer-performance/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B05.transformer-performance/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B05.transformer-performance/solutions/README.md
+      - B06 · Inference Serving Optimizations:
+          - Module: tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/solutions/README.md
+      - B07 · Distributed Training & Sharding:
+          - Module: tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md
+          - Exercises: tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/exercises/README.md
+          - Solutions: tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/solutions/README.md
+  - Track C — ML System Design:
+      - Overview: tracks/C-ml-system-design/README.md
+      - C01 · Problem Framing & Metrics:
+          - Module: tracks/C-ml-system-design/C01.problem-framing-and-metrics/README.md
+          - Exercises: tracks/C-ml-system-design/C01.problem-framing-and-metrics/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C01.problem-framing-and-metrics/solutions/README.md
+      - C02 · Data Pipelines & Features:
+          - Module: tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md
+          - Exercises: tracks/C-ml-system-design/C02.data-pipelines-and-features/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C02.data-pipelines-and-features/solutions/README.md
+      - C03 · Training Systems:
+          - Module: tracks/C-ml-system-design/C03.training-systems/README.md
+          - Exercises: tracks/C-ml-system-design/C03.training-systems/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C03.training-systems/solutions/README.md
+      - C04 · Production Model Optimization:
+          - Module: tracks/C-ml-system-design/C04.production-model-optimization/README.md
+          - Exercises: tracks/C-ml-system-design/C04.production-model-optimization/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C04.production-model-optimization/solutions/README.md
+      - C05 · Deployment & Serving Architecture:
+          - Module: tracks/C-ml-system-design/C05.deployment-and-serving-architecture/README.md
+          - Exercises: tracks/C-ml-system-design/C05.deployment-and-serving-architecture/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C05.deployment-and-serving-architecture/solutions/README.md
+      - C06 · Monitoring, Drift & Ethics:
+          - Module: tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/README.md
+          - Exercises: tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/solutions/README.md
+      - C07 · Capstone Case Studies:
+          - Module: tracks/C-ml-system-design/C07.capstone-case-studies/README.md
+          - LLM Serving Design: tracks/C-ml-system-design/C07.capstone-case-studies/designs/llm_serving.md
+          - Recommender Design: tracks/C-ml-system-design/C07.capstone-case-studies/designs/recommender.md
+          - Exercises: tracks/C-ml-system-design/C07.capstone-case-studies/exercises/README.md
+          - Solutions: tracks/C-ml-system-design/C07.capstone-case-studies/solutions/README.md
+  - Content Studio:
+      - Overview: content/README.md
+      - Storyboard Template: content/STORYBOARD_TEMPLATE.md
+      - Brand Overlay Spec: content/BRAND_OVERLAY.md
   - Reference:
       - Brand & Visual Identity: docs/BRAND.md
       - Glossary: docs/GLOSSARY.md

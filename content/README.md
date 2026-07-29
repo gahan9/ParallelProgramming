@@ -142,8 +142,14 @@ real, and the analogy lands better once they know what it is explaining.
 | A02 Memory hierarchy & coalescing | [`A02-memory-coalescing/`](A02-memory-coalescing/) | 700 → 3,400 GB/s (4.8×) | A02 Section 5 reference run |
 
 Each pack has a `long-form.md` (shot-by-shot YouTube script with chapters and a description block)
-and a `shorts.md` (three vertical scripts). New modules get a pack by copying
+and a `shorts.md` (three vertical scripts). Build the next pack by copying
 [`STORYBOARD_TEMPLATE.md`](STORYBOARD_TEMPLATE.md).
+
+**All 24 curriculum modules are authored, but only these two have content packs.** That is deliberate:
+a pack needs a *measured* number to lead with, so the next candidates are the modules whose labs
+produce the most striking result once you have run them on your own GPU — A04 (the reduction ladder's
+stage-1-to-stage-9 spread), A06 (naive vs tiled GEMM), A07 (the poisoned row printing `nan`), and
+B02 (the roofline knee the sweep discovers by itself).
 
 **Re-run the lab on your own GPU before recording** and quote your own numbers on screen. The figures
 above are from reference runs on AMD MI-series hardware; they will differ on yours, and an
