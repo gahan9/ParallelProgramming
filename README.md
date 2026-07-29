@@ -37,6 +37,7 @@ flowchart TB
   ROOT --> CURR["CURRICULUM.md<br/>index + paths"]
   ROOT --> DOCS["docs/"]
   ROOT --> TRACKS["tracks/"]
+  ROOT --> CONTENT["content/<br/>video + shorts scripts"]
 
   DOCS --> MT["MODULE_TEMPLATE"]
   DOCS --> SETUP["SETUP"]
@@ -55,7 +56,7 @@ flowchart TB
   class TA trackA
   class TB2 trackB
   class TC trackC
-  class ROOT,README,CURR,DOCS,TRACKS,MT,SETUP,REF,GLOSS,BRAND neutral
+  class ROOT,README,CURR,DOCS,TRACKS,CONTENT,MT,SETUP,REF,GLOSS,BRAND neutral
 ```
 
 Visual identity (colors, Mermaid styling, slide tokens): [docs/BRAND.md](docs/BRAND.md).
@@ -151,6 +152,34 @@ flowchart TD
 
 If you only do one module first, do **A01** — it is the fully-built gold-standard reference for
 every module that follows.
+
+---
+
+## Four ways to work through this
+
+The same curriculum, four surfaces — pick whichever keeps you actually studying.
+
+| Surface | What it is | Best for |
+|---|---|---|
+| **The repo** | Markdown modules next to runnable `hip/`, `cuda/`, `triton/` code | Doing the labs on a real GPU |
+| **The docs site** | The whole curriculum published via MkDocs Material, with search and rendered Mermaid | Reading and searching on any device |
+| **The canvas dashboard** | An interactive study planner in Cursor: choose a goal, tick modules off, watch remaining hours drop | Planning your route and tracking progress |
+| **The content studio** | [`content/`](content/) — shot-by-shot scripts for YouTube long-form, Shorts, and Reels | Teaching it back, which is how you find out what you actually know |
+
+**Docs site.** Built by the GitHub Actions workflow from [`mkdocs.yml`](mkdocs.yml); run it locally with:
+
+```bash
+pip install -r requirements-docs.txt
+mkdocs serve
+```
+
+**Canvas dashboard.** Open `curriculum-dashboard.canvas.tsx` from this workspace's Cursor `canvases/`
+directory. It reads the module ladder, lets you pick one of four goal-based paths, and persists which
+modules you have finished — so it doubles as your progress tracker across sessions.
+
+**Content studio.** Each pack leads with that module's *measured* number (A01: a 44 µs kernel inside a
+72 ms run; A02: 700 → 3,400 GB/s) because a real number on screen is what separates a credible GPU
+video from a generic one. See [`content/README.md`](content/README.md).
 
 ---
 
