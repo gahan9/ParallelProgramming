@@ -1,0 +1,33 @@
+# A08 - Triton foundations. Python dependencies.
+#
+# Install into a virtual environment:
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# READ THIS BEFORE INSTALLING - the torch wheel you need is vendor-specific:
+#
+#   NVIDIA : pip install torch
+#            The default PyPI wheel is the CUDA build and pulls in `pytorch-triton`,
+#            so Triton arrives with it. Nothing else to do.
+#
+#   AMD    : pip install torch --index-url <ROCm wheel index>
+#            The ROCm build bundles `pytorch-triton-rocm`. The index URL is pinned to
+#            a ROCm version (it looks like .../whl/rocmX.Y), so it changes with every
+#            release - do not copy a stale one out of a tutorial.
+#            Get the current index from https://pytorch.org/get-started/locally/
+#            and see ../../../docs/SETUP.md section 3.
+#
+# The bound below is a floor, not a pin: torch >= 2.4 is where the ROCm wheels ship a
+# Triton new enough for everything in this module. Pin exact versions in a real
+# project; a teaching module should run on whatever recent stack you have.
+torch>=2.4
+
+# Triton itself is deliberately NOT listed as a dependency.
+#
+# `pip install triton` from PyPI installs the NVIDIA build. On a ROCm machine that
+# either fails or shadows the `pytorch-triton-rocm` that your torch wheel installed,
+# and you get an import that cannot see your GPU. Let the torch wheel supply Triton.
+#
+# Uncomment ONLY if you are on NVIDIA and are deliberately installing a standalone
+# Triton (for example to test a newer release than your torch wheel bundles):
+# triton>=3.0

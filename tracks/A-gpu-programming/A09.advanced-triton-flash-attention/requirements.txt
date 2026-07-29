@@ -1,0 +1,35 @@
+# A09 - Advanced Triton & FlashAttention. Python dependencies.
+#
+# Full backend setup, including the ROCm wheel index and the no-local-GPU options:
+#   ../../../docs/SETUP.md
+#
+# ---------------------------------------------------------------------------
+# AMD / ROCm  (read this before `pip install -r`)
+# ---------------------------------------------------------------------------
+# Install torch from the ROCm wheel index FIRST. That wheel BUNDLES a matching
+# Triton build for AMD GPUs:
+#
+#   pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
+#
+# Check the current ROCm index for your ROCm version at
+# https://pytorch.org/get-started/locally/ - it moves with each release.
+#
+# Then do NOT `pip install triton` on top: the PyPI `triton` wheel is the NVIDIA
+# build and will shadow the ROCm one, giving you "no active driver" or a compile
+# failure at the first kernel launch. Verify what you actually have with:
+#
+#   python -c "import torch, triton; print(torch.__version__, triton.__version__)"
+#   python -c "import triton; print(triton.runtime.driver.active.get_current_target())"
+#
+# The second command should report backend 'hip' on an AMD GPU.
+#
+# ---------------------------------------------------------------------------
+# NVIDIA / CUDA
+# ---------------------------------------------------------------------------
+# Recent CUDA torch wheels also bundle Triton, so torch alone is usually enough.
+# Uncomment the `triton` line below only if `import triton` fails.
+
+torch>=2.4
+
+# NVIDIA only - see the note above. Never install this alongside a ROCm torch.
+# triton>=3.0
