@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Planner — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive study planner for the Parallel Programming GPU + ML curriculum: pick a goal, tick modules off, track remaining hours.">
+<!--
+  Self-contained study planner. No frameworks, no CDN, no build step - so it works
+  on GitHub Pages, from a local file, and on a locked-down corporate network alike.
+  Progress lives in localStorage under the key below; nothing is sent anywhere.
+
+  Colors are the "Parallel Spectrum" tokens from docs/BRAND.md. Keep them in sync.
+-->
+<style>
+  :root {
+    --brand-primary:   #0891B2;
+    --brand-deep:      #0F172A;
+    --brand-accent:    #6366F1;
+    --brand-highlight: #F59E0B;
+    --brand-success:   #10B981;
+    --brand-surface:   #F8FAFC;
+    --brand-muted:     #64748B;
+
+    --bg:        var(--brand-surface);
+    --bg-raised: #FFFFFF;
+    --fg:        var(--brand-deep);
+    --fg-muted:  var(--brand-muted);
+    --rule:      #E2E8F0;
+
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        var(--brand-deep);
+      --bg-raised: #1B2436;
+      --fg:        var(--brand-surface);
+      --fg-muted:  #94A3B8;
+      --rule:      #2C3A52;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 1.25rem 4rem;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  /* ---- header ---- */
+  header { padding: 2.5rem 0 1.5rem; border-bottom: 4px solid var(--brand-primary); }
+  h1 { font-size: 1.9rem; line-height: 1.15; margin: 0 0 .4rem; letter-spacing: -.02em; }
+  .sub { color: var(--fg-muted); margin: 0; max-width: 62ch; }
+  .eyebrow {
+    font-size: .72rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--brand-primary); font-weight: 600; margin: 0 0 .5rem;
+  }
+
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 .75rem; letter-spacing: -.01em; }
+  h2 .hint { font-weight: 400; font-size: .82rem; color: var(--fg-muted); margin-left: .5rem; }
+
+  /* ---- stats ---- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin-top: 1.5rem; }
+  .stat { background: var(--bg-raised); border: 1px solid var(--rule); border-radius: 6px; padding: .85rem 1rem; }
+  .stat b { display: block; font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: .78rem; color: var(--fg-muted); }
+  .stat.hero b { color: var(--brand-primary); }
+
+  /* ---- goal picker ---- */
+  .goals { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0 1rem; }
+  .goal {
+    font: inherit; font-size: .86rem; cursor: pointer;
+    background: var(--bg-raised); color: var(--fg);
+    border: 1px solid var(--rule); border-radius: 999px; padding: .4rem .9rem;
+  }
+  .goal:hover { border-color: var(--brand-primary); }
+  .goal[aria-pressed="true"] {
+    background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; font-weight: 600;
+  }
+  .goal-why { color: var(--fg-muted); font-size: .88rem; margin: 0 0 1rem; max-width: 70ch; }
+
+  /* ---- track progress bars ---- */
+  .bars { display: grid; gap: .6rem; }
+  .bar-row { display: grid; grid-template-columns: 190px 1fr 92px; gap: .75rem; align-items: center; font-size: .84rem; }
+  .bar { background: var(--rule); border-radius: 3px; height: 12px; overflow: hidden; }
+  .bar i { display: block; height: 100%; }
+  .bar-num { text-align: right; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) { .bar-row { grid-template-columns: 1fr; } .bar-num { text-align: left; } }
+
+  /* ---- ladder ---- */
+  ol.ladder { list-style: none; margin: 0; padding: 0; }
+  ol.ladder li {
+    display: grid; grid-template-columns: 1.4rem 1fr auto; gap: .7rem; align-items: baseline;
+    padding: .5rem .25rem; border-bottom: 1px solid var(--rule);
+  }
+  ol.ladder li.done .mid a { text-decoration-line: line-through; text-decoration-thickness: 1px; }
+  ol.ladder li.done { opacity: .62; }
+  ol.ladder input { margin: 0; width: 1rem; height: 1rem; accent-color: var(--brand-success); cursor: pointer; }
+  .mid a { color: inherit; text-decoration: none; border-bottom: 1px solid transparent; }
+  .mid a:hover { border-bottom-color: var(--brand-primary); }
+  .mid code { font-family: var(--mono); font-size: .78rem; color: var(--brand-primary); margin-right: .45rem; }
+  .meta { color: var(--fg-muted); font-size: .78rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* ---- next-up callout ---- */
+  .next {
+    border-left: 4px solid var(--brand-primary); background: var(--bg-raised);
+    padding: .8rem 1rem; margin: 1rem 0 1.25rem; border-radius: 0 6px 6px 0;
+  }
+  .next.finished { border-left-color: var(--brand-success); }
+  .next p { margin: 0; font-size: .9rem; }
+  .next strong { font-size: 1rem; }
+
+  /* ---- module tables ---- */
+  details { border: 1px solid var(--rule); border-radius: 6px; margin-bottom: .6rem; background: var(--bg-raised); }
+  summary { cursor: pointer; padding: .7rem 1rem; font-weight: 600; font-size: .92rem; }
+  summary::marker { color: var(--brand-primary); }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: .45rem 1rem; border-top: 1px solid var(--rule); }
+  th { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: color-mix(in srgb, var(--brand-primary) 6%, transparent); }
+
+  /* ---- misc ---- */
+  .toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: 1.5rem; }
+  .btn {
+    font: inherit; font-size: .82rem; cursor: pointer; background: none; color: var(--fg-muted);
+    border: 1px solid var(--rule); border-radius: 6px; padding: .35rem .8rem;
+  }
+  .btn:hover { color: var(--fg); border-color: var(--brand-highlight); }
+  footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--fg-muted); font-size: .82rem; }
+  footer a { color: var(--brand-primary); }
+  .tag { display: inline-block; font-size: .7rem; padding: .1rem .45rem; border-radius: 3px; border: 1px solid currentColor; }
+  noscript p { border-left: 4px solid var(--brand-highlight); padding-left: .8rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Parallel Programming</p>
+  <h1>GPU + ML Expert Tutor — study planner</h1>
+  <p class="sub">
+    Twenty-four modules across three tracks, dual-vendor (AMD ROCm/HIP and NVIDIA CUDA) with a
+    portable Triton path. Pick the goal that matches why you are here, then tick modules off as you
+    finish them. Your progress is saved in this browser only.
+  </p>
+</header>
+
+<noscript>
+  <p>This planner needs JavaScript for the checkboxes and progress tracking. The full module list is
+  in <a href="../CURRICULUM.md">CURRICULUM.md</a>, which needs nothing but a browser.</p>
+</noscript>
+
+<section class="stats" id="stats"></section>
+
+<h2>1 · Pick your goal <span class="hint">the ladder below reorders to match</span></h2>
+<div class="goals" id="goals" role="group" aria-label="Learning goal"></div>
+<p class="goal-why" id="goalWhy"></p>
+
+<div class="next" id="next"></div>
+
+<h2>2 · Work the ladder <span class="hint">in order; each module assumes the ones above it</span></h2>
+<ol class="ladder" id="ladder"></ol>
+
+<h2>3 · Progress by track</h2>
+<div class="bars" id="bars"></div>
+
+<h2>All 24 modules</h2>
+<div id="allTracks"></div>
+
+<div class="toolbar">
+  <button class="btn" id="resetBtn" type="button">Reset my progress</button>
+  <span class="meta">Saved locally in this browser · nothing is uploaded</span>
+</div>
+
+<footer>
+  <p>
+    Source of truth for the module list and hour estimates is
+    <a href="../CURRICULUM.md">CURRICULUM.md</a>. Hour estimates assume you do the labs and the
+    drills, not just the reading. Depth is prerequisite depth, not difficulty:
+    <span class="tag">1</span> assumes no GPU experience, <span class="tag">5</span> sits at the end
+    of a long chain.
+  </p>
+  <p>
+    Prefer slides? There is a <a href="slides.html">presentable deck</a> covering the same material.
+  </p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE = "ppc.progress.v1";
+  var GOAL  = "ppc.goal.v1";
+
+  var TRACKS = {
+    A: { name: "Track A — GPU Programming",  color: "#0891B2", dir: "A-gpu-programming" },
+    B: { name: "Track B — ML Performance",   color: "#6366F1", dir: "B-gpu-ml-performance" },
+    C: { name: "Track C — ML System Design", color: "#F59E0B", dir: "C-ml-system-design" }
+  };
+
+  // id, title, track, hours, depth, folder (relative to tracks/<dir>/)
+  var M = [
+    ["A01", "Foundations & programming model",        "A",  6, 1, "A01.foundations-and-programming-model"],
+    ["A02", "Memory hierarchy & coalescing",          "A",  6, 2, "A02.memory-hierarchy-and-coalescing"],
+    ["A03", "Execution model, occupancy & divergence","A",  7, 2, "A03.execution-model-and-occupancy"],
+    ["A04", "Parallel reduction",                     "A",  6, 3, "A04.parallel-reduction"],
+    ["A05", "Parallel scan / prefix sum",             "A",  6, 3, "A05.parallel-scan-prefix-sum"],
+    ["A06", "Tiled matrix multiply (GEMM)",           "A",  8, 3, "A06.tiled-matrix-multiply"],
+    ["A07", "Softmax & fused kernels",                "A",  7, 4, "A07.softmax-and-fused-kernels"],
+    ["A08", "Triton foundations",                     "A",  6, 3, "A08.triton-foundations"],
+    ["A09", "Advanced Triton & FlashAttention",       "A",  9, 4, "A09.advanced-triton-flash-attention"],
+    ["A10", "CuTe / CUTLASS / cuTile (NVIDIA-only)",  "A", 10, 5, "A10.cute-cutlass-and-cutile"],
+
+    ["B01", "Accelerator architecture",               "B",  6, 2, "B01.accelerator-architecture"],
+    ["B02", "Roofline & arithmetic intensity",        "B",  5, 2, "B02.roofline-and-arithmetic-intensity"],
+    ["B03", "Profiling & bottleneck analysis",        "B",  6, 3, "B03.profiling-and-bottleneck-analysis"],
+    ["B04", "Precision & quantization",               "B",  6, 3, "B04.precision-and-quantization"],
+    ["B05", "Transformer performance",                "B",  7, 4, "B05.transformer-performance"],
+    ["B06", "Inference serving optimizations",        "B",  8, 4, "B06.inference-serving-optimizations"],
+    ["B07", "Distributed training & sharding",        "B",  8, 4, "B07.distributed-training-and-sharding"],
+
+    ["C01", "Problem framing, metrics & decomposition","C", 5, 1, "C01.problem-framing-and-metrics"],
+    ["C02", "Data pipelines & feature engineering",   "C",  6, 2, "C02.data-pipelines-and-features"],
+    ["C03", "Training systems & fault tolerance",     "C",  7, 3, "C03.training-systems"],
+    ["C04", "Production model optimization",          "C",  7, 3, "C04.production-model-optimization"],
+    ["C05", "Deployment & serving architecture",      "C",  6, 3, "C05.deployment-and-serving-architecture"],
+    ["C06", "Monitoring, drift & ethics",             "C",  6, 3, "C06.monitoring-drift-and-ethics"],
+    ["C07", "Capstone case studies",                  "C", 10, 4, "C07.capstone-case-studies"]
+  ].map(function (r) {
+    return { id: r[0], title: r[1], track: r[2], hours: r[3], depth: r[4], folder: r[5] };
+  });
+
+  var BY_ID = {};
+  M.forEach(function (m) { BY_ID[m.id] = m; });
+
+  var PATHS = [
+    { id: "kernel", label: "Write fast GPU kernels",
+      why: "You want to hand-write and optimize kernels, then prove the speedup with a profiler. Track A end to end, with just enough of Track B early that you can measure what you write.",
+      ids: ["A01","A02","A03","A04","A05","A06","A07","A08","A09","B01","B02","B03"] },
+    { id: "mlperf", label: "Make models fast",
+      why: "You want to diagnose whether a model is memory- or compute-bound and fix the real bottleneck. The kernels that matter for ML, then all of Track B.",
+      ids: ["A01","A03","A06","A07","B01","B02","B03","B04","B05","B06","B07"] },
+    { id: "design", label: "Design production ML systems",
+      why: "You want to take an ML product from problem framing to a monitored, deployed system. Track C in order, pulling in the two performance modules you cannot design without.",
+      ids: ["A01","C01","C02","C03","B04","C04","B06","C05","C06","C07"] },
+    { id: "interview", label: "Interview soon",
+      why: "You want the highest-signal topics across all three areas: the canonical kernels, the performance fundamentals interviewers probe, and end-to-end design.",
+      ids: ["A01","A04","A06","A07","B02","B05","B06","C01","C04","C07"] },
+    { id: "everything", label: "Everything, in order",
+      why: "The full curriculum in dependency order. About 164 hours if you do the labs and the drills.",
+      ids: M.map(function (m) { return m.id; }) }
+  ];
+
+  // ---- state ----------------------------------------------------------------
+  var done = load(STORE, []);
+  var goalId = load(GOAL, "kernel");
+  if (!PATHS.some(function (p) { return p.id === goalId; })) { goalId = "kernel"; }
+
+  function load(key, fallback) {
+    try {
+      var raw = window.localStorage.getItem(key);
+      return raw === null ? fallback : JSON.parse(raw);
+    } catch (e) { return fallback; }       // private mode / storage disabled
+  }
+  function save(key, val) {
+    try { window.localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* non-fatal */ }
+  }
+
+  function isDone(id) { return done.indexOf(id) !== -1; }
+  function toggle(id) {
+    var i = done.indexOf(id);
+    if (i === -1) { done.push(id); } else { done.splice(i, 1); }
+    save(STORE, done);
+    render();
+  }
+
+  function hoursOf(ids, only) {
+    return ids.reduce(function (sum, id) {
+      var m = BY_ID[id];
+      if (!m) { return sum; }
+      if (only === "done" && !isDone(id)) { return sum; }
+      if (only === "todo" && isDone(id)) { return sum; }
+      return sum + m.hours;
+    }, 0);
+  }
+
+  var ALL_IDS = M.map(function (m) { return m.id; });
+  var TOTAL_HOURS = hoursOf(ALL_IDS);
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var href = function (m) { return "../tracks/" + TRACKS[m.track].dir + "/" + m.folder + "/"; };
+
+  // ---- render ---------------------------------------------------------------
+  function render() {
+    var path = PATHS.filter(function (p) { return p.id === goalId; })[0];
+    var pathHours = hoursOf(path.ids);
+    var pathDone  = hoursOf(path.ids, "done");
+    var pct = pathHours ? Math.round((pathDone / pathHours) * 100) : 0;
+
+    el("stats").innerHTML = [
+      stat(pct + "%", "of your path complete", true),
+      stat(done.length + " / " + M.length, "modules finished"),
+      stat(hoursOf(ALL_IDS, "done") + " h", "study hours logged"),
+      stat((pathHours - pathDone) + " h", "left on this path")
+    ].join("");
+
+    el("goals").innerHTML = PATHS.map(function (p) {
+      return '<button class="goal" type="button" data-goal="' + p.id + '" aria-pressed="' +
+             (p.id === goalId) + '">' + esc(p.label) + "</button>";
+    }).join("");
+    el("goalWhy").textContent = path.why;
+
+    // Next actionable module on this path.
+    var next = null;
+    for (var i = 0; i < path.ids.length; i++) {
+      if (!isDone(path.ids[i])) { next = BY_ID[path.ids[i]]; break; }
+    }
+    el("next").className = "next" + (next ? "" : " finished");
+    el("next").innerHTML = next
+      ? '<p><strong>Next up: ' + esc(next.id) + " — " + esc(next.title) + "</strong></p>" +
+        "<p>About " + next.hours + " hours, prerequisite depth " + next.depth + "/5. " +
+        '<a href="' + href(next) + '">Open the module</a>.</p>'
+      : "<p><strong>Path complete.</strong></p><p>You have finished every module on the " +
+        esc(path.label).toLowerCase() + " path. Pick another goal, or switch to " +
+        '"Everything, in order" to mop up what is left.</p>';
+
+    el("ladder").innerHTML = path.ids.map(function (id, i) {
+      var m = BY_ID[id];
+      return '<li class="' + (isDone(id) ? "done" : "") + '">' +
+        '<input type="checkbox" id="cb-' + id + '" data-mod="' + id + '"' +
+          (isDone(id) ? " checked" : "") +
+          ' aria-label="Mark ' + esc(m.id) + " " + esc(m.title) + ' complete">' +
+        '<span class="mid"><code>' + esc(m.id) + "</code>" +
+          '<a href="' + href(m) + '">' + esc(m.title) + "</a></span>" +
+        '<span class="meta">' + m.hours + " h · depth " + m.depth + "</span></li>";
+    }).join("");
+
+    el("bars").innerHTML = Object.keys(TRACKS).map(function (t) {
+      var ids = M.filter(function (m) { return m.track === t; }).map(function (m) { return m.id; });
+      var tot = hoursOf(ids), d = hoursOf(ids, "done");
+      var w = tot ? (d / tot) * 100 : 0;
+      return '<div class="bar-row"><span>' + esc(TRACKS[t].name) + "</span>" +
+        '<span class="bar"><i style="width:' + w.toFixed(1) + "%;background:" + TRACKS[t].color + '"></i></span>' +
+        '<span class="bar-num">' + d + " / " + tot + " h</span></div>";
+    }).join("");
+
+    el("allTracks").innerHTML = Object.keys(TRACKS).map(function (t) {
+      var mods = M.filter(function (m) { return m.track === t; });
+      var d = mods.filter(function (m) { return isDone(m.id); }).length;
+      return "<details" + (t === "A" ? " open" : "") + "><summary>" + esc(TRACKS[t].name) +
+        " — " + d + " of " + mods.length + " done</summary>" +
+        '<table><thead><tr><th>Module</th><th>Topic</th><th class="num">Hours</th>' +
+        '<th class="num">Depth</th><th>Yours</th></tr></thead><tbody>' +
+        mods.map(function (m) {
+          return "<tr><td><code>" + esc(m.id) + "</code></td>" +
+            '<td><a href="' + href(m) + '">' + esc(m.title) + "</a></td>" +
+            '<td class="num">' + m.hours + "</td>" +
+            '<td class="num">' + m.depth + "/5</td>" +
+            "<td>" + (isDone(m.id)
+              ? '<span style="color:' + "#10B981" + '">done</span>'
+              : '<span style="color:var(--fg-muted)">not yet</span>') + "</td></tr>";
+        }).join("") + "</tbody></table></details>";
+    }).join("");
+  }
+
+  function stat(value, label, hero) {
+    return '<div class="stat' + (hero ? " hero" : "") + '"><b>' + esc(value) + "</b><span>" +
+           esc(label) + "</span></div>";
+  }
+
+  // ---- events (delegated, so re-rendering never orphans a listener) --------
+  document.addEventListener("click", function (e) {
+    var g = e.target.closest("[data-goal]");
+    if (g) { goalId = g.getAttribute("data-goal"); save(GOAL, goalId); render(); return; }
+    if (e.target.id === "resetBtn") {
+      if (window.confirm("Clear every module you have marked complete? This cannot be undone.")) {
+        done = []; save(STORE, done); render();
+      }
+    }
+  });
+  document.addEventListener("change", function (e) {
+    var mod = e.target.getAttribute && e.target.getAttribute("data-mod");
+    if (mod) { toggle(mod); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -10,6 +10,10 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - "docs/stylesheets/**"
+      # live/ holds the standalone planner and slide deck. Without these globs a
+      # change to either would never reach Pages, since neither is Markdown.
+      - "live/**"
+      - "**/*.html"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -44,12 +48,18 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # Not --strict for the first landing: the curriculum has many intra-repo
-      # relative links to source files that are intentionally unpublished. The
-      # validation: block in mkdocs.yml downgrades those. Re-enable --strict
-      # after a link-cleanup pass (tracked as follow-up in the PR).
+      # The curriculum's Markdown lives at the repo root, which MkDocs will not accept
+      # as a docs_dir, so stage the publishable files first. See build_docs.py.
+      - name: Stage docs root
+        run: python build_docs.py
+
+      # --strict is on deliberately: the build is warning-free, and the
+      # validation: block in mkdocs.yml already silences the one category we do not
+      # care about (links to intentionally-unpublished source files). Anything else
+      # — a nav entry pointing at a deleted page, a bad theme option — should fail
+      # the deploy loudly rather than ship a site with silent 404s.
       - name: Build site
-        run: mkdocs build --clean --site-dir ./site
+        run: mkdocs build --clean --strict --site-dir ./site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPU + ML Expert Tutor — deck</title>
+<meta name="description" content="Presentable deck for the Parallel Programming GPU + ML curriculum: three tracks, 24 modules, and the findings that came out of building it.">
+<!--
+  Self-contained slide deck. No reveal.js, no CDN, no build step - CSS scroll-snap
+  does the paging and ~40 lines of JS add keyboard navigation and the counter.
+  With JavaScript off it degrades to a scrollable document, which is still readable.
+
+  Styling follows the slide template in docs/BRAND.md: 4px #0891B2 accent bar,
+  Inter/JetBrains Mono, one idea per slide, dark section dividers, and a
+  "Parallel Programming - <context>" footer. Keep the tokens in sync with BRAND.md.
+
+  Print / export to PDF: Ctrl-P (or Cmd-P) gives one slide per landscape page.
+-->
+<style>
+  :root {
+    --primary:   #0891B2;
+    --deep:      #0F172A;
+    --accent:    #6366F1;
+    --highlight: #F59E0B;
+    --success:   #10B981;
+    --surface:   #F8FAFC;
+    --muted:     #64748B;
+    --body:      #334155;
+    --amd:       #ED1C24;
+    --nvidia:    #76B900;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--deep); color: var(--body); }
+
+  .deck {
+    height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; scroll-behavior: smooth;
+  }
+  .slide {
+    scroll-snap-align: start;
+    min-height: 100vh; padding: 9vh 8vw 8vh;
+    display: flex; flex-direction: column; justify-content: center;
+    background: var(--surface); position: relative; border-top: 4px solid var(--primary);
+  }
+  /* Dark divider slides mark the start of a new part of the story. */
+  .slide.dark { background: linear-gradient(160deg, #0F172A 0%, #1E293B 100%); }
+  .slide.dark h2, .slide.dark h1 { color: var(--surface); }
+  .slide.dark p, .slide.dark li { color: #CBD5E1; }
+  .slide.dark .eyebrow { color: #67E8F9; }
+
+  .eyebrow {
+    font-size: clamp(.62rem, .8vw, .78rem); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--primary); font-weight: 700; margin: 0 0 1.1rem;
+  }
+  h1 { font-size: clamp(1.9rem, 4.6vw, 3.4rem); line-height: 1.08; margin: 0 0 1rem; letter-spacing: -.03em; color: var(--deep); }
+  h2 { font-size: clamp(1.5rem, 3.2vw, 2.4rem); line-height: 1.15; margin: 0 0 1.1rem; letter-spacing: -.02em; color: var(--deep); }
+  p  { font-size: clamp(.95rem, 1.35vw, 1.2rem); line-height: 1.6; margin: 0 0 .9rem; max-width: 46ch; }
+  p.lead { font-size: clamp(1.05rem, 1.7vw, 1.45rem); color: var(--muted); max-width: 52ch; }
+  ul { margin: .3rem 0 .9rem; padding-left: 1.15rem; max-width: 52ch; }
+  li { font-size: clamp(.92rem, 1.3vw, 1.12rem); line-height: 1.55; margin-bottom: .45rem; }
+  strong { color: var(--deep); }
+  .slide.dark strong { color: #fff; }
+  code, .mono { font-family: var(--mono); font-size: .92em; }
+
+  /* Big-number slides: the figure is the argument. */
+  .huge {
+    font-family: var(--mono); font-weight: 700; letter-spacing: -.04em; line-height: .95;
+    font-size: clamp(3rem, 12vw, 9rem); color: var(--primary); margin: 0 0 .3rem;
+  }
+  .huge.amber   { color: var(--highlight); }
+  .huge.green   { color: var(--success); }
+  .huge-note    { font-size: clamp(.85rem, 1.15vw, 1.05rem); color: var(--muted); max-width: 48ch; }
+  .slide.dark .huge-note { color: #94A3B8; }
+
+  /* Track cards + columns */
+  .cols { display: grid; gap: clamp(1rem, 2.4vw, 2rem); grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); max-width: 1100px; }
+  .card { border-left: 4px solid var(--primary); padding: .2rem 0 .2rem 1rem; }
+  .card.b { border-left-color: var(--accent); }
+  .card.c { border-left-color: var(--highlight); }
+  .card h3 { margin: 0 0 .4rem; font-size: clamp(1rem, 1.5vw, 1.2rem); color: var(--deep); }
+  .slide.dark .card h3 { color: var(--surface); }
+  .card p { font-size: clamp(.84rem, 1.1vw, 1rem); margin: 0; max-width: 34ch; }
+
+  /* Vendor pills - small labels only, never a background (BRAND.md). */
+  .pill {
+    display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    padding: .12rem .5rem; border-radius: 3px; color: #fff; vertical-align: .12em;
+  }
+  .pill.amd { background: var(--amd); }
+  .pill.nv  { background: var(--nvidia); color: #0F172A; }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1.1rem; max-width: 46rem; font-size: clamp(.85rem, 1.15vw, 1.02rem); }
+  .kv dt { font-family: var(--mono); color: var(--primary); font-weight: 700; }
+  .kv dd { margin: 0; color: var(--body); }
+  .slide.dark .kv dd { color: #CBD5E1; }
+
+  /* Chrome: footer, slide number, progress */
+  .foot, .num {
+    position: absolute; bottom: 3.2vh; font-size: clamp(.62rem, .78vw, .72rem);
+    color: var(--muted); letter-spacing: .04em;
+  }
+  .foot { left: 8vw; }
+  .num  { right: 8vw; font-family: var(--mono); }
+  .progress {
+    position: fixed; top: 0; left: 0; height: 4px; background: var(--primary);
+    width: 0; z-index: 20; transition: width .18s linear;
+  }
+  .help {
+    position: fixed; bottom: 3.2vh; left: 50%; transform: translateX(-50%);
+    font-size: .7rem; color: var(--muted); z-index: 20; background: rgba(248,250,252,.85);
+    border: 1px solid #E2E8F0; border-radius: 999px; padding: .2rem .8rem;
+  }
+  a { color: var(--primary); }
+  .slide.dark a { color: #67E8F9; }
+
+  @media print {
+    .deck { height: auto; overflow: visible; }
+    .slide { min-height: auto; height: 100vh; page-break-after: always; break-after: page; }
+    .progress, .help { display: none; }
+    @page { size: landscape; margin: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .deck { scroll-behavior: auto; }
+    .progress { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress" role="presentation"></div>
+<div class="help" id="help">Arrow keys / space to advance · Ctrl-P to export PDF</div>
+
+<main class="deck" id="deck">
+
+  <!-- 1 · Title -->
+  <section class="slide dark">
+    <p class="eyebrow">Parallel Programming</p>
+    <h1>GPU + ML Expert&nbsp;Tutor</h1>
+    <p class="lead">
+      From "what is a GPU thread" to designing, profiling, and shipping production ML systems on
+      AMD and NVIDIA hardware. 24 modules, three tracks, every claim reproducible.
+    </p>
+    <p><span class="pill amd">AMD ROCm / HIP</span> &nbsp; <span class="pill nv">NVIDIA CUDA</span>
+       &nbsp; <span class="mono" style="color:#67E8F9">+ portable Triton</span></p>
+    <div class="foot">Parallel Programming · Curriculum overview</div>
+    <div class="num">01</div>
+  </section>
+
+  <!-- 2 · The promise -->
+  <section class="slide">
+    <p class="eyebrow">The promise</p>
+    <h2>Two altitudes, every single time</h2>
+    <p>
+      Every module explains the idea twice: a plain-language analogy that a non-programmer can
+      follow, then the rigorous framing a Principal Engineer would expect.
+    </p>
+    <p>
+      A GPU is a <strong>stadium of 50,000 diligent students</strong>, not a faster CPU. That gets you
+      in the door. Then we map it onto wavefronts, occupancy, and HBM bandwidth.
+    </p>
+    <div class="foot">Parallel Programming · Design intent</div>
+    <div class="num">02</div>
+  </section>
+
+  <!-- 3 · Scale -->
+  <section class="slide">
+    <p class="eyebrow">What you get</p>
+    <p class="huge">24</p>
+    <p class="huge-note">
+      modules across three tracks — roughly <strong>164 learner-hours</strong> if you do the labs and
+      the drills, not just the reading. Every module ships runnable code, exercises, and worked
+      solutions.
+    </p>
+    <div class="foot">Parallel Programming · Scope</div>
+    <div class="num">03</div>
+  </section>
+
+  <!-- 4 · The three tracks -->
+  <section class="slide dark">
+    <p class="eyebrow">Structure</p>
+    <h2>Three tracks, one arc</h2>
+    <div class="cols">
+      <div class="card">
+        <h3>A · Write kernels</h3>
+        <p>Programming model, memory, execution, reduction, scan, GEMM, softmax, Triton,
+           FlashAttention. 10 modules.</p>
+      </div>
+      <div class="card b">
+        <h3>B · Reason about speed</h3>
+        <p>Architecture, roofline, profiling, precision, transformer perf, serving, sharding.
+           7 modules.</p>
+      </div>
+      <div class="card c">
+        <h3>C · Ship systems</h3>
+        <p>Framing, data, training, optimization, deployment, monitoring, two capstones.
+           7 modules.</p>
+      </div>
+    </div>
+    <div class="foot">Parallel Programming · Tracks A / B / C</div>
+    <div class="num">04</div>
+  </section>
+
+  <!-- 5 · The module contract -->
+  <section class="slide">
+    <p class="eyebrow">Consistency</p>
+    <h2>Every module, the same nine sections</h2>
+    <dl class="kv">
+      <dt>1–2</dt><dd>Layman analogy, then first principles — derived, not asserted</dd>
+      <dt>3</dt><dd>Deep dive mapped onto real silicon (CDNA and Hopper)</dd>
+      <dt>4–5</dt><dd>Hands-on labs, then performance analysis against the roofline</dd>
+      <dt>6</dt><dd>Challenges, drawbacks, tradeoffs — and when <em>not</em> to do this</dd>
+      <dt>7–8</dt><dd>Where it appears in production ML, with cited sources</dd>
+      <dt>9</dt><dd>Self-assessment and interview drills, with solutions</dd>
+    </dl>
+    <p style="margin-top:.8rem;color:var(--muted);font-size:.95rem">
+      It is a quality contract, not bureaucracy: a technique with no stated downside means nobody
+      looked hard enough.
+    </p>
+    <div class="foot">Parallel Programming · Module template</div>
+    <div class="num">05</div>
+  </section>
+
+  <!-- 6 · Dual vendor -->
+  <section class="slide">
+    <p class="eyebrow">Portability</p>
+    <h2>Dual-vendor, and honest about the gaps</h2>
+    <p>
+      Labs ship as <code>hip/</code> and <code>cuda/</code> line-for-line counterparts, plus a
+      <code>triton/</code> path that runs on both.
+    </p>
+    <ul>
+      <li>A lockstep bundle is <strong>64 lanes</strong> on AMD, <strong>32</strong> on NVIDIA — so
+          block sizes that are multiples of 64 are the portable choice.</li>
+      <li>NVIDIA-only material (CuTe, CUTLASS, cuTile) is marked optional and names its AMD
+          counterparts.</li>
+    </ul>
+    <div class="foot">Parallel Programming · Dual-vendor design</div>
+    <div class="num">06</div>
+  </section>
+
+  <!-- 7 · Verification standard -->
+  <section class="slide dark">
+    <p class="eyebrow">The rule that shaped everything</p>
+    <h2>Never publish a number the repo cannot reproduce</h2>
+    <ul>
+      <li>Benchmark tables are omitted in favour of expected <strong>ordering</strong> and traffic
+          ratios, which follow from the algorithm rather than the silicon.</li>
+      <li>Analytic tools print a banner marking output as a <strong>model, not a measurement</strong>.</li>
+      <li>Published figures are attributed to their paper <em>and its conditions</em>.</li>
+      <li>Hardware specs carry a source link and a retrieval date.</li>
+    </ul>
+    <div class="foot">Parallel Programming · Evidence standard</div>
+    <div class="num">07</div>
+  </section>
+
+  <!-- 8 · Finding: A01 -->
+  <section class="slide">
+    <p class="eyebrow">Module A01 · Foundations</p>
+    <p class="huge amber">0.06%</p>
+    <p class="huge-note">
+      of the run was the kernel. A profiled vector-add took <strong>44 microseconds</strong> inside a
+      <strong>72 millisecond</strong> program. On a GPU, moving the data usually costs more than doing
+      the math — and if you only measure kernel time you will optimize the wrong thing for years.
+    </p>
+    <div class="foot">Parallel Programming · A01 · rocprofv3 profile</div>
+    <div class="num">08</div>
+  </section>
+
+  <!-- 9 · Finding: A02 -->
+  <section class="slide">
+    <p class="eyebrow">Module A02 · Memory coalescing</p>
+    <p class="huge green">4.8&times;</p>
+    <p class="huge-note">
+      faster, same arithmetic. Four transpose kernels, all producing verified-correct output:
+      <strong>700 GB/s</strong> naive to <strong>3,400 GB/s</strong> tiled-and-padded. One of those
+      steps is a single character — <code>tile[32][32]</code> to <code>tile[32][33]</code>.
+    </p>
+    <div class="foot">Parallel Programming · A02 · transpose ladder</div>
+    <div class="num">09</div>
+  </section>
+
+  <!-- 10 · Finding: B04 -->
+  <section class="slide">
+    <p class="eyebrow">Module B04 · Precision</p>
+    <h2>"fp8" is two different formats</h2>
+    <p>
+      CDNA 3 implements the <strong>FNUZ</strong> variants (bias 8, max 240). Hopper implements
+      <strong>OCP</strong> (bias 7, max 448).
+    </p>
+    <ul>
+      <li>Bit pattern <code>0_0111_000</code> is <code>1.0</code> under OCP and <code>0.5</code> under
+          FNUZ — load the wrong checkpoint and <strong>every weight is 2&times; too large</strong>.</li>
+      <li><code>0x80</code> means <code>NaN</code> under FNUZ but <code>-0.0</code> under OCP, so a
+          genuinely-NaN element silently becomes a harmless zero.</li>
+    </ul>
+    <div class="foot">Parallel Programming · B04 · cited to the HIP low-precision reference</div>
+    <div class="num">10</div>
+  </section>
+
+  <!-- 11 · Finding: B07 -->
+  <section class="slide">
+    <p class="eyebrow">Module B07 · Sharding</p>
+    <h2>Pipelining does not reduce activation memory</h2>
+    <p>
+      Under 1F1B scheduling, each stage holds <code>L/S</code> layers but keeps <code>S</code>
+      micro-batches in flight. The <code>S</code> cancels.
+    </p>
+    <p>
+      Engineers reach for pipeline parallelism as a memory fix. It is a <strong>throughput</strong>
+      fix. Deriving why is worth more than a page of guidance.
+    </p>
+    <div class="foot">Parallel Programming · B07 · derived cost models</div>
+    <div class="num">11</div>
+  </section>
+
+  <!-- 12 · Finding: C07 -->
+  <section class="slide">
+    <p class="eyebrow">Module C07 · Capstone</p>
+    <h2>The KV cache was not the binding constraint</h2>
+    <p>
+      Sizing an LLM serving node: HBM allows a <strong>3.56 million token</strong> KV pool, but the
+      30 ms latency SLO caps the scheduler at <strong>567 thousand</strong>. Latency binds first.
+    </p>
+    <p>
+      Quantizing to fp8 then flips decode to compute-bound — so <em>further</em> KV quantization buys
+      nothing. Knowing where an optimization stops paying is the harder judgement.
+    </p>
+    <div class="foot">Parallel Programming · C07 · every figure from the shipped calculator</div>
+    <div class="num">12</div>
+  </section>
+
+  <!-- 13 · Paths -->
+  <section class="slide dark">
+    <p class="eyebrow">How to use it</p>
+    <h2>Four routes, depending on why you are here</h2>
+    <div class="cols">
+      <div class="card"><h3>Write fast kernels</h3><p>Track A end to end, with B01–B03 early so you can measure what you write.</p></div>
+      <div class="card b"><h3>Make models fast</h3><p>The ML-critical kernels, then all of Track B.</p></div>
+      <div class="card c"><h3>Design ML systems</h3><p>Track C in order, pulling in B04 and B06 where design needs them.</p></div>
+      <div class="card"><h3>Interview soon</h3><p>The canonical kernels, perf fundamentals, and end-to-end design.</p></div>
+    </div>
+    <div class="foot">Parallel Programming · Learning paths</div>
+    <div class="num">13</div>
+  </section>
+
+  <!-- 14 · Close -->
+  <section class="slide">
+    <p class="eyebrow">Start here</p>
+    <h2>Pick a path, then do the labs</h2>
+    <dl class="kv">
+      <dt>Plan</dt><dd><a href="dashboard.html">Interactive study planner</a> — tick modules off, watch the hours drop</dd>
+      <dt>Index</dt><dd><a href="../CURRICULUM.md">CURRICULUM.md</a> — dependency graph and learning paths</dd>
+      <dt>Setup</dt><dd><a href="../docs/SETUP.md">docs/SETUP.md</a> — get <code>hipcc</code>, <code>nvcc</code>, or Triton working</dd>
+      <dt>First</dt><dd><a href="../tracks/A-gpu-programming/A01.foundations-and-programming-model/">Module A01</a> — assumes no GPU experience</dd>
+    </dl>
+    <p style="margin-top:1rem;color:var(--muted);font-size:.95rem">
+      Reading teaches you the shape of the answer. Running the labs on your own GPU is what makes it
+      yours — so re-measure everything here and quote your own numbers.
+    </p>
+    <div class="foot">Parallel Programming · Thank you</div>
+    <div class="num">14</div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var deck = document.getElementById("deck");
+  var bar  = document.getElementById("progress");
+  var help = document.getElementById("help");
+  var slides = Array.prototype.slice.call(deck.querySelectorAll(".slide"));
+
+  function current() {
+    // The slide occupying the top half of the viewport is the active one.
+    var best = 0, bestDist = Infinity;
+    slides.forEach(function (s, i) {
+      var d = Math.abs(s.getBoundingClientRect().top);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    return best;
+  }
+
+  function go(i) {
+    var n = Math.max(0, Math.min(slides.length - 1, i));
+    slides[n].scrollIntoView({ block: "start" });
+  }
+
+  deck.addEventListener("scroll", function () {
+    var pct = deck.scrollTop / Math.max(1, deck.scrollHeight - deck.clientHeight);
+    bar.style.width = (pct * 100).toFixed(2) + "%";
+  }, { passive: true });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) { return; }   // leave Ctrl-P etc. alone
+    var k = e.key;
+    if (k === "ArrowRight" || k === "ArrowDown" || k === "PageDown" || k === " ") {
+      e.preventDefault(); go(current() + 1);
+    } else if (k === "ArrowLeft" || k === "ArrowUp" || k === "PageUp") {
+      e.preventDefault(); go(current() - 1);
+    } else if (k === "Home") { e.preventDefault(); go(0); }
+    else if (k === "End")    { e.preventDefault(); go(slides.length - 1); }
+  });
+
+  // The hint has served its purpose once you navigate.
+  var hide = function () { help.style.display = "none"; };
+  document.addEventListener("keydown", hide, { once: true });
+  window.setTimeout(hide, 6000);
+})();
+</script>
+</body>
+</html>

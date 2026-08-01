@@ -3,15 +3,19 @@ site_description: >-
   A hands-on curriculum for GPU programming (HIP/CUDA), ML performance
   engineering, and ML system design.
 site_author: gahan9
+site_url: https://gahan9.github.io/ParallelProgramming/
 repo_url: https://github.com/gahan9/ParallelProgramming
 repo_name: gahan9/ParallelProgramming
 edit_uri: edit/main/
 
-# The curriculum's Markdown lives at the repo root (README, CURRICULUM) and under
-# tracks/ and docs/, so the docs root IS the repo root. Non-doc assets are pruned
-# via exclude_docs below; dotfiles/dirs (.git, .github, .cursor) are ignored by
-# MkDocs automatically, as is the generated site_dir.
-docs_dir: .
+# The curriculum's Markdown lives at the repo ROOT (README, CURRICULUM, tracks/,
+# docs/, live/) so GitHub renders it in place with working relative links. MkDocs
+# refuses a docs_dir that is the parent of this file, so `build_docs.py` stages the
+# publishable files (.md/.html/.css) into _docs/ preserving their relative paths.
+# Run it before building:
+#     python build_docs.py && mkdocs build --clean
+# Both _docs/ and site/ are gitignored.
+docs_dir: _docs
 site_dir: site
 
 theme:
@@ -67,28 +71,27 @@ markdown_extensions:
 plugins:
   - search
 
-# Do not fail the build on the curriculum's intra-repo relative links (many point
-# at source files like hip/vector_add.cpp that are intentionally not published).
+# Module READMEs link to their own sources (hip/vector_add.cpp, triton/softmax.py) so a
+# reader on GitHub can jump straight to the code. Those files are deliberately not
+# published to the site, so MkDocs cannot resolve the links and would emit hundreds of
+# warnings — which would bury the warnings that actually matter and block `--strict`.
+# Silence that one category only; keep nav validation loud.
+#
+# NOTE: these keys are the MkDocs >= 1.5 schema (nested under `links:`). The flat form
+# is silently ignored, which is why the build was noisy before.
 validation:
-  omitted_files: info
-  absolute_links: ignore
-  unrecognized_links: ignore
+  links:
+    not_found: ignore
+    absolute_links: ignore
+    unrecognized_links: ignore
   nav:
     omitted_files: info
+    not_found: warn
 
-# Keep source, build, and tooling files out of the published site.
+# Source files are already excluded by build_docs.py, which stages only .md/.html/.css.
+# This is kept as a second line of defence if someone builds against a dirty _docs/.
 exclude_docs: |
-  *.cpp
-  *.cu
-  *.cuh
-  *.h
-  *.hpp
-  *.py
-  *.ipynb
-  Makefile
-  *.mk
   requirements*.txt
-  LICENSE
   profiling_output/
   **/profiling_output/
 
@@ -98,6 +101,9 @@ nav:
   - Home: README.md
   - Curriculum: CURRICULUM.md
   - Setup: docs/SETUP.md
+  # dashboard.html and slides.html are static files copied verbatim by MkDocs;
+  # only the index page can live in nav, and it links to both.
+  - Planner & Deck: live/README.md
   - Track A — GPU Programming:
       - Overview: tracks/A-gpu-programming/README.md
       - A01 · Foundations:
