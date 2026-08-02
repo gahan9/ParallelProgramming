@@ -45,8 +45,15 @@ jobs:
       - name: Install docs toolchain
         run: pip install -r requirements-docs.txt
 
+      # enablement: true turns Pages on (build_type=workflow) if it is not already.
+      # Without it this step fails with "Get Pages site failed ... Not Found" on any
+      # repo where nobody has flipped the setting by hand in Settings > Pages, which
+      # is what broke every run before this one - the job died here in ~20s and never
+      # reached the build.
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       # The curriculum's Markdown lives at the repo root, which MkDocs will not accept
       # as a docs_dir, so stage the publishable files first. See build_docs.py.
