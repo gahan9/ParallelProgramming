@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recall — GPU + ML Expert Tutor</title>
+<meta name="description" content="Active-recall cards for the Parallel Programming GPU and ML curriculum. Three-box Leitner review, every card cited to a paper or vendor doc.">
+<!--
+  Self-contained recall deck. No framework, no CDN, no build step - same constraints as
+  dashboard.html and slides.html, so it works on GitHub Pages, from a local clone, and
+  offline behind a proxy.
+
+  Two design decisions worth knowing before you edit:
+
+  1. The answer reveals IN PLACE and the question stays on screen. A flip card hides the
+     question at the moment you most need to compare it against the answer, and "flip
+     card" is the reflex answer for this problem rather than a considered one.
+  2. The progress meter IS the mechanic. Cards live in one of three Leitner boxes and you
+     watch them move; there is no streak and no percentage, because the useful question
+     is "what is still in box 1", not "how many did I click".
+
+  State lives in localStorage under ppc.cards.v1. Nothing is uploaded.
+  To add a card, append to CARDS - every card MUST carry a real source.
+-->
+<style>
+  :root {
+    --primary:   #0891B2;
+    --deep:      #0F172A;
+    --accent:    #6366F1;
+    --highlight: #F59E0B;
+    --success:   #10B981;
+    --surface:   #F8FAFC;
+    --muted:     #64748B;
+
+    --bg:     var(--deep);
+    --raised: #1B2436;
+    --sunk:   #131C2E;
+    --fg:     var(--surface);
+    --dim:    #94A3B8;
+    --rule:   #2C3A52;
+
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  a { color: var(--primary); }
+
+  /* ---- shared nav across the three live pages ---- */
+  .top { border-top: 4px solid var(--primary); margin: 0 -1.25rem 0; }
+  nav.bar {
+    max-width: 960px; margin: 0 auto; padding: .9rem 0 1.1rem;
+    display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline;
+  }
+  nav.bar .brand {
+    font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--primary); margin-right: auto;
+  }
+  nav.bar a {
+    font-size: .84rem; text-decoration: none; color: var(--dim);
+    border-bottom: 1px solid transparent; padding-bottom: 2px;
+  }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 1.2rem 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 62ch; margin: 0 0 .4rem; }
+  .cite-lede { color: var(--muted); font-size: .84rem; max-width: 66ch; margin: .5rem 0 0; }
+
+  h2 { font-size: .78rem; letter-spacing: .13em; text-transform: uppercase; color: var(--muted);
+       margin: 2.2rem 0 .7rem; font-weight: 700; }
+
+  /* ---- the signature: three boxes you watch cards move between ---- */
+  .boxes { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; }
+  .box { background: var(--sunk); border: 1px solid var(--rule); border-radius: 6px; padding: .7rem .8rem; }
+  .box header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .55rem; }
+  .box .bname { font: 700 11px var(--mono); letter-spacing: .08em; color: var(--dim); }
+  .box .bcount { font: 700 15px var(--mono); }
+  .box .bhint { font-size: .68rem; color: var(--muted); display: block; margin-top: .35rem; letter-spacing: .02em; }
+  .chips { display: flex; flex-wrap: wrap; gap: 3px; min-height: 22px; }
+  .chip { width: 9px; height: 9px; border-radius: 2px; opacity: .75; }
+  .chip.cur { outline: 2px solid var(--surface); outline-offset: 1px; opacity: 1; }
+  .b1 .bcount { color: var(--highlight); }
+  .b2 .bcount { color: var(--accent); }
+  .b3 .bcount { color: var(--success); }
+
+  /* ---- the card: an instrument panel, not a playing card ---- */
+  .card {
+    background: var(--raised); border: 1px solid var(--rule); border-left: 4px solid var(--primary);
+    border-radius: 0 6px 6px 0; padding: 1.5rem 1.6rem 1.3rem; margin-top: .8rem;
+  }
+  .card.tA { border-left-color: var(--primary); }
+  .card.tB { border-left-color: var(--accent); }
+  .card.tC { border-left-color: var(--highlight); }
+  .card .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+                font: 400 11.5px var(--mono); color: var(--muted); letter-spacing: .04em; }
+  .card .modtag { font-weight: 700; }
+  .card .q { font-size: clamp(1.1rem, 2.2vw, 1.42rem); line-height: 1.35; letter-spacing: -.015em;
+             margin: .9rem 0 0; font-weight: 600; }
+  .card .a {
+    margin: 1.1rem 0 0; padding-top: 1.05rem; border-top: 1px dashed var(--rule);
+    font-size: .98rem; color: #DDE3EC;
+  }
+  .card .a code, .card .q code { font-family: var(--mono); font-size: .88em; color: #7DD3FC; }
+  .card .a strong { color: var(--fg); }
+  .src { margin-top: 1rem; font-size: .8rem; color: var(--muted); }
+  .src a { color: var(--primary); }
+
+  /* ---- controls ---- */
+  .row { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin-top: 1.15rem; }
+  button {
+    font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--rule);
+    background: var(--sunk); color: var(--fg); padding: .5rem 1rem; font-size: .87rem;
+  }
+  button:hover { border-color: var(--primary); }
+  button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .reveal { border-color: var(--primary); font-weight: 600; }
+  .g { font-weight: 600; }
+  .g1 { border-color: #6B3D07; color: #FBBF24; }
+  .g1:hover { border-color: var(--highlight); }
+  .g2 { border-color: #3A3D8F; color: #A5B4FC; }
+  .g2:hover { border-color: var(--accent); }
+  .g3 { border-color: #0B5B41; color: #6EE7B7; }
+  .g3:hover { border-color: var(--success); }
+  kbd { font: 600 10.5px var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px;
+        border-radius: 3px; padding: 1px 4px; color: var(--muted); margin-left: .35rem; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .filters button { padding: .32rem .8rem; font-size: .8rem; color: var(--dim); }
+  .filters button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #06212A; font-weight: 700; }
+
+  .done { background: var(--sunk); border: 1px solid #0B5B41; border-radius: 6px; padding: 1.3rem 1.5rem; margin-top: .8rem; }
+  .done h3 { margin: 0 0 .4rem; font-size: 1.05rem; color: var(--success); }
+  .done p { margin: 0; color: var(--dim); font-size: .92rem; }
+
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 72ch; }
+  noscript p { border-left: 4px solid var(--highlight); padding-left: .9rem; color: var(--dim); }
+
+  @media (max-width: 620px) {
+    .boxes { grid-template-columns: 1fr; }
+    .card { padding: 1.2rem 1.1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="dashboard.html">Planner</a>
+    <a href="flashcards.html" aria-current="page">Recall</a>
+    <a href="slides.html">Deck</a>
+    <a href="../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <h1>Recall</h1>
+  <p class="lede">
+    Retrieval practice on the curriculum's own material. Answer before you reveal — the guessing is
+    what does the work, not the reading.
+  </p>
+  <p class="cite-lede">
+    Why cards and not re-reading: Roediger &amp; Karpicke found students who re-tested recalled
+    <strong>61%</strong> of a passage after a week, versus <strong>40%</strong> for students who
+    re-read it the same number of times — even though the re-readers felt more confident
+    (<a href="https://doi.org/10.1111/j.1467-9280.2006.01693.x">Test-Enhanced Learning</a>,
+    Psychological Science, 2006). Confidence is not retention.
+  </p>
+
+  <noscript>
+    <p>These cards need JavaScript. Every question here also appears in its module's Section 9,
+    which needs nothing but a browser — see <a href="../CURRICULUM.md">CURRICULUM.md</a>.</p>
+  </noscript>
+
+  <h2>Your three boxes</h2>
+  <div class="boxes" id="boxes"></div>
+
+  <h2 id="cardHead">Card</h2>
+  <div id="stage"></div>
+
+  <h2>Filter</h2>
+  <div class="filters" id="filters"></div>
+
+  <div class="row">
+    <button id="reset" type="button">Reset my progress</button>
+    <span style="font-size:.8rem;color:var(--muted)">Saved in this browser only</span>
+  </div>
+
+  <footer>
+    <p>
+      <strong>How the boxes work.</strong> Every card starts in Box 1. Mark it <em>Solid</em> and it
+      moves up a box; <em>Shaky</em> and it stays; <em>Missed</em> and it drops straight back to
+      Box 1. Cards are drawn from Box 1 most often and Box 3 least, so the deck concentrates on what
+      you keep getting wrong. This is a three-box
+      <a href="https://en.wikipedia.org/wiki/Leitner_system">Leitner system</a> — deliberately simpler
+      than a full spaced-repetition scheduler like SM-2, because interval tuning is not the thing
+      standing between you and knowing this material.
+    </p>
+    <p>
+      Every card cites a paper, a vendor document, or the module it came from. If a card and its
+      source disagree, the source wins — tell us and we will fix the card.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "ppc.cards.v1";
+
+  // Sources are reused across cards, so name them once.
+  var S = {
+    cudaPG:   { t: "CUDA C++ Programming Guide", u: "https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html" },
+    cudaBP:   { t: "CUDA C++ Best Practices Guide", u: "https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" },
+    hipPG:    { t: "HIP Programming Guide", u: "https://rocm.docs.amd.com/projects/HIP/en/latest/" },
+    hipFP:    { t: "HIP low-precision floating-point types", u: "https://rocm.docs.amd.com/projects/HIP/en/latest/reference/low_fp_types.html" },
+    cdna3:    { t: "AMD CDNA 3 architecture white paper", u: "https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf" },
+    harris:   { t: "Harris, Optimizing Parallel Reduction in CUDA", u: "https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf" },
+    gems39:   { t: "GPU Gems 3, ch. 39 — Parallel Prefix Sum", u: "https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda" },
+    roofline: { t: "Williams et al., Roofline (CACM 2009)", u: "https://dl.acm.org/doi/10.1145/1498765.1498785" },
+    onlineSM: { t: "Milakov & Gimelshein, Online normalizer calculation for softmax", u: "https://arxiv.org/abs/1805.02867" },
+    flash:    { t: "Dao et al., FlashAttention", u: "https://arxiv.org/abs/2205.14135" },
+    mixed:    { t: "Micikevicius et al., Mixed Precision Training", u: "https://arxiv.org/abs/1710.03740" },
+    fp8:      { t: "Micikevicius et al., FP8 Formats for Deep Learning", u: "https://arxiv.org/abs/2209.05433" },
+    vllm:     { t: "Kwon et al., PagedAttention / vLLM", u: "https://arxiv.org/abs/2309.06180" },
+    spec:     { t: "Leviathan et al., Fast Inference via Speculative Decoding", u: "https://arxiv.org/abs/2211.17192" },
+    megatron: { t: "Shoeybi et al., Megatron-LM", u: "https://arxiv.org/abs/1909.08053" },
+    gpipe:    { t: "Huang et al., GPipe", u: "https://arxiv.org/abs/1811.06965" },
+    korth:    { t: "Korthikanti et al., Reducing Activation Recomputation", u: "https://arxiv.org/abs/2205.05198" },
+    gqa:      { t: "Ainslie et al., GQA", u: "https://arxiv.org/abs/2305.13245" },
+    scaling:  { t: "Pope et al., Efficiently Scaling Transformer Inference", u: "https://arxiv.org/abs/2211.05102" },
+    rulesML:  { t: "Google, Rules of Machine Learning", u: "https://developers.google.com/machine-learning/guides/rules-of-ml" },
+    debt:     { t: "Sculley et al., Hidden Technical Debt in ML Systems", u: "https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html" },
+    nsight:   { t: "Nsight Compute Profiling Guide", u: "https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" },
+    volkov:   { t: "Volkov, Better Performance at Lower Occupancy (GTC 2010)", u: "https://www.nvidia.com/content/GTC-2010/pdfs/2238_GTC2010.pdf" },
+    goldberg: { t: "Goldberg, What Every Computer Scientist Should Know About Floating-Point", u: "https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html" },
+    chould:   { t: "Chouldechova, Fair prediction with disparate impact", u: "https://arxiv.org/abs/1610.07524" },
+    kleinberg:{ t: "Kleinberg et al., Inherent Trade-Offs in Fair Determination of Risk Scores", u: "https://arxiv.org/abs/1609.05807" },
+    kohavi:   { t: "Kohavi, Experimentation Platform (controlled experiments)", u: "https://exp-platform.com/" },
+    prroc:    { t: "Saito & Rehmsmeier, PR plot vs ROC plot (PLOS ONE 2015)", u: "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0118432" },
+    sparsity: { t: "NVIDIA, Accelerating Inference with Sparsity (2:4)", u: "https://developer.nvidia.com/blog/accelerating-inference-with-sparsity-using-ampere-and-tensorrt/" },
+    orca:     { t: "Yu et al., Orca — continuous batching (OSDI '22)", u: "https://www.usenix.org/conference/osdi22/presentation/yu" },
+    triton:   { t: "Triton documentation", u: "https://triton-lang.org/" }
+  };
+
+  // Drawn from each module's Section 9. Keep questions answerable in one breath.
+  var CARDS = [
+    // ---------------- Track A ----------------
+    { t:"A", m:"A01", q:"Why is <code>if (idx &lt; n)</code> not optional in a kernel?",
+      a:"You launch whole blocks, so unless <strong>n</strong> divides the block size exactly, the last block has threads whose index is past the end of the array. Without the guard they write out of bounds — and the corruption is usually <strong>silent</strong>, which is what makes it dangerous.", s:S.cudaPG },
+    { t:"A", m:"A01", q:"You start a CPU timer, launch a kernel, and stop the timer. What did you measure?",
+      a:"Almost nothing. A launch is <strong>asynchronous</strong> — it returns before the GPU finishes. Time it with GPU events, or synchronize before stopping a host timer. Same reason a launch error surfaces at the <em>next</em> synchronizing call, not at the launch line.", s:S.cudaBP },
+    { t:"A", m:"A01", q:"What is vector add's arithmetic intensity, and what does that decide?",
+      a:"Per element: 8 bytes read, 4 written, 1 FLOP — about <strong>1 FLOP per 12 bytes</strong>, or 0.083. That is far below any modern ridge point, so it is <strong>memory-bound</strong>: faster arithmetic cannot help it, only moving fewer bytes can.", s:S.roofline },
+    { t:"A", m:"A01", q:"How many lanes execute in lockstep, on each vendor?",
+      a:"<strong>32</strong> on NVIDIA (a warp), <strong>64</strong> on AMD CDNA (a wavefront). Pick block sizes that are multiples of 64 and you are well-formed on both. Code that hardcodes 32 — a manual shuffle reduction, say — breaks on AMD.", s:S.hipPG },
+    { t:"A", m:"A02", q:"What is coalescing, and why does it change bandwidth so much?",
+      a:"Memory is fetched in whole <strong>cache lines</strong>, not per byte. If the lanes of a warp ask for consecutive addresses, one transaction serves them all. If they scatter, each lane triggers its own fetch and most of every line is discarded. You paid for the whole line either way.", s:S.cudaBP },
+    { t:"A", m:"A02", q:"Why does changing <code>tile[32][32]</code> to <code>tile[32][33]</code> speed up a transpose?",
+      a:"Shared memory has 32 banks. With a row stride of 32, every element of a column maps to the <strong>same bank</strong> — a 32-way conflict, fully serialized. With 33, consecutive column elements are 33 apart and 33 mod 32 = 1, so the lanes spread across all 32 banks. One wasted word buys conflict-free access.", s:S.cudaPG },
+    { t:"A", m:"A02", q:"A transpose can't coalesce both its read and its write. So what do you do?",
+      a:"Stage a tile through <strong>shared memory</strong>: read it coalesced, then read it back out transposed and write coalesced. The strided access still happens — but now it happens on-chip, where a scatter is nearly free.", s:S.cudaBP },
+    { t:"A", m:"A03", q:"What does a divergent <code>if/else</code> cost?",
+      a:"The <strong>sum</strong> of both branches, not the max. The hardware keeps a mask of active lanes and runs the then-body, then the else-body, idling the other lanes each time. On AMD that mask is literally the 64-bit <code>EXEC</code> register.", s:S.cdna3 },
+    { t:"A", m:"A03", q:"Define occupancy, and name what limits it.",
+      a:"Resident warps divided by the hardware maximum. It is a <strong>min() over four limiters</strong>: threads per SM, blocks per SM, the register file, and shared memory per block. Whichever runs out first is your limiter — and that is the only one worth optimizing.", s:S.cudaBP },
+    { t:"A", m:"A03", q:"Why isn't higher occupancy always faster?",
+      a:"Occupancy buys <strong>latency hiding</strong>, and that saturates. Past the point where stalls are covered, more warps add nothing while the register cuts needed to get there cause spilling to local memory, and a bigger footprint thrashes cache. Occupancy is a means, not the goal.", s:S.volkov },
+    { t:"A", m:"A04", q:"A tree reduction over n elements: how much work, and how deep?",
+      a:"<strong>O(n) work</strong> and <strong>O(log n) depth</strong>. Depth is what parallelism buys you — 16 million elements reduce in about 24 rounds. Work stays linear, which is why a reduction is bandwidth-bound rather than compute-bound.", s:S.harris },
+    { t:"A", m:"A04", q:"Why can two runs of the same atomic-based reduction give different answers?",
+      a:"Floating-point addition is <strong>not associative</strong>, and atomics do not fix an order. Change the order and you change the last bits. This matters for reproducible training — and it is why a bit-level diff against a CPU reference is not automatically a bug.", s:S.goldberg },
+    { t:"A", m:"A05", q:"A prefix sum looks irreducibly sequential — each output needs the previous one. Why isn't it?",
+      a:"Because addition is <strong>associative</strong>, so you can reassociate the work into a tree instead of a chain. That single property is what makes scan parallel, and it is the reason scan is a classic interview question.", s:S.gems39 },
+    { t:"A", m:"A05", q:"Hillis–Steele versus Blelloch — what is the trade?",
+      a:"Hillis–Steele is simple but <strong>work-inefficient</strong>: O(n log n) work at O(log n) depth. Blelloch is <strong>work-efficient</strong> at O(n), via an up-sweep then a down-sweep, and naturally produces an exclusive scan. At small n the extra work can still be cheaper than the extra barriers.", s:S.gems39 },
+    { t:"A", m:"A06", q:"Why does tiling turn GEMM from memory-bound into compute-bound?",
+      a:"Without reuse, GEMM does 2N³ FLOPs against roughly N³ loads — intensity near constant. Load a <strong>T×T tile</strong> into shared memory and each element is reused <strong>T times</strong>, so intensity scales with T. Big enough T crosses the ridge point and arithmetic becomes the limit.", s:S.cudaPG },
+    { t:"A", m:"A06", q:"Why won't your hand-written fp32 tiled GEMM reach peak?",
+      a:"Peak needs the <strong>matrix engines</strong> — MFMA on AMD, tensor cores on NVIDIA — plus deep software pipelining and swizzled layouts. A teaching kernel reaching a modest fraction of rocBLAS/cuBLAS is the expected outcome, not a failure.", s:S.cdna3 },
+    { t:"A", m:"A07", q:"Why is subtracting the row max from softmax exactly equivalent, not an approximation?",
+      a:"Multiply numerator and denominator by <code>exp(-c)</code>; it cancels, so any c gives the same result. Choosing c = max forces every exponent ≤ 0, so every <code>exp</code> lands in (0, 1] and overflow becomes <strong>structurally impossible</strong>.", s:S.onlineSM },
+    { t:"A", m:"A07", q:"A fully-masked attention row is all <code>-inf</code>. Where does the NaN come from?",
+      a:"From the <strong>rescale factor</strong>, not the sum. Merging two empty partials computes <code>exp(-inf - (-inf))</code>, and <code>-inf - (-inf)</code> is NaN in IEEE-754. So guarding on <code>sum == 0</code> is not enough — you must guard on <code>m == -inf</code>.", s:S.goldberg },
+    { t:"A", m:"A07", q:"Softmax needs three passes to be safe. How do you get one of them back?",
+      a:"Keep a running <strong>(max, sum)</strong> pair and rescale the sum whenever a larger max appears: <code>s = s·exp(m_old - m_new) + exp(x - m_new)</code>. Both factors are ≤ 1, so it cannot overflow. This merge is associative — which is exactly why it parallelizes.", s:S.onlineSM },
+    { t:"A", m:"A09", q:"What does FlashAttention refuse to do, and what does that buy?",
+      a:"It never <strong>materializes the N×N score matrix</strong> in HBM. By tiling Q/K/V and carrying the online softmax statistics on-chip, traffic drops from O(N²) to O(N·d). It is the A07 recurrence generalized to a matmul–softmax–matmul chain.", s:S.flash },
+
+    // ---------------- Track B ----------------
+    { t:"B", m:"B01", q:"Why is a raw \"TFLOPs\" number close to meaningless?",
+      a:"It omits the three things that decide it: which <strong>precision</strong>, whether the <strong>matrix cores</strong> are used, and whether <strong>sparsity</strong> is assumed. Vector fp32 and sparse fp8 matrix peaks on the same chip differ by more than an order of magnitude.", s:S.cdna3 },
+    { t:"B", m:"B02", q:"State the roofline bound in one line.",
+      a:"<code>attainable = min(P, I × B)</code> — peak compute, or arithmetic intensity times bandwidth, whichever is smaller. If a kernel does I FLOPs per byte and the machine moves B bytes/s, it cannot exceed I×B however fast the ALUs are.", s:S.roofline },
+    { t:"B", m:"B02", q:"What is the ridge point, and why does it matter that it is so high?",
+      a:"<code>I_ridge = P / B</code>, the intensity you must exceed to be compute-bound. On modern parts with reduced-precision matrix cores it sits in the hundreds of FLOP/byte — so nearly every ML kernel lands <strong>left of it</strong>, which is why fusion pays and faster math often does not.", s:S.roofline },
+    { t:"B", m:"B03", q:"Why look at a timeline before you look at kernel counters?",
+      a:"Because you must find out whether the kernel even matters. Profile the whole program first: if the kernel is 0.06% of wall clock, tuning it perfectly buys you 0.06%. Counters answer \"why is this kernel slow\", not \"is this the slow thing\".", s:S.nsight },
+    { t:"B", m:"B04", q:"bf16 keeps fp32's range but fp16 doesn't. Why, and what follows?",
+      a:"bf16 keeps the <strong>8-bit exponent</strong> (range) and gives up mantissa bits; fp16 has more precision but only 5 exponent bits, so it overflows around 65504 and underflows early. That is why fp16 training needs <strong>loss scaling</strong> and bf16 usually does not.", s:S.mixed },
+    { t:"B", m:"B04", q:"Two vendors both say \"fp8 E4M3\". Why can the same bits mean different numbers?",
+      a:"CDNA 3 implements the <strong>FNUZ</strong> variant (bias 8, max 240); Hopper implements <strong>OCP</strong> (bias 7, max 448). The pattern <code>0_0111_000</code> is 1.0 under OCP and 0.5 under FNUZ — load the wrong one and every weight is 2× off. Worse, <code>0x80</code> is NaN under FNUZ and −0.0 under OCP.", s:S.hipFP },
+    { t:"B", m:"B04", q:"What is loss scaling actually fixing?",
+      a:"Gradients too small to represent in fp16 flush to <strong>zero</strong> and the update vanishes. Multiply the loss by a large constant before the backward pass so gradients land inside the representable range, then unscale before the optimizer step.", s:S.mixed },
+    { t:"B", m:"B05", q:"Prefill and decode are bound by different things. Which, and why?",
+      a:"Prefill processes many tokens at once — large GEMMs, high intensity, <strong>compute-bound</strong>. Decode produces one token at a time, so the GEMMs collapse to matrix–vector with intensity near 1 and it becomes <strong>bandwidth-bound</strong>: you re-read the whole weight matrix per token. Hence batching transforms decode and barely touches prefill.", s:S.scaling },
+    { t:"B", m:"B05", q:"Give the KV cache size for one sequence.",
+      a:"<code>2 × layers × N × d_kv × bytes</code> — the 2 is for K and V. Note it scales with <strong>sequence length</strong>, which is why the KV cache, not the weights, usually caps how many requests you can serve at once.", s:S.scaling },
+    { t:"B", m:"B05", q:"What problem does grouped-query attention solve?",
+      a:"It shrinks <strong>d_kv</strong> by sharing KV heads across query heads, cutting the KV cache roughly in proportion. That directly raises the concurrency a given HBM budget supports — a memory win, bought with a small quality cost.", s:S.gqa },
+    { t:"B", m:"B06", q:"Why does static batching waste the GPU?",
+      a:"Every sequence in the batch waits for the <strong>longest</strong> one. As short sequences finish, their slots keep being computed and thrown away, so utilization collapses — while a coarse utilization counter still reports the GPU as busy.", s:S.orca },
+    { t:"B", m:"B06", q:"What is PagedAttention, in one analogy?",
+      a:"<strong>OS virtual memory for the KV cache.</strong> Instead of one contiguous per-sequence reservation sized for the worst case, the cache is split into fixed blocks with a block table. That reclaims fragmentation and lets sequences <strong>share</strong> blocks — so a common system prompt is stored once.", s:S.vllm },
+    { t:"B", m:"B06", q:"Why does speculative decoding come out nearly free?",
+      a:"Because decode is <strong>bandwidth-bound</strong>, so there is idle compute. A small draft model proposes k tokens and the large model verifies all of them in <strong>one</strong> forward pass, which costs about the same as generating one. With the correct rejection sampling it is <strong>lossless</strong>.", s:S.spec },
+    { t:"B", m:"B07", q:"What does a ring all-reduce cost, and what is it bound by?",
+      a:"Each rank sends and receives about <code>2(P-1)/P × S</code> bytes, which tends to <code>2S/B</code> — so for large messages it is <strong>bandwidth-bound and nearly independent of rank count</strong>. Small messages are latency-bound instead, which is why gradients are bucketed.", s:S.megatron },
+    { t:"B", m:"B07", q:"Does pipeline parallelism reduce activation memory?",
+      a:"<strong>No</strong> — and this is the common misconception. Each stage holds L/S layers but keeps S micro-batches in flight under 1F1B, so the S cancels. Pipelining is a <strong>throughput</strong> fix; for memory you want recomputation or sharding.", s:S.korth },
+    { t:"B", m:"B07", q:"Why is tensor parallelism normally kept inside a single node?",
+      a:"It exchanges <strong>activations every layer</strong>, so it needs the fast intra-node fabric (NVLink or Infinity Fabric). Push it across a slower inter-node link and communication swamps compute — the same config can go from a modest overhead to several times slower.", s:S.megatron },
+    { t:"B", m:"B07", q:"Roughly how much memory does one parameter cost in mixed-precision Adam training?",
+      a:"About <strong>16 bytes</strong>: 2 for the bf16 parameter, 2 for its gradient, 4 for the fp32 master copy, and 4+4 for Adam's two moments — before activations, which scale with batch × sequence × layers.", s:S.megatron },
+
+    // ---------------- Track C ----------------
+    { t:"C", m:"C01", q:"Why can ROC-AUC look healthy while your classifier is useless?",
+      a:"ROC-AUC is insensitive to <strong>class imbalance</strong>: with 1-in-10,000 positives it can stay near 0.9 while precision is negligible. <strong>PR-AUC</strong> reflects what a user actually experiences at low prevalence. Report both, and report per-slice.", s:S.prroc },
+    { t:"C", m:"C01", q:"How does Goodhart's law show up in an ML product?",
+      a:"You optimize a proxy and the real goal degrades — engagement rises while the feed fills with clickbait, or accuracy rises because the model learned to predict the majority class. The counters are <strong>guardrail metrics</strong>, counter-metrics, and slice-level reporting.", s:S.rulesML },
+    { t:"C", m:"C02", q:"What is training/serving skew, and what actually fixes it?",
+      a:"Features computed one way in training and another way at serving. The fix is a <strong>single shared transformation</strong> plus <strong>logging the exact features used at serving time</strong> and training on those. Two implementations of \"the same\" feature will always drift apart.", s:S.debt },
+    { t:"C", m:"C02", q:"Offline AUC is 0.94 and online barely beats baseline. First three suspects?",
+      a:"<strong>Leakage</strong> (a feature unavailable at prediction time), <strong>skew</strong> (different serving code path), and a <strong>bad split</strong> (random where it should be temporal or entity-grouped). Note that a feature scoring high under <em>every</em> split can still be leaking — stability is not validity.", s:S.rulesML },
+    { t:"C", m:"C04", q:"Why is a 10× compression ratio not a 10× speedup?",
+      a:"Only sparsity patterns the <strong>hardware can exploit</strong> reduce latency. Unstructured pruning compresses beautifully and runs at the same speed, because the dense kernel still executes; structured patterns like 2:4 are what the matrix engines can actually skip.", s:S.sparsity },
+    { t:"C", m:"C04", q:"You need lower cost per request. What do you try before distillation?",
+      a:"Cheaper and more reversible things first: <strong>don't call the model</strong> (caching, precomputation, cascades), then <strong>serve it better</strong> (batching, better kernels, graph capture), then <strong>shrink the numbers</strong> (quantization). Distillation changes the model and needs a full re-evaluation — it is the last rung, not the first.", s:S.debt },
+    { t:"C", m:"C05", q:"Why must an A/B test randomize by user rather than by request?",
+      a:"Because the metrics are per-user. Splitting requests puts the same person in both arms, contaminating both and shrinking the measured effect. Separately: <strong>peeking</strong> — repeatedly checking significance — inflates false positives far above your stated alpha.", s:S.kohavi },
+    { t:"C", m:"C05", q:"Why is autoscaling GPU inference harder than autoscaling a web service?",
+      a:"<strong>Cold start</strong>: loading tens of GB of weights can exceed your entire latency budget, so scale-to-zero is a trap. And the right signal is <strong>queue depth or batch fullness</strong>, not CPU or even raw GPU utilization, both of which look busy while goodput collapses.", s:S.debt },
+    { t:"C", m:"C06", q:"Name the three kinds of drift, and which one forces a retrain.",
+      a:"<strong>Covariate</strong> shift — P(x) moves. <strong>Label</strong> shift — P(y) moves. <strong>Concept</strong> drift — P(y|x) moves, the relationship itself changed. Only concept drift <em>necessarily</em> requires retraining; the other two may just need recalibration or better coverage.", s:S.debt },
+    { t:"C", m:"C06", q:"Why can't you just satisfy every fairness criterion at once?",
+      a:"Because they are <strong>mathematically incompatible</strong> except in degenerate cases — demographic parity, equalized odds, and calibration within groups cannot generally all hold. Fairness is therefore a <strong>choice you must justify</strong> for the specific harm at stake, not a box to tick.", s:S.kleinberg },
+    { t:"C", m:"C06", q:"What makes a feedback loop the most dangerous dynamic in a deployed system?",
+      a:"The model's own outputs become its successor's training data. A recommender that only shows popular items learns only popular items are wanted; a fraud model that blocks a transaction never sees its outcome. Counters: an <strong>exploration budget</strong>, logged propensities, and an unaffected control group.", s:S.debt },
+    { t:"C", m:"C06", q:"Your service is returning 200s at low latency. Why might the model still be broken?",
+      a:"Because system health and <strong>prediction quality</strong> are different things. You need to monitor the prediction distribution, calibration, and per-slice performance too — and with <strong>delayed labels</strong> the true accuracy is simply unknown right now, so you need proxies and a sampled review queue.", s:S.debt }
+  ];
+
+  CARDS.forEach(function (c, i) { c.id = c.m + "-" + i; });
+
+  var TRACK_COLOR = { A: "#0891B2", B: "#6366F1", C: "#F59E0B" };
+
+  // ---- state -----------------------------------------------------------------
+  var boxOf = load(KEY, {});          // cardId -> 1 | 2 | 3
+  var filter = "all";
+  var current = null;
+  var revealed = false;
+
+  function load(k, d) {
+    try { var r = localStorage.getItem(k); return r === null ? d : JSON.parse(r); }
+    catch (e) { return d; }
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(boxOf)); } catch (e) {} }
+  function box(id) { return boxOf[id] || 1; }
+  function el(id) { return document.getElementById(id); }
+
+  function pool() {
+    return CARDS.filter(function (c) { return filter === "all" || c.t === filter; });
+  }
+
+  /* Draw from Box 1 most often and Box 3 least, so the deck keeps returning to whatever
+     you get wrong. Weights are deliberately blunt - the point is concentration, not a
+     tuned interval schedule. */
+  function pick() {
+    var p = pool();
+    if (!p.length) { return null; }
+    var weighted = [];
+    p.forEach(function (c) {
+      var reps = box(c.id) === 1 ? 3 : box(c.id) === 2 ? 2 : 1;
+      for (var i = 0; i < reps; i++) { weighted.push(c); }
+    });
+    // Avoid repeating the card just answered when there is any alternative.
+    var choices = weighted.filter(function (c) { return !current || c.id !== current.id; });
+    if (!choices.length) { choices = weighted; }
+    return choices[Math.floor(Math.random() * choices.length)];
+  }
+
+  function grade(g) {
+    if (!current) { return; }
+    var b = box(current.id);
+    boxOf[current.id] = g === 3 ? Math.min(3, b + 1) : g === 2 ? b : 1;
+    save();
+    current = pick();
+    revealed = false;
+    render();
+  }
+
+  // ---- render ----------------------------------------------------------------
+  function render() {
+    var p = pool();
+
+    // boxes
+    var meta = [
+      { n: 1, label: "BOX 1", hint: "seen least or missed — drawn most often" },
+      { n: 2, label: "BOX 2", hint: "getting there" },
+      { n: 3, label: "BOX 3", hint: "solid — drawn least often" }
+    ];
+    el("boxes").innerHTML = meta.map(function (m) {
+      var inBox = p.filter(function (c) { return box(c.id) === m.n; });
+      return '<div class="box b' + m.n + '">' +
+        '<header><span class="bname">' + m.label + '</span>' +
+        '<span class="bcount">' + inBox.length + "</span></header>" +
+        '<div class="chips">' + inBox.map(function (c) {
+          return '<span class="chip' + (current && c.id === current.id ? " cur" : "") +
+                 '" style="background:' + TRACK_COLOR[c.t] + '" title="' + c.m + '"></span>';
+        }).join("") + "</div>" +
+        '<span class="bhint">' + m.hint + "</span></div>";
+    }).join("");
+
+    // filters
+    var opts = [["all", "All " + CARDS.length], ["A", "Track A"], ["B", "Track B"], ["C", "Track C"]];
+    el("filters").innerHTML = opts.map(function (o) {
+      return '<button type="button" data-f="' + o[0] + '" aria-pressed="' + (filter === o[0]) + '">' +
+             o[1] + "</button>";
+    }).join("");
+
+    // card
+    if (!current) {
+      el("cardHead").textContent = "Card";
+      el("stage").innerHTML = '<div class="done"><h3>Nothing to review in this filter</h3>' +
+        "<p>Pick another track above.</p></div>";
+      return;
+    }
+
+    var solid = p.filter(function (c) { return box(c.id) === 3; }).length;
+    el("cardHead").textContent = "Card — " + solid + " of " + p.length + " in Box 3";
+
+    el("stage").innerHTML =
+      '<div class="card t' + current.t + '">' +
+        '<div class="meta"><span class="modtag">' + current.m + " &middot; TRACK " + current.t +
+          '</span><span>box ' + box(current.id) + " of 3</span></div>" +
+        '<p class="q">' + current.q + "</p>" +
+        (revealed
+          ? '<div class="a">' + current.a + "</div>" +
+            '<p class="src">Source: <a href="' + current.s.u + '" target="_blank" rel="noopener">' +
+              current.s.t + "</a></p>"
+          : "") +
+        '<div class="row">' +
+          (revealed
+            ? '<button type="button" class="g g1" data-g="1">Missed it<kbd>1</kbd></button>' +
+              '<button type="button" class="g g2" data-g="2">Shaky<kbd>2</kbd></button>' +
+              '<button type="button" class="g g3" data-g="3">Solid<kbd>3</kbd></button>'
+            : '<button type="button" class="reveal" id="revealBtn">Show answer<kbd>space</kbd></button>' +
+              '<button type="button" data-skip="1">Skip</button>') +
+        "</div>" +
+      "</div>";
+  }
+
+  // ---- events ----------------------------------------------------------------
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("button");
+    if (!t) { return; }
+    if (t.id === "revealBtn") { revealed = true; return render(); }
+    if (t.dataset.skip)       { current = pick(); revealed = false; return render(); }
+    if (t.dataset.g)          { return grade(Number(t.dataset.g)); }
+    if (t.dataset.f)          { filter = t.dataset.f; current = pick(); revealed = false; return render(); }
+    if (t.id === "reset") {
+      if (confirm("Clear which box every card is in? This cannot be undone.")) {
+        boxOf = {}; save(); current = pick(); revealed = false; render();
+      }
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) { return; }
+    if (/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { return; }
+    if (e.key === " " || e.key === "Enter") {
+      if (!revealed) { e.preventDefault(); revealed = true; render(); }
+    } else if (revealed && (e.key === "1" || e.key === "2" || e.key === "3")) {
+      e.preventDefault(); grade(Number(e.key));
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault(); current = pick(); revealed = false; render();
+    }
+  });
+
+  current = pick();
+  render();
+})();
+</script>
+</body>
+</html>

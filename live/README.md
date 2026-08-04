@@ -1,13 +1,17 @@
-# Live pages — planner and deck
+# Live pages — plan, test, present
 
-Two self-contained pages published with the docs site. Both are plain HTML with no framework, no
-CDN, and no build step, so they work on GitHub Pages, from a local checkout, and on a locked-down
-corporate network alike.
+Three self-contained pages published with the docs site, sharing one nav so they read as a single
+tool. All are plain HTML with no framework, no CDN, and no build step, so they work on GitHub Pages,
+from a local checkout, and on a locked-down corporate network alike.
 
 | Page | What it does | Open it |
 |---|---|---|
 | **Study planner** | Pick a goal, get an ordered module ladder, tick modules off, watch remaining hours drop | [dashboard.html](dashboard.html) |
+| **Recall cards** | Retrieval practice on the curriculum's own Q&A, sorted into three Leitner boxes, every card cited | [flashcards.html](flashcards.html) |
 | **Slide deck** | Presentable overview of the curriculum and the findings from building it | [slides.html](slides.html) |
+
+They form a loop: **plan** what to study, **test** whether it stuck, **present** it to find out what
+you only half-know.
 
 > **On GitHub these render as source, not as pages.** GitHub does not serve HTML from a repository
 > view. Use the published site (the `Deploy docs to GitHub Pages` workflow builds it on every push to
@@ -32,6 +36,31 @@ a browser does.
 It degrades honestly: with JavaScript disabled it says so and points at
 [CURRICULUM.md](../CURRICULUM.md), which needs nothing but a browser.
 
+## Recall cards
+
+Every module's Section 9 already holds conceptual Q&A, but it sits inside `<details>` blocks in a
+900-line README — so it is read passively, if at all. This page turns that material into retrieval
+practice, which is a measurably different activity: Roediger & Karpicke found re-testing produced
+**61%** recall after a week against **40%** for re-reading the same material the same number of
+times, *while the re-readers felt more confident*
+([Test-Enhanced Learning](https://doi.org/10.1111/j.1467-9280.2006.01693.x), Psychological Science,
+2006). Confidence is not retention, which is the same argument the curriculum makes about benchmarks.
+
+- **Three Leitner boxes, not a streak.** Cards start in Box 1. *Solid* promotes, *Shaky* holds,
+  *Missed* drops to Box 1. Drawing is weighted 3:2:1 toward Box 1, so the deck keeps returning to
+  what you get wrong. The box display *is* the progress meter — the useful question is "what is still
+  in Box 1", not "how many did I click".
+- **The answer reveals in place; the question stays.** Deliberately not a flip card, which hides the
+  question at exactly the moment you want to compare it against the answer.
+- **Every card cites a source** — a paper, a vendor document, or the module it came from. If a card
+  and its source disagree, the source wins.
+- **Keyboard:** `space` reveals, `1`/`2`/`3` grade, `→` skips.
+- Filter by track; progress persists in `localStorage` under `ppc.cards.v1`.
+
+Deliberately a three-box Leitner system rather than a full SM-2 scheduler: interval tuning is not
+what stands between a learner and this material, and a simpler mechanic you can see is worth more
+than a better one you can't.
+
 ## Slide deck
 
 Fourteen slides following the slide template in [docs/BRAND.md](../docs/BRAND.md) — 4px cyan accent
@@ -53,14 +82,16 @@ edit the `<section class="slide">` blocks and it is still a deck.
 
 ## Keeping them accurate
 
-Both pages hardcode the module list, hour estimates, and depths. The source of truth is
+The planner and deck hardcode the module list, hour estimates, and depths. The source of truth is
 [CURRICULUM.md](../CURRICULUM.md); when a module is added or an estimate changes, update:
 
 1. `CURRICULUM.md` — the status tables and the totals.
 2. `live/dashboard.html` — the `M` array near the top of the script, and `PATHS` if the new module
    belongs on a learning path.
-3. `live/slides.html` — only if the headline counts (24 modules, ~164 hours) change.
-4. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
+3. `live/flashcards.html` — add cards to `CARDS`, reusing an entry from the `S` source table or adding
+   one. A card without a real source does not belong in the deck.
+4. `live/slides.html` — only if the headline counts (24 modules, ~164 hours) change.
+5. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
    use inside the editor.
 
 The duplication is deliberate: each surface has to stand alone with no shared runtime. Four places is
