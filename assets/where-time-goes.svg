@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="1200" height="380" role="img" aria-labelledby="t d">
+<title id="t">Where the time actually goes in a GPU program</title>
+<desc id="d">A single bar showing wall-clock time for a vector-add program, split into five phases. Device allocation is 68.1 milliseconds or 94.1 percent of the run; host-to-device copy 2.36 ms; the compute kernel 0.044 ms or 0.06 percent; device-to-host copy 1.21 ms; teardown 0.66 ms. The kernel segment is too narrow to see at true scale, which is the point of the graphic.</desc>
+
+<!--
+  Module A01. Real measurement, not an illustration: rocprofv3 with summary and sys-trace enabled
+  on hip/vector_add.exe, n = 16,777,216, AMD gfx950. Total 72.373 ms.
+
+  The whole argument is that the kernel segment is invisible at true scale. The amber
+  tick is therefore drawn WIDER than reality (3px instead of 0.66px) purely so it can
+  be seen at all - which is stated on the graphic, because a chart that silently
+  exaggerates a segment to make its own point is not worth trusting.
+
+  To re-plot with your own numbers: segment width = (phase_ms / total_ms) * 1088.
+-->
+
+<style>
+  .ground  { fill: #0F172A; }
+  .rule    { fill: #0891B2; }
+  .eyebrow { fill: #0891B2; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head    { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub     { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .num     { font: 700 13px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .lbl     { fill: #CBD5E1; font: 400 13px Inter, "Segoe UI", system-ui, sans-serif; }
+  .tiny    { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .callout { fill: #F59E0B; font: 700 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .leader  { stroke: #F59E0B; stroke-width: 1.25; fill: none; }
+
+  /* The kernel tick is the only animated element: it is what the eye should find. */
+  .flash { animation: flash 2.4s ease-in-out infinite; }
+  @keyframes flash { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; opacity: 1 } }
+</style>
+
+<rect class="ground" width="1200" height="380"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE A01 &#183; MEASURED, NOT ILLUSTRATED</text>
+<text class="head"    x="54" y="92">Your kernel is 0.06% of the runtime</text>
+<text class="sub"     x="56" y="120">One bar, one program, true scale. The compute is the sliver you cannot see.</text>
+
+<!-- Callout for the kernel, placed above because there is no room beside it -->
+<text class="callout" x="905" y="168">44 &#181;s of compute</text>
+<text class="tiny"    x="905" y="186">the tick below is drawn 4&#215; wide so it is visible at all</text>
+<path class="leader" d="M 1050 194 L 1050 208 L 1116 208 L 1116 222"/>
+
+<!-- The bar. x=56, total width 1088, mapped from 72.373 ms -->
+<g>
+  <rect x="56"      y="224" width="1023.9" height="56" fill="#334155"/>
+  <rect x="1079.9"  y="224" width="35.43"  height="56" fill="#0891B2"/>
+  <rect class="flash" x="1115.3" y="218" width="3" height="68" fill="#F59E0B"/>
+  <rect x="1116.0"  y="224" width="18.11"  height="56" fill="#0E7490"/>
+  <rect x="1134.1"  y="224" width="9.85"   height="56" fill="#475569"/>
+</g>
+<text class="tiny" x="56"   y="300">0 ms</text>
+<text class="tiny" x="1101" y="300">72.373 ms</text>
+
+<!-- Legend: phase, colour, time, share. Numbers in mono because the numbers are the argument. -->
+<g>
+  <rect x="56" y="326" width="12" height="12" fill="#334155"/>
+  <text class="lbl" x="76"  y="336">hipMalloc &#215;3</text>
+  <text class="num" x="205" y="336" fill="#F8FAFC">68.112 ms</text>
+  <text class="num" x="292" y="336" fill="#64748B">94.1%</text>
+
+  <rect x="360" y="326" width="12" height="12" fill="#0891B2"/>
+  <text class="lbl" x="380" y="336">host &#8594; device</text>
+  <text class="num" x="490" y="336" fill="#F8FAFC">2.357 ms</text>
+  <text class="num" x="568" y="336" fill="#64748B">3.3%</text>
+
+  <rect x="626" y="326" width="12" height="12" fill="#F59E0B"/>
+  <text class="lbl" x="646" y="336" fill="#F59E0B">vector_add kernel</text>
+  <text class="num" x="770" y="336" fill="#F59E0B">0.044 ms</text>
+  <text class="num" x="848" y="336" fill="#F59E0B">0.06%</text>
+
+  <rect x="906" y="326" width="12" height="12" fill="#0E7490"/>
+  <text class="lbl" x="926" y="336">device &#8594; host</text>
+  <text class="num" x="1032" y="336" fill="#F8FAFC">1.205 ms</text>
+
+  <rect x="906" y="348" width="12" height="12" fill="#475569"/>
+  <text class="lbl" x="926" y="358">hipFree &#215;3</text>
+  <text class="num" x="1032" y="358" fill="#F8FAFC">0.655 ms</text>
+</g>
+<text class="tiny" x="56" y="358">Most of that allocation is a one-time context / lazy-init cost on first touch &#8212; it is not 68 ms every call.</text>
+</svg>

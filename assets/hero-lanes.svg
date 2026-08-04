@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-labelledby="t d">
+<title id="t">GPU + ML Expert Tutor</title>
+<desc id="d">Curriculum banner. On the right, 64 squares arranged in 4 rows of 16 represent the lanes of a single AMD wavefront; a pulse sweeps across the columns to show that all lanes are issued the same instruction in lockstep.</desc>
+
+<!--
+  Signature graphic for the curriculum. The lane grid is the recurring device across
+  every asset in this directory: one square = one lane, and its fill state always
+  encodes something true (active, masked, or which cache line it touches).
+
+  Edit freely - this is plain text. Palette tokens are the Parallel Spectrum values
+  from docs/BRAND.md; the sweep is CSS with a per-column delay, so changing the delay custom property on a
+  column group changes when it lights up.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #0891B2; }
+  .eyebrow  { fill: #0891B2; font: 700 13px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.4px; }
+  .title    { fill: #F8FAFC; font: 700 46px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -1.2px; }
+  .sub      { fill: #94A3B8; font: 400 17px Inter, "Segoe UI", system-ui, sans-serif; }
+  .meta     { fill: #64748B; font: 400 12.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .4px; }
+  .caption  { fill: #64748B; font: 400 12px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .3px; }
+  .lane     { fill: #0891B2; }
+  .amd      { fill: #ED1C24; }
+  .nv       { fill: #76B900; }
+  .pill     { font: 700 11px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .4px; }
+
+  /* One instruction, every lane, at once - so the columns light in a sweep rather
+     than at random. Delay is set per column group via --d. */
+  .col { animation: issue 2.1s ease-in-out infinite; animation-delay: var(--d, 0s); opacity: .22; }
+  @keyframes issue {
+      0%,  55%, 100% { opacity: .22; }
+     18%,  32%       { opacity: 1;   }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .col { animation: none; opacity: .78; }
+  }
+</style>
+
+<rect class="ground" width="1200" height="320"/>
+<rect class="rule" width="1200" height="4"/>
+
+<!-- Left: the wordmark -->
+<text class="eyebrow" x="56" y="96">PARALLEL PROGRAMMING</text>
+<text class="title"   x="54" y="156">GPU + ML Expert Tutor</text>
+<text class="sub"     x="56" y="192">Layman-clear, expert-deep. Every claim reproducible.</text>
+<text class="meta"    x="56" y="236">24 modules &#183; 3 tracks &#183; ~164 hours</text>
+
+<!-- Vendor pills: small labels only, never a background (docs/BRAND.md) -->
+<rect class="amd" x="56" y="256" width="46" height="18" rx="3"/>
+<text class="pill" x="63" y="269" fill="#FFFFFF">AMD</text>
+<rect class="nv"  x="110" y="256" width="70" height="18" rx="3"/>
+<text class="pill" x="117" y="269" fill="#0F172A">NVIDIA</text>
+<text class="caption" x="192" y="269">one source, both vendors</text>
+
+<!-- Right: one wavefront -->
+<text class="caption" x="700" y="88">ONE WAVEFRONT &#183; 64 LANES &#183; ONE INSTRUCTION</text>
+
+<defs><rect id="lane" class="lane" width="22" height="22" rx="2.5"/></defs>
+
+<g class="col" style="--d:0.00s" transform="translate(700,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.05s" transform="translate(728,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.10s" transform="translate(756,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.15s" transform="translate(784,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.20s" transform="translate(812,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.25s" transform="translate(840,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.30s" transform="translate(868,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.35s" transform="translate(896,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.40s" transform="translate(924,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.45s" transform="translate(952,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.50s" transform="translate(980,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.55s" transform="translate(1008,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.60s" transform="translate(1036,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.65s" transform="translate(1064,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.70s" transform="translate(1092,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+<g class="col" style="--d:0.75s" transform="translate(1120,0)"><use href="#lane" y="100"/><use href="#lane" y="128"/><use href="#lane" y="156"/><use href="#lane" y="184"/></g>
+
+<text class="caption" x="700" y="236">64 on AMD CDNA &#183; 32 on NVIDIA &#183; block sizes that are</text>
+<text class="caption" x="700" y="254">multiples of 64 are safe on both</text>
+</svg>

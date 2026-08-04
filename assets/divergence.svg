@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-labelledby="t d">
+<title id="t">Warp divergence versus a warp-uniform branch</title>
+<desc id="d">Two panels of sixteen lanes. On the left the branch condition differs within the wavefront, so the hardware executes the then-path with half the lanes masked off, then the else-path with the other half masked: the cost is the sum of both paths. On the right the same branch is uniform across the wavefront, so only one path executes and the other is skipped entirely.</desc>
+
+<!--
+  Module A03. Third meaning for the lane grid: whether a lane is active or masked off.
+
+  Motion is doing real work here. The two rows on the left pulse in antiphase because
+  the point is that they happen SEQUENTIALLY - a still image cannot distinguish "both
+  paths run one after the other" from "both paths run at once", which is exactly the
+  misconception the module fixes.
+-->
+
+<style>
+  .ground  { fill: #0F172A; }
+  .rule    { fill: #0891B2; }
+  .eyebrow { fill: #0891B2; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head    { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub     { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .panel   { fill: none; stroke: #1E293B; }
+  .phead   { font: 700 13.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .5px; }
+  .step    { fill: #94A3B8; font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1px; }
+  .tiny    { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .lbl     { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .verdict { font: 700 15px Inter, "Segoe UI", system-ui, sans-serif; }
+
+  .on   { fill: #0891B2; }
+  .off  { fill: #172033; stroke: #223049; stroke-width: 1; }
+  .skip { fill: none; stroke: #334155; stroke-width: 1; stroke-dasharray: 3 3; }
+
+  /* Antiphase: THEN, then ELSE. This is the whole lesson. */
+  .exec1 { animation: beat 2.8s steps(1, end) infinite; }
+  .exec2 { animation: beat 2.8s steps(1, end) infinite; animation-delay: 1.4s; }
+  @keyframes beat { 0%, 49.9% { opacity: 1 } 50%, 100% { opacity: .28 } }
+  .cue1 { animation: cue 2.8s steps(1, end) infinite; }
+  .cue2 { animation: cue 2.8s steps(1, end) infinite; animation-delay: 1.4s; }
+  @keyframes cue { 0%, 49.9% { opacity: 1 } 50%, 100% { opacity: 0 } }
+  @media (prefers-reduced-motion: reduce) {
+    .exec1, .exec2 { animation: none; opacity: 1 }
+    .cue1, .cue2   { animation: none; opacity: .6 }
+  }
+</style>
+
+<rect class="ground" width="1200" height="420"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE A03 &#183; THE SAME BRANCH, TWICE THE COST</text>
+<text class="head"    x="54" y="92">A divergent branch runs both sides</text>
+<text class="sub"     x="56" y="120">Lanes in a wavefront share one instruction pointer. Disagree, and the hardware serializes.</text>
+
+<defs><rect id="L" width="18" height="18" rx="2"/></defs>
+
+<!-- ================= LEFT: lane-divergent ================= -->
+<rect class="panel" x="56" y="148" width="524" height="236" rx="4"/>
+<text class="phead" x="76" y="176" fill="#F59E0B">DIVERGENT &#183; if (tid % 2)</text>
+
+<text class="step" x="76" y="212">THEN</text>
+<rect class="cue1" x="60" y="200" width="3" height="18" fill="#F59E0B"/>
+<g class="exec1">
+  <use href="#L" class="on"  x="144" y="200"/><use href="#L" class="off" x="166" y="200"/>
+  <use href="#L" class="on"  x="188" y="200"/><use href="#L" class="off" x="210" y="200"/>
+  <use href="#L" class="on"  x="232" y="200"/><use href="#L" class="off" x="254" y="200"/>
+  <use href="#L" class="on"  x="276" y="200"/><use href="#L" class="off" x="298" y="200"/>
+  <use href="#L" class="on"  x="320" y="200"/><use href="#L" class="off" x="342" y="200"/>
+  <use href="#L" class="on"  x="364" y="200"/><use href="#L" class="off" x="386" y="200"/>
+  <use href="#L" class="on"  x="408" y="200"/><use href="#L" class="off" x="430" y="200"/>
+  <use href="#L" class="on"  x="452" y="200"/><use href="#L" class="off" x="474" y="200"/>
+</g>
+<text class="tiny" x="500" y="213">8 active</text>
+
+<text class="step" x="76" y="252">ELSE</text>
+<rect class="cue2" x="60" y="240" width="3" height="18" fill="#F59E0B"/>
+<g class="exec2">
+  <use href="#L" class="off" x="144" y="240"/><use href="#L" class="on"  x="166" y="240"/>
+  <use href="#L" class="off" x="188" y="240"/><use href="#L" class="on"  x="210" y="240"/>
+  <use href="#L" class="off" x="232" y="240"/><use href="#L" class="on"  x="254" y="240"/>
+  <use href="#L" class="off" x="276" y="240"/><use href="#L" class="on"  x="298" y="240"/>
+  <use href="#L" class="off" x="320" y="240"/><use href="#L" class="on"  x="342" y="240"/>
+  <use href="#L" class="off" x="364" y="240"/><use href="#L" class="on"  x="386" y="240"/>
+  <use href="#L" class="off" x="408" y="240"/><use href="#L" class="on"  x="430" y="240"/>
+  <use href="#L" class="off" x="452" y="240"/><use href="#L" class="on"  x="474" y="240"/>
+</g>
+<text class="tiny" x="500" y="253">8 active</text>
+
+<text class="tiny" x="76" y="296">time &#8594;</text>
+<rect x="144" y="284" width="172" height="14" fill="#0891B2"/>
+<rect x="318" y="284" width="172" height="14" fill="#0E7490"/>
+<text class="tiny" x="200" y="295" fill="#0F172A">THEN</text>
+<text class="tiny" x="378" y="295" fill="#0F172A">ELSE</text>
+
+<text class="verdict" x="76" y="336" fill="#F59E0B">cost = THEN + ELSE</text>
+<text class="lbl"     x="76" y="356">Half the lanes idle through each half. You pay for both.</text>
+<text class="tiny"    x="76" y="374">Reconverges after the branch &#8212; throughput lost, not correctness.</text>
+
+<!-- ================= RIGHT: warp-uniform ================= -->
+<rect class="panel" x="620" y="148" width="524" height="236" rx="4"/>
+<text class="phead" x="640" y="176" fill="#10B981">UNIFORM &#183; if (tid / 64 % 2)</text>
+
+<text class="step" x="640" y="212">THEN</text>
+<rect class="cue1" x="624" y="200" width="3" height="18" fill="#10B981"/>
+<g class="exec1">
+  <use href="#L" class="on" x="708" y="200"/><use href="#L" class="on" x="730" y="200"/>
+  <use href="#L" class="on" x="752" y="200"/><use href="#L" class="on" x="774" y="200"/>
+  <use href="#L" class="on" x="796" y="200"/><use href="#L" class="on" x="818" y="200"/>
+  <use href="#L" class="on" x="840" y="200"/><use href="#L" class="on" x="862" y="200"/>
+  <use href="#L" class="on" x="884" y="200"/><use href="#L" class="on" x="906" y="200"/>
+  <use href="#L" class="on" x="928" y="200"/><use href="#L" class="on" x="950" y="200"/>
+  <use href="#L" class="on" x="972" y="200"/><use href="#L" class="on" x="994" y="200"/>
+  <use href="#L" class="on" x="1016" y="200"/><use href="#L" class="on" x="1038" y="200"/>
+</g>
+<text class="tiny" x="1064" y="213">16 active</text>
+
+<text class="step" x="640" y="252">ELSE</text>
+<g>
+  <use href="#L" class="skip" x="708" y="240"/><use href="#L" class="skip" x="730" y="240"/>
+  <use href="#L" class="skip" x="752" y="240"/><use href="#L" class="skip" x="774" y="240"/>
+  <use href="#L" class="skip" x="796" y="240"/><use href="#L" class="skip" x="818" y="240"/>
+  <use href="#L" class="skip" x="840" y="240"/><use href="#L" class="skip" x="862" y="240"/>
+  <use href="#L" class="skip" x="884" y="240"/><use href="#L" class="skip" x="906" y="240"/>
+  <use href="#L" class="skip" x="928" y="240"/><use href="#L" class="skip" x="950" y="240"/>
+  <use href="#L" class="skip" x="972" y="240"/><use href="#L" class="skip" x="994" y="240"/>
+  <use href="#L" class="skip" x="1016" y="240"/><use href="#L" class="skip" x="1038" y="240"/>
+</g>
+<text class="tiny" x="1064" y="253">skipped</text>
+
+<text class="tiny" x="640" y="296">time &#8594;</text>
+<rect x="708" y="284" width="172" height="14" fill="#10B981"/>
+<text class="tiny" x="764" y="295" fill="#0F172A">THEN</text>
+<rect class="skip" x="882" y="284" width="172" height="14"/>
+
+<text class="verdict" x="640" y="336" fill="#10B981">cost = THEN only</text>
+<text class="lbl"     x="640" y="356">Every lane agrees, so the other side is branched over entirely.</text>
+<text class="tiny"    x="640" y="374">This is why `if (idx &lt; n)` is nearly free: only the last partial wavefront diverges.</text>
+</svg>

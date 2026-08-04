@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" width="1200" height="460" role="img" aria-labelledby="t d">
+<title id="t">Roofline model with the curriculum's kernels plotted</title>
+<desc id="d">A log-log roofline plot. Arithmetic intensity in FLOP per byte runs along the horizontal axis, attainable performance in TFLOP per second up the vertical. A diagonal memory-bandwidth ceiling meets a horizontal compute ceiling at a ridge point near 200 FLOP per byte. Vector add, reduction, softmax and tiled matrix multiply all sit far to the left of the ridge, in the memory-bound region; the compute-bound region to the right is almost empty.</desc>
+
+<!--
+  Module B02. Mermaid cannot draw a curve, which is why this exists as hand-authored SVG.
+
+  Axis mapping, if you re-plot:
+    x(I) = 140 + 225 * log10(I / 0.05)        decades at 0.05, 0.5, 5, 50, 500
+    y(P) = 360 - 67.5 * log10(P / 0.1)        decades at 0.1, 1, 10, 100, 1000 TFLOP/s
+    memory-bound line: P = I * B, with B = 5 TB/s  ->  P_TFLOPs = 5 * I
+    ridge: I = peak / B = 1000 / 5 = 200 FLOP/byte
+
+  The ceilings are REPRESENTATIVE of an MI300X-class part (~5 TB/s HBM, ~1000 TFLOP/s
+  reduced-precision matrix), not a datasheet quote for any specific SKU. B02's
+  measure_ceilings lab derives both from your own hardware - use those numbers, not these.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #6366F1; }
+  .eyebrow  { fill: #6366F1; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .axis     { stroke: #334155; stroke-width: 1.2; }
+  .grid     { stroke: #1B2436; stroke-width: 1; }
+  .tick     { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .axlbl    { fill: #94A3B8; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .3px; }
+  .roof     { stroke: #6366F1; stroke-width: 3; fill: none; stroke-linejoin: round; }
+  .memfill  { fill: #0891B2; opacity: .07; }
+  .cmpfill  { fill: #6366F1; opacity: .07; }
+  .zone     { font: 700 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .4px; }
+  .kname    { fill: #E2E8F0; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; }
+  .kai      { fill: #64748B; font: 400 10.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .dot      { fill: #0891B2; stroke: #0F172A; stroke-width: 2; }
+  .ridgeline{ stroke: #F59E0B; stroke-width: 1.2; stroke-dasharray: 4 4; }
+  .ridge    { fill: #F59E0B; font: 700 12px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+
+  .pulse { animation: p 3s ease-in-out infinite; }
+  @keyframes p { 0%,100% { r: 6 } 50% { r: 8 } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none } }
+</style>
+
+<rect class="ground" width="1200" height="460"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE B02 &#183; ONE FORMULA: min(peak, intensity &#215; bandwidth)</text>
+<text class="head"    x="54" y="92">Almost everything in ML is memory-bound</text>
+<text class="sub"     x="56" y="118">Which is why fusing kernels pays, and why faster arithmetic often changes nothing.</text>
+
+<!-- shaded regions -->
+<path class="memfill" d="M 140 333 L 950 90 L 950 360 L 140 360 Z"/>
+<path class="cmpfill" d="M 950 90 L 1040 90 L 1040 360 L 950 360 Z"/>
+
+<!-- grid + axes -->
+<g class="grid">
+  <line x1="365" y1="150" x2="365" y2="360"/><line x1="590" y1="150" x2="590" y2="360"/>
+  <line x1="815" y1="150" x2="815" y2="360"/>
+  <line x1="140" y1="292.5" x2="1040" y2="292.5"/><line x1="140" y1="225" x2="1040" y2="225"/>
+  <line x1="140" y1="157.5" x2="1040" y2="157.5"/>
+</g>
+<g class="axis">
+  <line x1="140" y1="360" x2="1040" y2="360"/>
+  <line x1="140" y1="90"  x2="140"  y2="360"/>
+</g>
+
+<g class="tick">
+  <text x="128" y="364">0.05</text><text x="352" y="378">0.5</text><text x="582" y="378">5</text>
+  <text x="803" y="378">50</text><text x="1026" y="378">500</text>
+  <text x="104" y="296">1</text><text x="98"  y="229">10</text>
+  <text x="92"  y="161">100</text><text x="86"  y="94">1000</text>
+</g>
+<text class="axlbl" x="500" y="398">arithmetic intensity &#8212; FLOP per byte from HBM</text>
+<text class="axlbl" x="56"  y="76" >TFLOP/s attainable</text>
+
+<!-- the roofline itself -->
+<path class="roof" d="M 140 333 L 950 90 L 1040 90"/>
+<text class="zone" x="300" y="330" fill="#0891B2" transform="rotate(-16.7 300 330)">memory-bandwidth bound</text>
+<text class="zone" x="962" y="112" fill="#6366F1">compute</text>
+<text class="zone" x="962" y="128" fill="#6366F1">bound</text>
+
+<!-- ridge -->
+<line class="ridgeline" x1="950" y1="90" x2="950" y2="360"/>
+<text class="ridge" x="838" y="352">ridge H 200</text>
+
+<!-- curriculum kernels, all sitting on the bandwidth slope -->
+<g>
+  <circle class="dot pulse" cx="189.5" cy="318" r="6"/>
+  <text class="kname" x="200" y="308">vector add</text>
+  <text class="kai"   x="200" y="322">0.083 &#183; A01</text>
+
+  <circle class="dot" cx="297" cy="286" r="6"/>
+  <text class="kname" x="308" y="276">reduction</text>
+  <text class="kai"   x="308" y="290">0.25 &#183; A04</text>
+
+  <circle class="dot" cx="433" cy="245" r="6"/>
+  <text class="kname" x="444" y="235">softmax</text>
+  <text class="kai"   x="444" y="249">~1 &#183; A07</text>
+
+  <circle class="dot" cx="636" cy="184" r="6"/>
+  <text class="kname" x="647" y="174">tiled GEMM</text>
+  <text class="kai"   x="647" y="188">8 &#183; A06 (T=32)</text>
+
+  <circle class="dot" cx="704" cy="164" r="6"/>
+  <text class="kname" x="715" y="140">+ register blocking</text>
+  <text class="kai"   x="715" y="154">16 &#183; A06</text>
+</g>
+
+<text class="tiny" x="56" y="424">Tiling moves GEMM right along the slope &#8212; that is what raising reuse buys you. Even so, it does not reach the ridge:</text>
+<text class="tiny" x="56" y="442">crossing it needs matrix cores, which is why hand-written fp32 SIMT GEMM plateaus. Ceilings shown are representative; B02 measures yours.</text>
+</svg>

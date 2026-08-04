@@ -126,6 +126,12 @@ emits `s_and_saveexec_b64` / `s_cbranch_execz` around the branch. On NVIDIA pre-
 hardware reconvergence stack; Volta and later give each thread its own PC plus convergence
 barriers — a real behavioural difference we return to in §3.
 
+![A divergent branch executes both sides in turn; a uniform branch skips one entirely](../../../assets/divergence.svg)
+
+The two rows on the left alternate because they happen *one after the other* — that sequencing is the
+whole cost, and it is the one thing a static diagram cannot tell you. On the right, `s_cbranch_execz`
+skips the untaken side outright, which is why a warp-uniform branch is nearly free.
+
 **The cost model falls straight out:**
 
 ```

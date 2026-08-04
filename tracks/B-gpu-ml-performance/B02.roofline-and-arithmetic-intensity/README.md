@@ -168,6 +168,12 @@ Three consequences that trip people up:
 
 ### The ridge point, and why it is absurdly high now
 
+![Roofline with the curriculum's kernels plotted: all of them left of the ridge](../../../assets/roofline.svg)
+
+Every kernel this curriculum builds sits on the slanted part. The flat compute-bound region to the
+right of the ridge is almost empty — that emptiness is why fusion pays and why faster arithmetic so
+often changes nothing.
+
 Set the two terms of `min(P, I × B)` equal:
 
 ```

@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-labelledby="t d">
+<title id="t">Coalesced versus strided memory access</title>
+<desc id="d">Two panels. On the left, eight lanes read consecutive addresses, so all eight land inside one cache line: one fetch and every byte is used. On the right, the same eight lanes read with a stride, so each lands in a different cache line: eight fetches, and seven eighths of every line is fetched and discarded.</desc>
+
+<!--
+  Module A02. The lane grid from hero-lanes.svg, now carrying a second meaning: which
+  cache line each lane touches. Same eight lanes and same arithmetic in both panels -
+  only the addresses differ.
+
+  The discarded cells on the right are the only animated thing in the graphic, because
+  the bytes you paid for and threw away are the entire point.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #0891B2; }
+  .eyebrow  { fill: #0891B2; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .panel    { fill: none; stroke: #1E293B; stroke-width: 1; }
+  .phead    { font: 700 14px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .6px; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .lbl      { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .verdict  { font: 700 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .lane     { fill: #0891B2; }
+  .used     { fill: #0891B2; }
+  .waste    { fill: #7C3A0B; }
+  .wire     { stroke: #475569; stroke-width: 1.2; fill: none; }
+
+  /* Bytes fetched and discarded. Amber = you paid for this and used none of it. */
+  .waste { animation: burn 2.6s ease-in-out infinite; }
+  @keyframes burn { 0%,100% { fill: #7C3A0B } 50% { fill: #F59E0B } }
+  @media (prefers-reduced-motion: reduce) { .waste { animation: none; fill: #B45309 } }
+</style>
+
+<rect class="ground" width="1200" height="400"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE A02 &#183; SAME MATH, DIFFERENT ADDRESSES</text>
+<text class="head"    x="54" y="92">How you read memory sets your bandwidth</text>
+<text class="sub"     x="56" y="120">Eight lanes. One cache line is fetched whole, whether you use all of it or one byte of it.</text>
+
+<defs>
+  <marker id="a" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M 0 1 L 6 4 L 0 7 z" fill="#475569"/>
+  </marker>
+  <rect id="lane" class="lane" width="22" height="22" rx="2.5"/>
+</defs>
+
+<!-- ================= LEFT: coalesced ================= -->
+<rect class="panel" x="56" y="148" width="524" height="216" rx="4"/>
+<text class="phead" x="76" y="176" fill="#10B981">COALESCED &#183; stride 1</text>
+
+<g><use href="#lane" x="202" y="192"/><use href="#lane" x="232" y="192"/><use href="#lane" x="262" y="192"/><use href="#lane" x="292" y="192"/>
+   <use href="#lane" x="322" y="192"/><use href="#lane" x="352" y="192"/><use href="#lane" x="382" y="192"/><use href="#lane" x="412" y="192"/></g>
+<text class="tiny" x="76" y="208">lanes 0&#8211;7</text>
+
+<g class="wire" marker-end="url(#a)">
+  <path d="M213 218 V 250"/><path d="M243 218 V 250"/><path d="M273 218 V 250"/><path d="M303 218 V 250"/>
+  <path d="M333 218 V 250"/><path d="M363 218 V 250"/><path d="M393 218 V 250"/><path d="M423 218 V 250"/>
+</g>
+
+<!-- one cache line, all eight slots useful -->
+<g>
+  <rect class="used" x="202" y="258" width="28" height="26"/><rect class="used" x="231" y="258" width="28" height="26"/>
+  <rect class="used" x="260" y="258" width="28" height="26"/><rect class="used" x="289" y="258" width="28" height="26"/>
+  <rect class="used" x="318" y="258" width="28" height="26"/><rect class="used" x="347" y="258" width="28" height="26"/>
+  <rect class="used" x="376" y="258" width="28" height="26"/><rect class="used" x="405" y="258" width="28" height="26"/>
+</g>
+<text class="tiny" x="76" y="275">1 cache line</text>
+<text class="verdict" x="76" y="330" fill="#10B981">1 fetch &#183; every byte used</text>
+<text class="lbl"     x="76" y="350">Adjacent lanes, adjacent addresses. One transaction serves all eight.</text>
+
+<!-- ================= RIGHT: strided ================= -->
+<rect class="panel" x="620" y="148" width="524" height="216" rx="4"/>
+<text class="phead" x="640" y="176" fill="#F59E0B">STRIDED &#183; stride 8</text>
+
+<g><use href="#lane" x="766" y="192"/><use href="#lane" x="796" y="192"/><use href="#lane" x="826" y="192"/><use href="#lane" x="856" y="192"/>
+   <use href="#lane" x="886" y="192"/><use href="#lane" x="916" y="192"/><use href="#lane" x="946" y="192"/><use href="#lane" x="976" y="192"/></g>
+<text class="tiny" x="640" y="208">lanes 0&#8211;7</text>
+
+<g class="wire" marker-end="url(#a)">
+  <path d="M777 218 V 236"/><path d="M807 218 C 807 250, 795 250, 795 268"/><path d="M837 218 C 837 282, 824 282, 824 300"/>
+</g>
+
+<!-- three of the eight lines, one useful slot each -->
+<g>
+  <rect class="used"  x="766" y="242" width="28" height="20"/>
+  <rect class="waste" x="795" y="242" width="28" height="20"/><rect class="waste" x="824" y="242" width="28" height="20"/>
+  <rect class="waste" x="853" y="242" width="28" height="20"/><rect class="waste" x="882" y="242" width="28" height="20"/>
+  <rect class="waste" x="911" y="242" width="28" height="20"/><rect class="waste" x="940" y="242" width="28" height="20"/>
+  <rect class="waste" x="969" y="242" width="28" height="20"/>
+</g>
+<g>
+  <rect class="waste" x="766" y="274" width="28" height="20"/>
+  <rect class="used"  x="795" y="274" width="28" height="20"/>
+  <rect class="waste" x="824" y="274" width="28" height="20"/><rect class="waste" x="853" y="274" width="28" height="20"/>
+  <rect class="waste" x="882" y="274" width="28" height="20"/><rect class="waste" x="911" y="274" width="28" height="20"/>
+  <rect class="waste" x="940" y="274" width="28" height="20"/><rect class="waste" x="969" y="274" width="28" height="20"/>
+</g>
+<g>
+  <rect class="waste" x="766" y="306" width="28" height="20"/><rect class="waste" x="795" y="306" width="28" height="20"/>
+  <rect class="used"  x="824" y="306" width="28" height="20"/>
+  <rect class="waste" x="853" y="306" width="28" height="20"/><rect class="waste" x="882" y="306" width="28" height="20"/>
+  <rect class="waste" x="911" y="306" width="28" height="20"/><rect class="waste" x="940" y="306" width="28" height="20"/>
+  <rect class="waste" x="969" y="306" width="28" height="20"/>
+</g>
+<text class="tiny" x="1008" y="256">line 0</text>
+<text class="tiny" x="1008" y="288">line 1</text>
+<text class="tiny" x="1008" y="320">line 2</text>
+<text class="tiny" x="1008" y="338">+5 more</text>
+
+<text class="verdict" x="640" y="330" fill="#F59E0B">8 fetches &#183; 1 byte in 8 used</text>
+<text class="lbl"     x="640" y="350">Each lane lands in its own line. You pay for every line, whole.</text>
+
+<text class="tiny" x="56" y="384">Measured in A02: a transpose with strided writes reaches ~15% of the copy ceiling; staging through shared memory and padding takes it to ~70%.</text>
+</svg>

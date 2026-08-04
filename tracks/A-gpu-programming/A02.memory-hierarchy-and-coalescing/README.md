@@ -77,6 +77,10 @@ warp/wavefront of 32/64 threads next to that fact:
 That is the entire idea. Same instructions, same FLOPs; the *addresses* decide whether you get 1 or
 32 trips to the warehouse.
 
+![Coalesced versus strided access: eight lanes into one cache line, or into eight](../../../assets/coalescing.svg)
+
+The amber cells are bytes the hardware fetched and threw away. You paid for every one of them.
+
 ### Derive shared memory from reuse
 
 If a datum is read **more than once** by a block, paying the HBM latency each time is waste. Shared

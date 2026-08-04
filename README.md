@@ -1,3 +1,5 @@
+![GPU + ML Expert Tutor — 24 modules, 3 tracks, AMD and NVIDIA](assets/hero-lanes.svg)
+
 # GPU + ML Expert Tutor
 
 > A hands-on, module-by-module curriculum that takes you from "what is a GPU thread"
@@ -69,6 +71,11 @@ Each **module** is a self-contained folder with a `README.md` (9 fixed sections)
 ---
 
 ## The three tracks
+
+![The 24 modules across three tracks](assets/curriculum-map.svg)
+
+Row length is module count, so Track A's ten modules read as visibly longer than the seven in each of
+B and C. The dashed lines are the only three cross-track dependencies.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#F8FAFC', 'primaryBorderColor': '#0891B2', 'lineColor': '#64748B'}}}%%

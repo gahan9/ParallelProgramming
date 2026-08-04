@@ -16,7 +16,12 @@ between them, recommended learning paths, and a live progress + effort tracker.
 
 ---
 
+![The 24 modules across three tracks](assets/curriculum-map.svg)
+
 ## Dependency graph
+
+The map above answers "how much is there, and where am I?". The graph below answers "what must I do
+first?" — they are different questions, so they get different pictures.
 
 ```mermaid
 flowchart TD

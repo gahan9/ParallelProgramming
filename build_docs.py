@@ -35,10 +35,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 STAGE = REPO / "_docs"
 
-# Extensions that make up the site: prose, the standalone planner/deck, and the theme
-# override. Everything else in the repo (sources, Makefiles, requirements) is
-# intentionally not published — the READMEs link to it on GitHub instead.
-PUBLISH_SUFFIXES = {".md", ".html", ".css"}
+# Extensions that make up the site: prose, the standalone planner/deck, the theme
+# override, and the hand-authored infographics in assets/. Everything else in the repo
+# (sources, Makefiles, requirements) is intentionally not published — the READMEs link
+# to it on GitHub instead.
+#
+# .svg is load-bearing: without it the infographics referenced from module READMEs
+# resolve on GitHub but 404 on the published site.
+PUBLISH_SUFFIXES = {".md", ".html", ".css", ".svg"}
 
 # Directories never worth walking. `site` and `_docs` are build output; the rest are
 # tooling or caches that would only slow the walk down.

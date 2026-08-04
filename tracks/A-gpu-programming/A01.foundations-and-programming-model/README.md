@@ -565,6 +565,11 @@ pie showData
 
 ## 5. Performance Analysis
 
+![Where the time goes: a 44 microsecond kernel inside a 72 millisecond program](../../../assets/where-time-goes.svg)
+
+That bar is the module in one image, at true scale, from the `rocprofv3` run in Lab 4. You cannot see
+the kernel — and that is the finding, not a drawing problem.
+
 The right question for *any* kernel is: **am I limited by compute or by memory?** Vector add tells
 you immediately.
 
