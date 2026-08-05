@@ -10,6 +10,7 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - "docs/stylesheets/**"
+      - "docs/javascripts/**"
       # live/ holds the standalone planner and slide deck; assets/ holds the
       # infographics. Without these globs a change to any of them would never reach
       # Pages, since none of them is Markdown.
@@ -17,6 +18,7 @@ on:
       - "assets/**"
       - "**/*.html"
       - "**/*.svg"
+      - "**/*.js"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 

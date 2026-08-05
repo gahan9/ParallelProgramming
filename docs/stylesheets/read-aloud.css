@@ -1,0 +1,59 @@
+/* Read-aloud controls. Palette tokens from docs/BRAND.md - do not introduce new colours.
+   The player only exists while something is being read; nothing floats over the page
+   otherwise. */
+
+.ra-start {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font: 600 .78rem/1 Inter, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .02em;
+  color: #0891B2; background: transparent;
+  border: 1px solid currentColor; border-radius: 999px;
+  padding: .42rem .9rem; cursor: pointer; margin: 0 0 1.2rem;
+}
+.ra-start:hover { background: #0891B2; color: #fff; }
+.ra-start:focus-visible { outline: 2px solid #0891B2; outline-offset: 2px; }
+.ra-start svg { width: 13px; height: 13px; fill: currentColor; }
+
+/* Sentence currently being spoken. Underline rather than a block highlight so it does
+   not fight the page's own code and admonition colours. */
+.ra-now {
+  background: rgba(8, 145, 178, .13);
+  box-shadow: 0 1px 0 0 #0891B2;
+  border-radius: 2px;
+}
+
+.ra-player {
+  position: fixed; z-index: 40; right: 1rem; bottom: 1rem;
+  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+  max-width: calc(100vw - 2rem);
+  padding: .6rem .75rem;
+  background: #0F172A; color: #F8FAFC;
+  border: 1px solid #2C3A52; border-radius: 8px;
+  font: 400 .8rem/1.3 Inter, "Segoe UI", system-ui, sans-serif;
+}
+.ra-player[hidden] { display: none; }
+
+.ra-player button {
+  font: inherit; cursor: pointer; color: #F8FAFC;
+  background: #1B2436; border: 1px solid #2C3A52; border-radius: 5px;
+  padding: .3rem .6rem; min-width: 2rem;
+}
+.ra-player button:hover { border-color: #0891B2; }
+.ra-player button:focus-visible { outline: 2px solid #F8FAFC; outline-offset: 1px; }
+.ra-player .ra-primary { background: #0891B2; border-color: #0891B2; color: #04222B; font-weight: 700; }
+
+.ra-player .ra-where {
+  font: 400 .72rem/1.3 "JetBrains Mono", Consolas, ui-monospace, monospace;
+  color: #94A3B8; max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ra-player select {
+  font: inherit; font-size: .74rem; color: #F8FAFC;
+  background: #1B2436; border: 1px solid #2C3A52; border-radius: 5px; padding: .28rem .35rem;
+}
+.ra-player .ra-sep { width: 1px; align-self: stretch; background: #2C3A52; }
+
+@media (max-width: 520px) {
+  .ra-player { left: 1rem; right: 1rem; justify-content: center; }
+  .ra-player .ra-where { max-width: 100%; }
+}
+@media print { .ra-start, .ra-player { display: none !important; } }

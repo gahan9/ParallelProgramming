@@ -217,6 +217,55 @@
   "use strict";
 
   var KEY = "ppc.cards.v1";
+  var SPEECH = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
+
+  /* Hearing the question while you attempt the answer is the natural fit here - you can
+     look away from the screen and still be tested. Same rewrite rules as the docs site
+     (docs/javascripts/read-aloud.js): a synthesiser reading "TFLOP/s" or a code
+     fragment character by character is worse than silence. */
+  var SAY_AS = [
+    [/<[^>]+>/g, " "],                       // cards carry inline markup
+    [/&lt;/g, " less than "], [/&gt;/g, " greater than "], [/&amp;/g, " and "],
+    [/\bTFLOP\/s\b/g, "teraflops per second"],
+    [/\bGFLOP\/s\b/g, "gigaflops per second"],
+    [/\bFLOP\/byte\b/g, "flops per byte"],
+    [/\bFLOPs\b/g, "flops"],
+    [/\bTB\/s\b/g, "terabytes per second"],
+    [/\bGB\/s\b/g, "gigabytes per second"],
+    [/µs\b/g, " microseconds"], [/\bms\b/g, "milliseconds"],
+    [/\bbf16\b/gi, "B-float 16"],
+    [/\bfp(\d+)\b/gi, "F P $1"],
+    [/\bgfx(\w+)\b/gi, function (_, d) { return "G F X " + d.split("").join(" "); }],
+    [/\bKV\b/g, "K V"],
+    [/\bO\(([^)]{1,24})\)/g, "big O of $1"],
+    [/\bvs\.?(?=\s)/gi, "versus"],
+    [/\u00d7/g, " times "], [/\u2192/g, " to "], [/\u2248/g, " approximately "],
+    [/\u2264/g, " at most "], [/\u2265/g, " at least "],
+    [/\u00b2/g, " squared"], [/\u00b3/g, " cubed"],
+    [/[\u2014\u2013\u00b7]/g, ", "],
+    [/`/g, ""], [/_/g, " "], [/\s{2,}/g, " "]
+  ];
+
+  function speakable(html) {
+    var out = html;
+    SAY_AS.forEach(function (r) { out = out.replace(r[0], r[1]); });
+    return out.trim();
+  }
+
+  function say(text) {
+    if (!SPEECH) { return; }
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(speakable(text));
+    u.rate = 1;
+    window.speechSynthesis.speak(u);
+  }
+
+  /* Read the question; once revealed, read the answer too - so "Listen" always speaks
+     exactly what is on screen and never spoils a card you have not answered. */
+  function sayCard() {
+    if (!current) { return; }
+    say(revealed ? current.q + ". Answer. " + current.a : current.q);
+  }
 
   // Sources are reused across cards, so name them once.
   var S = {
@@ -399,8 +448,11 @@
     return choices[Math.floor(Math.random() * choices.length)];
   }
 
+  function hush() { if (SPEECH) { window.speechSynthesis.cancel(); } }
+
   function grade(g) {
     if (!current) { return; }
+    hush();
     var b = box(current.id);
     boxOf[current.id] = g === 3 ? Math.min(3, b + 1) : g === 2 ? b : 1;
     save();
@@ -466,6 +518,7 @@
               '<button type="button" class="g g3" data-g="3">Solid<kbd>3</kbd></button>'
             : '<button type="button" class="reveal" id="revealBtn">Show answer<kbd>space</kbd></button>' +
               '<button type="button" data-skip="1">Skip</button>') +
+          (SPEECH ? '<button type="button" data-say="1" aria-label="Read this card aloud">Listen<kbd>L</kbd></button>' : "") +
         "</div>" +
       "</div>";
   }
@@ -475,9 +528,10 @@
     var t = e.target.closest("button");
     if (!t) { return; }
     if (t.id === "revealBtn") { revealed = true; return render(); }
-    if (t.dataset.skip)       { current = pick(); revealed = false; return render(); }
+    if (t.dataset.say)        { return sayCard(); }
+    if (t.dataset.skip)       { hush(); current = pick(); revealed = false; return render(); }
     if (t.dataset.g)          { return grade(Number(t.dataset.g)); }
-    if (t.dataset.f)          { filter = t.dataset.f; current = pick(); revealed = false; return render(); }
+    if (t.dataset.f)          { hush(); filter = t.dataset.f; current = pick(); revealed = false; return render(); }
     if (t.id === "reset") {
       if (confirm("Clear which box every card is in? This cannot be undone.")) {
         boxOf = {}; save(); current = pick(); revealed = false; render();
@@ -493,9 +547,14 @@
     } else if (revealed && (e.key === "1" || e.key === "2" || e.key === "3")) {
       e.preventDefault(); grade(Number(e.key));
     } else if (e.key === "ArrowRight") {
-      e.preventDefault(); current = pick(); revealed = false; render();
+      e.preventDefault(); hush(); current = pick(); revealed = false; render();
+    } else if (e.key === "l" || e.key === "L") {
+      e.preventDefault(); sayCard();
     }
   });
+
+  // Leaving the page or moving on mid-sentence should not keep the voice talking.
+  window.addEventListener("pagehide", hush);
 
   current = pick();
   render();

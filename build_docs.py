@@ -40,9 +40,9 @@ STAGE = REPO / "_docs"
 # (sources, Makefiles, requirements) is intentionally not published — the READMEs link
 # to it on GitHub instead.
 #
-# .svg is load-bearing: without it the infographics referenced from module READMEs
-# resolve on GitHub but 404 on the published site.
-PUBLISH_SUFFIXES = {".md", ".html", ".css", ".svg"}
+# .svg and .js are load-bearing: without them the infographics and the read-aloud script
+# resolve locally but 404 on the published site.
+PUBLISH_SUFFIXES = {".md", ".html", ".css", ".svg", ".js"}
 
 # Directories never worth walking. `site` and `_docs` are build output; the rest are
 # tooling or caches that would only slow the walk down.

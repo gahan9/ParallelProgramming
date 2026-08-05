@@ -54,7 +54,10 @@ times, *while the re-readers felt more confident*
   question at exactly the moment you want to compare it against the answer.
 - **Every card cites a source** — a paper, a vendor document, or the module it came from. If a card
   and its source disagree, the source wins.
-- **Keyboard:** `space` reveals, `1`/`2`/`3` grade, `→` skips.
+- **Listen to a card.** `L` (or the button) reads it aloud using the browser's own speech
+  synthesis — the question only, until you reveal, so it never spoils a card you have not
+  attempted. Useful for testing yourself away from the screen.
+- **Keyboard:** `space` reveals, `1`/`2`/`3` grade, `→` skips, `L` listens.
 - Filter by track; progress persists in `localStorage` under `ppc.cards.v1`.
 
 Deliberately a three-box Leitner system rather than a full SM-2 scheduler: interval tuning is not

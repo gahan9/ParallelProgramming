@@ -170,7 +170,7 @@ The same curriculum, four surfaces — pick whichever keeps you actually studyin
 | Surface | What it is | Best for |
 |---|---|---|
 | **The repo** | Markdown modules next to runnable `hip/`, `cuda/`, `triton/` code | Doing the labs on a real GPU |
-| **The docs site** | The whole curriculum published via MkDocs Material, with search and rendered Mermaid | Reading and searching on any device |
+| **The docs site** | The whole curriculum published via MkDocs Material, with search, rendered Mermaid, and a **Listen** button that reads any page aloud | Reading, searching, or listening on any device |
 | **The study planner** | [`live/dashboard.html`](live/dashboard.html) — pick a goal, tick modules off, watch remaining hours drop | Planning your route and tracking progress |
 | **The slide deck** | [`live/slides.html`](live/slides.html) — a presentable overview, `Ctrl-P` for a PDF handout | Presenting or skimming the whole thing in 5 minutes |
 | **The content studio** | [`content/`](content/) — shot-by-shot scripts for YouTube long-form, Shorts, and Reels | Teaching it back, which is how you find out what you actually know |
@@ -181,9 +181,15 @@ Markdown lives at the repo root so GitHub renders it in place, which MkDocs will
 
 ```bash
 pip install -r requirements-docs.txt
-python build_docs.py     # copies .md/.html/.css into _docs/
+python build_docs.py     # stages .md/.html/.css/.svg/.js into _docs/
 mkdocs serve             # or: mkdocs build --strict
 ```
+
+Every page carries a **Listen to this page** control. It uses the browser's built-in speech
+synthesis — nothing is uploaded and no audio files are stored — and it skips code blocks, reads
+`TFLOP/s` as "teraflops per second", and leaves collapsed answer blocks unread so it cannot spoil a
+self-assessment. Voice quality depends on your OS: good on Windows and macOS, often absent on Linux,
+where the control simply does not appear.
 
 **Planner and deck.** Both are single self-contained HTML files — no framework, no CDN, no build step
 — so they work on the published site, from a local clone, and offline. The planner keeps your progress

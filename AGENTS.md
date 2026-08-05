@@ -20,7 +20,8 @@ analogy, then expert depth - with runnable labs, cited sources, and an honest tr
 |---|---|
 | Modules | **24 / 24 authored.** A01-A10, B01-B07, C01-C07. All 9 sections, labs, exercises, solutions |
 | Docs site | Published, `--strict`, warning-free: <https://gahan9.github.io/ParallelProgramming/> |
-| Live pages | `live/` - study planner, 49 cited recall cards, 14-slide deck. Self-contained HTML |
+| Read-aloud | `docs/javascripts/read-aloud.js` + matching CSS, injected site-wide via `extra_javascript`. Browser `speechSynthesis`, no dependency. Skips code blocks and collapsed `<details>`; rewrites technical vocabulary before speaking |
+| Live pages | `live/` - study planner, 49 cited recall cards (with a `L`isten control), 14-slide deck. Self-contained HTML |
 | Infographics | `assets/` - 6 hand-authored SVGs for what Mermaid cannot express |
 | Content studio | `content/` - video/Shorts scripts. Packs exist for A01 and A02 only |
 | Cursor canvas | `canvases/curriculum-dashboard.canvas.tsx` (outside the repo, in the Cursor project dir) |
@@ -173,3 +174,4 @@ Rough effort record, kept because the operator asks for usage tracking.
 | 2026-07-29 | Modules A03-A10, B01-B07, C01-C07 authored via ~19 parallel subagents (~68k lines); content studio; canvas planner; wire-up. One subagent died of resource exhaustion at 19 concurrent - keep waves smaller |
 | 2026-08-02 | Fixed the Pages deploy: enabled Pages (never switched on - the real cause of the 404), staged docs root, repaired `validation:`, turned on `--strict`. First successful publish |
 | 2026-08-04 | `assets/` infographic system (6 SVGs) + encoding repairs; `live/flashcards.html` (49 cited cards, three-box Leitner) and shared nav across the three live pages |
+| 2026-08-05 | Read-aloud across the docs site and the recall cards. Chose browser `speechSynthesis` over pre-generated audio for the same reason SVG beat GIF: no unreviewable binaries, nothing to regenerate on a content edit |

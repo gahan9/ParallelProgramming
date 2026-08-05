@@ -48,6 +48,12 @@ theme:
 
 extra_css:
   - docs/stylesheets/brand.css
+  - docs/stylesheets/read-aloud.css
+
+extra_javascript:
+  # Browser speechSynthesis read-aloud. No dependency and no CDN; the script removes
+  # itself on browsers without speech support rather than leaving a dead button.
+  - docs/javascripts/read-aloud.js
 
 markdown_extensions:
   - admonition
