@@ -45,7 +45,8 @@ the reasoning, not just the answer key.
 
 The **PASS/FAIL column and the non-finite counts are the contract** — reproduce those exactly.
 Timings and GB/s are hardware-dependent and shown as `<hw>`; fill in your own and compare
-against your copy-bandwidth ceiling from A02 Lab 1. Error magnitudes marked `~` are
+against your copy-bandwidth ceiling from
+[A02 §4](../../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs) Lab 1. Error magnitudes marked `~` are
 deterministic (the inputs come from a fixed LCG) but their exact digits are not worth
 memorising — the order of magnitude is the signal. NVIDIA output is equivalent
 (`CUDA error …` instead of `HIP error …`).

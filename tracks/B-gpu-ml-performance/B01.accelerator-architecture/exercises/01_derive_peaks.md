@@ -44,7 +44,7 @@ whole point of Section 3.
 | Memory bus rate | **5.2 Gbps** (a transfer rate, *not* a clock) | [CDNA 3 white paper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf) |
 | Active compute units | **304** | [ROCm GPU specifications](https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html) |
 | Lanes per CU (wavefront) | **64** | [ROCm GPU specifications](https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html) |
-| Max engine clock | **2100 MHz** | [ROCm MI300/MI350 workload optimization guide](https://rocmdocs.amd.com/en/develop/how-to/rocm-for-ai/inference-optimization/workload.html) · [MI300X data sheet](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf) |
+| Max engine clock | **2100 MHz** | [ROCm MI300/MI350 workload optimization guide](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/optimization/workload-optimization.html) · [MI300X data sheet](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf) |
 | Matrix FLOP per CU per clock, fp16 | **2048** | [CDNA 3 white paper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf), Table 1 |
 
 ### Device B — NVIDIA H100 SXM5 (Hopper, compute capability 9.0)

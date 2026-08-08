@@ -5,10 +5,12 @@
 > Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)
 > (kernels, error checking, event timing), [A04](../../A-gpu-programming/A04.parallel-reduction/README.md)
 > (reductions and summation order), [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)
-> (softmax and the max-subtraction trick), and B02's roofline vocabulary — arithmetic
+> (softmax and the max-subtraction trick), and
+> [B02](../B02.roofline-and-arithmetic-intensity/README.md)'s roofline vocabulary — arithmetic
 > intensity, ridge point, memory- vs compute-bound.
 > Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Python/numpy for the quantization demo.
-> See [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> See [../../../docs/SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -21,8 +23,9 @@ it has fp32's range with coarse steps — which is why it needs no loss scaling 
 displaced `fp16` (5 exponent bits, 10 mantissa bits: more precise, but it overflows and
 underflows in real training). Narrower formats are faster for two separate reasons — fewer
 bytes moved, and higher matrix-core throughput — and the two reasons apply in different
-regimes. Quantization (fp32 → int8/int4) then trades measurable accuracy for memory and
-bandwidth, and the only honest acceptance test is a **task-level eval before and after**,
+regimes. [Quantization](../../../docs/GLOSSARY.md#quantization) (fp32 → int8/int4) then
+trades measurable accuracy for memory and bandwidth, and the only honest acceptance test
+is a **task-level eval before and after**,
 not "the loss looked fine".
 
 **Layman analogy — the ruler.** Measuring something with a ruler involves two independent

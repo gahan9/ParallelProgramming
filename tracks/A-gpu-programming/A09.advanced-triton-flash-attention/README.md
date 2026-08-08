@@ -2,16 +2,20 @@
 
 > Track A · Module 09 · Status: **DONE** · Est. 9 hours · Depth 4/5
 >
-> Prerequisites: [A04](../A04.parallel-reduction/) (block reductions),
-> [A06](../A06.tiled-matrix-multiply/) (tiling, `tl.dot`),
-> [A07](../A07.softmax-and-fused-kernels/) (online softmax, fusion),
-> [A08](../A08.triton-foundations/) (`@triton.jit`, `tl.program_id`, masked
+> Prerequisites: [A04](../A04.parallel-reduction/README.md) (block reductions),
+> [A06](../A06.tiled-matrix-multiply/README.md) (tiling, `tl.dot`),
+> [A07](../A07.softmax-and-fused-kernels/README.md) (online softmax, fusion),
+> [A08](../A08.triton-foundations/README.md) (`@triton.jit`, `tl.program_id`, masked
 > `tl.load`/`tl.store`, `tl.constexpr`, `triton.cdiv`).
 > Backend: Triton (Python) on either vendor. Setup:
-> [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 This is the **capstone of Track A**. Everything you have built so far converges here:
-the tiling from A06, the online softmax from A07, and the block reductions from A04
+the tiling from [A06 §3](../A06.tiled-matrix-multiply/README.md#3-deep-dive), the online
+softmax from
+[A07 §3](../A07.softmax-and-fused-kernels/README.md#the-online-recurrence-both-statistics-in-one-pass),
+and the block reductions from [A04 §3](../A04.parallel-reduction/README.md#3-deep-dive)
 fuse into one kernel — the kernel that decides how long a context modern LLMs can
 afford.
 
@@ -20,14 +24,18 @@ afford.
 ## 1. TL;DR + Layman analogy
 
 **TL;DR.** Standard attention computes `S = QK^T` and *writes the whole (N, N) score
-matrix to HBM*, reads it back for the softmax, writes the probabilities, and reads
+matrix to HBM*, reads it back for the
+[softmax](../../../docs/GLOSSARY.md#softmax), writes the probabilities, and reads
 them again for `PV`. The useful compute is `O(N²·d)` but the memory traffic is
 `O(N²)` — so as context grows the kernel spends its life shuttling a matrix it does
-not need. **FlashAttention** never materializes `S`: it tiles Q, K and V, keeps a
+not need. **[FlashAttention](../../../docs/GLOSSARY.md#attention-and-flashattention)**
+([Dao et al. 2022](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022))
+never materializes `S`: it tiles Q, K and V, keeps a
 running output accumulator plus the online-softmax `(max, sum)` statistics on-chip,
 and rescales the accumulator whenever a new block reveals a larger max. Traffic drops
 to `O(N·d)`, the result is *exact* (not an approximation), and attention moves from
-the bandwidth roof to the compute roof. This module builds that kernel in Triton,
+the bandwidth roof to the compute roof. This module builds that kernel in
+[Triton](../../../docs/GLOSSARY.md#triton),
 adds causal masking that **skips** future blocks rather than merely masking them, and
 autotunes the tile shape.
 
@@ -52,8 +60,10 @@ cabinet once.
 - **One clerk, thousands of desks.** The real kernel has thousands of programs, each
   owning a *block of rows* of Q, all streaming K and V independently. There is no
   single sequential pass.
-- **The notepad has a hard size limit.** "Keep it on-chip" means registers and LDS /
-  shared memory, and their budget is what caps the tile shape. Choose too large a
+- **The notepad has a hard size limit.** "Keep it on-chip" means
+  [registers](../../../docs/GLOSSARY.md#registers) and
+  [LDS / shared memory](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd),
+  and their budget is what caps the tile shape. Choose too large a
   tile and the accumulator spills to HBM, which reintroduces exactly the traffic you
   were avoiding.
 - **The rescale is not free.** `exp(old_max − new_max)` multiplies the *entire*
@@ -116,7 +126,9 @@ including its latency cost; and articulate precisely why your kernel is not
 
 ### Start with the bytes, not the API
 
-Self-attention for one head, sequence length `N`, head dimension `d`:
+Self-attention for one head, sequence length `N`, head dimension `d`, as
+[*Attention Is All You Need*](../../../docs/REFERENCES.md#attention-is-all-you-need-vaswani-et-al-2017)
+defines it:
 
 ```
 S = Q K^T / sqrt(d)        (N, d) x (d, N) -> (N, N)
@@ -160,17 +172,21 @@ naive:  AI = 4·N²·d / (8·N·d + 8·N²)  =  N·d / (2·(N + d))   ->  d/2   
 fused:  AI = 4·N²·d / (8·N·d)         =  N/2                 ->  unbounded
 ```
 
-The unfused implementation's arithmetic intensity **saturates at `d/2` — 64 flops per
-byte at `d = 128` — and never improves, no matter how long the sequence gets.** At
+The unfused implementation's
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) **saturates at
+`d/2` — 64 flops per byte at `d = 128` — and never improves, no matter how long the
+sequence gets.** At
 `N = 4096` it is already at 62.1, within 3% of its ceiling. Adding context adds flops
 and bytes in the same proportion, so you cannot compute your way out.
 
-The fused version's intensity grows *linearly in N*. With a roofline ridge point
+The fused version's intensity grows *linearly in N*. With a
+[roofline](../../../docs/GLOSSARY.md#roofline-model) ridge point
 around 200 flops/byte (order-of-magnitude: ~1000 TFLOP/s fp16 over ~5 TB/s — use your
 own GPU's numbers), the fused kernel crosses into compute-bound at `N ≈ 400`, while
 the naive one is stuck on the bandwidth roof forever. **Attention is not intrinsically
-memory-bound; unfused attention is.** That sentence is the paper
-([Dao et al. 2022](https://arxiv.org/abs/2205.14135)).
+[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound);
+unfused attention is.** That sentence is the paper
+([Dao et al. 2022](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)).
 
 ### The traffic picture
 
@@ -224,9 +240,11 @@ quadratically and the right side linearly.*
 
 ### The fix is A07's trick, generalized
 
-A07 showed that a softmax can be computed in **one streaming pass** by carrying a
+[A07 §3](../A07.softmax-and-fused-kernels/README.md#the-online-recurrence-both-statistics-in-one-pass)
+showed that a softmax can be computed in **one streaming pass** by carrying a
 running `(max, sum)` pair and rebasing whenever the max moves
-([Milakov & Gimelshein 2018](https://arxiv.org/abs/1805.02867)). FlashAttention is
+([Milakov & Gimelshein 2018](../../../docs/REFERENCES.md#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018)).
+FlashAttention is
 that same rebasing applied to a **matmul → softmax → matmul chain**: carry a third
 piece of state, the output accumulator `acc`, and rebase it by the *same* factor.
 Because `acc` is a linear function of the exponentials, one scalar per row rebases the
@@ -386,8 +404,10 @@ block `i` visits `i + 1` key blocks, so the visited fraction is
 `(1 + 2 + ... + T)/T² = (T+1)/(2T) → 1/2`. The *measured* speedup is always a bit
 less than 2×, for three reasons worth naming: the diagonal block computes a full tile
 and discards half of it; the programs are now imbalanced (`pid_m = 0` walks one block,
-the last walks `T`), so the launch ends with the slowest program; and the Q load, O
-store, and launch overhead are fixed costs.
+the last walks `T`), so the launch ends with the slowest program
+([FlashAttention-2](../../../docs/REFERENCES.md#flashattention-2-dao-2023) is a
+work-partitioning answer to exactly this); and the Q load, O store, and launch
+overhead are fixed costs.
 
 ```mermaid
 %%{init: {
@@ -434,8 +454,9 @@ mask on every iteration.*
 ### `triton.autotune` in depth
 
 `@triton.autotune` benchmarks a list of `triton.Config`s on your actual arguments and
-caches the winner. Lab 1 ([`triton/autotune_demo.py`](triton/autotune_demo.py))
-exercises all of it.
+caches the winner — the decorator introduced in
+[A08 §3](../A08.triton-foundations/README.md#3-deep-dive). Lab 1
+([`triton/autotune_demo.py`](triton/autotune_demo.py)) exercises all of it.
 
 ```python
 @triton.autotune(
@@ -452,12 +473,13 @@ def kernel(...):
 |---|---|---|
 | `BLOCK_M` | Query rows per program | Larger = more Q reuse per K/V byte read, but the `BLOCK_M × HEAD_DIM` fp32 accumulator grows with it, and it lives in **registers** |
 | `BLOCK_N` | Keys per iteration | Larger = fewer iterations and bigger `tl.dot`s, but a bigger `S` tile and more live registers |
-| `num_warps` | Threads per program | On NVIDIA a warp is 32 lanes, on **AMD a wavefront is 64** — so `num_warps=4` is 128 work-items on NVIDIA and **256 on AMD**. The same number means different occupancy on the two vendors |
+| `num_warps` | Threads per program | On NVIDIA a [warp](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd) is 32 lanes, on **AMD a wavefront is 64** — so `num_warps=4` is 128 work-items on NVIDIA and **256 on AMD**. The same number means different occupancy on the two vendors |
 | `num_stages` | Software-pipelining depth of the loop | How many future iterations' loads are kept in flight (multi-buffered) while the current one computes. More stages hide more latency but consume shared memory and registers, so past some depth occupancy falls and the kernel slows down |
 
 **What `num_stages` actually does.** Triton pipelines the loop: it issues the global
 loads for iteration `i + 1` (and `i + 2`, …) into shared-memory buffers *before* the
-compute for iteration `i`, so memory latency overlaps with matrix-core work. That is
+compute for iteration `i`, so memory latency overlaps with
+[matrix-core](../../../docs/GLOSSARY.md#tensor-core-nvidia-and-matrix-core-amd) work. That is
 why it only matters for loops with a real trip count — the K/V walk here, or the K
 loop in a GEMM. Backend differences are real: the upstream fused-attention tutorial
 restricts the HIP path to `num_stages = 1` while offering `[2, 3, 4]` on CUDA, and Lab
@@ -636,7 +658,8 @@ flowchart LR
 
 *The unfused implementation cannot leave the bandwidth roof by growing `N`, because
 `N` adds flops and bytes in the same proportion; the fused one walks right along the
-compute roof as context grows. Roofline formalism: Track B02.*
+compute roof as context grows. Roofline formalism: Track
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md).*
 
 ### What to expect from the sweep
 
@@ -785,7 +808,7 @@ oversold:
 | **Direct matrix/tensor-core intrinsics** | `tl.dot` *may* lower to MFMA (AMD) or Tensor Cores (NVIDIA), but you do not control the instruction, the fragment layout, or the precision path the way `__builtin_amdgcn_mfma_*` / `wgmma` do |
 | **Dropout, ALiBi, sliding window, softcapping** | Real attention layers carry a zoo of variants, each with its own masking and RNG-state requirements |
 | **Variable-length / packed batches** | Serving packs sequences of different lengths with a cumulative-offsets layout to avoid padding waste. That changes every index computation in the kernel |
-| **Paged KV cache** | Decoding reads K/V from non-contiguous pages ([vLLM](https://arxiv.org/abs/2309.06180)). Our kernel assumes one contiguous tensor |
+| **Paged [KV cache](../../../docs/GLOSSARY.md#kv-cache)** | Decoding reads K/V from non-contiguous pages ([vLLM](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)). Our kernel assumes one contiguous tensor |
 | **fp8 and block quantization** | Getting fp8 accurate needs per-block scaling and incoherent processing, not just a cast |
 
 **When not to write your own:** if a tuned library covers your case, use it — the
@@ -809,7 +832,8 @@ which is exactly the situation Triton is good at.
 - **Long-context training** exists *because* of this kernel. The jump from 2k to 128k+
   context is not a bandwidth improvement in hardware; it is the removal of the `O(N²)`
   memory term. The `1 + N/d` ratio from §2 is the whole business case.
-- **Inference serving** goes further: [vLLM's PagedAttention](https://arxiv.org/abs/2309.06180)
+- **Inference serving** goes further:
+  [vLLM's PagedAttention](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
   keeps the fused-attention idea and adds a paged KV cache so the running `(m, l, acc)`
   walk can read non-contiguous key/value pages.
 - **`triton.autotune`** is how `torch.compile`'s generated Triton kernels pick tile
@@ -820,54 +844,72 @@ which is exactly the situation Triton is good at.
   log-sum-exp over shards, distributed softmax across GPUs, top-k over streams — uses
   the same rebasing trick.
 
+**Where to go next.**
+[B05](../../B-gpu-ml-performance/B05.transformer-performance/README.md) zooms out from
+this kernel to the whole transformer and tells you when attention is even the right
+thing to optimize — at decode, with `N = 1`, the quadratic term you just removed is not
+what is costing you.
+[B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md) is where
+the paged-KV bullet above becomes a serving architecture rather than a footnote.
+[A10](../A10.cute-cutlass-and-cutile/README.md) goes the other direction — below Triton,
+to the layouts and instruction scheduling §6 lists as the gap between this kernel and a
+production one.
+
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+The sources this module leans on hardest are shared with the rest of the
+curriculum, so each is cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval
+date live. The implementation-specific material below keeps its own link.
 
-- Dao, Fu, Ermon, Rudra, Ré (2022). *FlashAttention: Fast and Memory-Efficient Exact
-  Attention with IO-Awareness.* The IO-complexity argument and the tiled algorithm
-  this module builds. <https://arxiv.org/abs/2205.14135>
-- Dao (2023). *FlashAttention-2: Faster Attention with Better Parallelism and Work
-  Partitioning.* Why the causal load imbalance in §3 is worth fixing.
-  <https://arxiv.org/abs/2307.08691>
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — *Fast and Memory-Efficient Exact Attention with IO-Awareness.* The IO-complexity
+  argument §2 counts bytes for, and the tiled algorithm Lab 2 builds.
+- [**FlashAttention-2** (Dao, 2023)](../../../docs/REFERENCES.md#flashattention-2-dao-2023)
+  — *Faster Attention with Better Parallelism and Work Partitioning.* Why the causal
+  load imbalance §3 names is worth fixing rather than tolerating.
 - Shah, Bikshandi, Zhang, Thakkar, Ramani, Dao (2024). *FlashAttention-3: Fast and
   Accurate Attention with Asynchrony and Low-precision.* Warp specialization,
   GEMM/softmax overlap, fp8 — the §6 "honest limits" list.
   <https://arxiv.org/abs/2407.08608>
-- Milakov & Gimelshein (2018). *Online normalizer calculation for softmax.* The
-  rescaling identity in §3, in its original one-pass form.
-  <https://arxiv.org/abs/1805.02867>
+- [**Online normalizer calculation for softmax** (Milakov and Gimelshein, 2018)](../../../docs/REFERENCES.md#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018)
+  — the rescaling identity §3 writes out, in its original one-pass form.
+  [A07](../A07.softmax-and-fused-kernels/README.md) derives it for a single row; this
+  module tiles it.
 - Rabe & Staats (2021). *Self-attention Does Not Need O(n²) Memory.* The
   memory-complexity result, credited by the Triton tutorial alongside FlashAttention.
   <https://arxiv.org/abs/2112.05682>
-- Vaswani et al. (2017). *Attention Is All You Need.* The `softmax(QK^T/sqrt(d))V`
-  definition being optimized. <https://arxiv.org/abs/1706.03762>
-- **Triton — Fused Attention tutorial.** The reference implementation, including the
-  `STAGE` split for causal masking and the HIP-vs-CUDA `num_stages` choice mirrored in
-  Lab 1.
+- [**Attention Is All You Need** (Vaswani et al., 2017)](../../../docs/REFERENCES.md#attention-is-all-you-need-vaswani-et-al-2017)
+  — the `softmax(QK^T/sqrt(d))V` definition §2 starts from and the whole module
+  optimizes without changing.
+- [**Triton documentation and tutorials**](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  — specifically the **Fused Attention tutorial**: the reference implementation,
+  including the `STAGE` split for causal masking and the HIP-vs-CUDA `num_stages`
+  choice mirrored in Lab 1 (retrieved 8 Aug 2026).
   <https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html>
 - **`triton.autotune` API reference.** `configs`, `key`, `prune_configs_by`,
-  `reset_to_zero`, and the `TRITON_PRINT_AUTOTUNING` environment variable.
+  `reset_to_zero`, and the `TRITON_PRINT_AUTOTUNING` environment variable — the §3
+  autotuning discussion is a reading of this page (retrieved 8 Aug 2026).
   <https://triton-lang.org/main/python-api/generated/triton.autotune.html>
 - **AMD ROCm blog — *Developing Triton Kernels on AMD GPUs*** (Greene, 2024). Triton
-  on ROCm end to end, including benchmarking against PyTorch.
+  on ROCm end to end, including benchmarking against PyTorch (retrieved 8 Aug 2026).
   <https://rocm.blogs.amd.com/artificial-intelligence/triton/README.html>
 - **AMD ROCm blog — *Accelerating Large Language Models with Flash Attention on AMD
   GPUs*** (Greene, 2024). Flash Attention on Instinct hardware and its measured effect
-  on prefill latency.
+  on prefill latency (retrieved 8 Aug 2026).
   <https://rocm.blogs.amd.com/artificial-intelligence/flash-attention/README.html>
 - **AOTriton** — AMD's ahead-of-time-compiled Triton kernel library, including
   attention. <https://github.com/ROCm/aotriton>
 - **`flash-attention`** — the reference production implementation (forward and
   backward, varlen, dropout, ALiBi).
   <https://github.com/Dao-AILab/flash-attention>
-- Kwon et al. (2023). *Efficient Memory Management for LLM Serving with
-  PagedAttention.* The serving-side extension in §7.
-  <https://arxiv.org/abs/2309.06180>
+- [**PagedAttention and vLLM** (Kwon et al., 2023)](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
+  — *Efficient Memory Management for LLM Serving with PagedAttention.* The serving-side
+  extension named in §6's limits table and §7.
 - **PyTorch — `scaled_dot_product_attention`.** Backend dispatch and how to pin a
-  specific one.
+  specific one (retrieved 8 Aug 2026).
   <https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html>
 
 ---

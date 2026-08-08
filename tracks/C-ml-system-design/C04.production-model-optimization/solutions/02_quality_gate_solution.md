@@ -139,7 +139,7 @@ entire document, and I would not start the canary without one.
 1. **Long-input degradation from activation outliers.** Activation ranges grow with sequence length,
    and INT8 scaling that calibrates on typical inputs clips the extremes. Symptom: accuracy fine on
    average, degraded on the top 6% by length. **Caught by:** the long-ticket slice. This is why the
-   numerics matter and why [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/) is the
+   numerics matter and why [B04](../../../B-gpu-ml-performance/B04.precision-and-quantization/) is the
    companion reading.
 2. **Calibration-set distribution mismatch.** PTQ calibrates scales on a sample. If that sample is
    71% English, the scales are tuned for English activation ranges and other scripts get worse.

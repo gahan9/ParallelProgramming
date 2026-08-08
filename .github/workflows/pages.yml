@@ -19,6 +19,9 @@ on:
       - "**/*.html"
       - "**/*.svg"
       - "**/*.js"
+      - "check_links.py"
+      - "build_docs.py"
+      - "build_reference_index.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -59,6 +62,21 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+
+      # mkdocs.yml silences MkDocs' own link validation (module READMEs link to sources
+      # that are deliberately never published, and leaving that loud would bury every
+      # warning that matters). This is the replacement guard, and unlike MkDocs it can
+      # also resolve links into those unpublished sources. Stdlib only, so it runs
+      # before the docs toolchain is installed. External URLs are not checked here:
+      # a third-party host being down should not block a deploy.
+      - name: Check cross-references
+        run: python check_links.py
+
+      # The "Where each source is cited" table in docs/REFERENCES.md is derived from the
+      # links modules actually contain. A stale table would claim a source backs a module
+      # that no longer cites it, so treat drift as a build failure rather than shipping it.
+      - name: Check the reference index is current
+        run: python build_reference_index.py --check
 
       # The curriculum's Markdown lives at the repo root, which MkDocs will not accept
       # as a docs_dir, so stage the publishable files first. See build_docs.py.

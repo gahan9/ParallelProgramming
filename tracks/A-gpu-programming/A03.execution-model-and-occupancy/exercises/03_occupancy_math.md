@@ -3,7 +3,8 @@
 No code. Reason it out on paper, then check
 [`../solutions/03_occupancy_math_solution.md`](../solutions/03_occupancy_math_solution.md).
 
-A01's drill was register-bound. This one is **shared-memory-bound**, which behaves very
+[A01](../../A01.foundations-and-programming-model/README.md)'s drill was register-bound. This
+one is **shared-memory-bound**, which behaves very
 differently under tuning — and it is the case you actually meet in tiled GEMM, stencils,
 and attention kernels.
 

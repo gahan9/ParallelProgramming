@@ -125,7 +125,8 @@ The result is symmetric in `a, b, c`, so `(a ∘ b) ∘ c = a ∘ (b ∘ c)`.
 `s = 0·e^{−∞ − m_b} + s_b·e^{0} = s_b`.
 
 *Why the curriculum cares:* an associative, commutative operator with an identity is exactly what
-a **parallel reduction** requires (A04). It means you may partition the row across lanes, waves,
+a **parallel reduction** requires ([A04](../../A04.parallel-reduction/README.md)). It means you may
+partition the row across lanes, waves,
 blocks, tiles, or GPUs in any way, combine the partials as a tree in any order, and pad the ragged
 tail with the identity — and still get the identical answer. FlashAttention exploits precisely
 this: K/V tiles may be visited in any order, and FlashDecoding/split-K splits one row's reduction

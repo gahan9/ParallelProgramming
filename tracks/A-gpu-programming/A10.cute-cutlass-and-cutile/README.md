@@ -13,10 +13,11 @@
 > *same* ideas (see [§1 → *If you are on AMD, read this instead*](#if-you-are-on-amd-read-this-instead)):
 > **Composable Kernel / CK-Tile**, **hipBLASLt**, and the **MFMA** intrinsics.
 >
-> Prerequisites: [A02](../A02.memory-hierarchy-and-coalescing/) (shared memory, bank conflicts),
-> [A06](../A06.tiled-matrix-multiply/) (tiled GEMM), [A09](../A09.advanced-triton-flash-attention/) (why a compiler
+> Prerequisites: [A02](../A02.memory-hierarchy-and-coalescing/README.md) (shared memory, bank conflicts),
+> [A06](../A06.tiled-matrix-multiply/README.md) (tiled GEMM), [A09](../A09.advanced-triton-flash-attention/README.md) (why a compiler
 > may beat your hand-written kernel). Backend: NVIDIA `nvcc` only.
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 >
 > **Version-sensitive material.** CUTLASS and especially CuTile move fast. Every claim below is
 > stamped **as of 2026-07-29** with a link to the authoritative source. Re-check the links before
@@ -26,12 +27,15 @@
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** A06's hand-written tiled GEMM cannot reach peak, because peak requires **tensor cores** —
+**TL;DR.** [A06](../A06.tiled-matrix-multiply/README.md#5-performance-analysis)'s hand-written tiled
+[GEMM](../../../docs/GLOSSARY.md#gemm) cannot reach peak, because peak requires
+**[tensor cores](../../../docs/GLOSSARY.md#tensor-core-nvidia-and-matrix-core-amd)** —
 fixed-shape mixed-precision matrix-multiply-accumulate instructions — plus deep software pipelining
-and **swizzled** shared-memory layouts. Writing that by hand means writing pages of index
-arithmetic that is wrong the moment a shape changes. **CuTe** (the core library inside **CUTLASS**)
+and **swizzled** [shared-memory](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd)
+layouts. Writing that by hand means writing pages of index
+arithmetic that is wrong the moment a shape changes. **[CuTe](../../../docs/GLOSSARY.md#cute-and-cutlass)** (the core library inside **CUTLASS**)
 replaces that index arithmetic with an *algebra*: a `Layout` is a `(Shape, Stride)` pair, a `Tensor`
-is a pointer plus a `Layout`, and tiling / per-thread partitioning / swizzling all become
+is a pointer plus a `Layout`, and [tiling](../../../docs/GLOSSARY.md#tiling) / per-thread partitioning / swizzling all become
 **composition of layouts** instead of hand-derived `%` and `/`. **CuTile** is a newer, higher-level
 NVIDIA programming model where you write kernels over whole *tiles* and the compiler picks the
 tensor-core and memory instructions for you. This module teaches the abstraction, runs one
@@ -58,11 +62,12 @@ crate size (e.g. 16×8×16), so your whole packing plan must be built upward *fr
 
 **Where the analogy breaks — and it matters.**
 1. **Containers are inert; MMA atoms are not.** A shipping container doesn't care which lane of the
-   truck it rides in. An MMA atom specifies *which of the 32 threads in the warp holds which
+   truck it rides in. An MMA atom specifies *which of the 32 threads in the
+   [warp](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd) holds which
    element in which register* — the atom is a data layout **and** a thread layout at once
    (CuTe models this as `ThrID` + `ALayout`/`BLayout`/`CLayout`, see §3).
 2. **Freight has no bank conflicts.** Two containers can share a lane. Two shared-memory addresses
-   in the same **bank** serialize. Swizzling (§3) exists purely because of this electrical
+   in the same **[bank](../../../docs/GLOSSARY.md#bank-conflict)** serialize. Swizzling (§3) exists purely because of this electrical
    constraint, and has no logistics analogue.
 3. **Layouts are functions, not boxes.** A CuTe `Layout` is literally a function from integers to
    integers, and it can be non-injective or overlapping (e.g. a stride-0 broadcast). No physical
@@ -79,7 +84,7 @@ The *ideas* in this module are vendor-neutral; only the spelling is NVIDIA. Para
 | cuBLAS / cuBLASLt default path | **rocBLAS / hipBLASLt** | <https://rocm.docs.amd.com/projects/hipBLASLt/en/latest/> |
 | `mma.sync` / WMMA tensor-core instruction | **MFMA** matrix-core instructions, e.g. `__builtin_amdgcn_mfma_f32_16x16x16f16` | <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/conceptual/ck_tile/hardware/gemm_optimization.html> and the CDNA3 ISA guide |
 | Tensor-core shapes table | **CDNA3 MFMA instruction set** (16×16×16 fp16, 32×32×8 fp16, …) | <https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-mi300-cdna3-instruction-set-architecture.pdf> |
-| CuTile / Triton (tile-level DSL) | **Triton** — genuinely dual-vendor; see [A08](../A08.triton-foundations/) / [A09](../A09.advanced-triton-flash-attention/) | <https://triton-lang.org/> |
+| CuTile / Triton (tile-level DSL) | **Triton** — genuinely dual-vendor; see [A08](../A08.triton-foundations/README.md) / [A09](../A09.advanced-triton-flash-attention/README.md) | <https://triton-lang.org/> |
 
 If you use PyTorch or vLLM on ROCm you are *already* running CK under the FlashAttention and GEMM
 backends, exactly as CUDA users are already running CUTLASS-derived kernels.
@@ -88,8 +93,10 @@ backends, exactly as CUDA users are already running CUTLASS-derived kernels.
 read and write a CuTe `(Shape, Stride)` layout and compute offsets from it by hand; describe the
 global → CTA → warp → MMA-atom decomposition and how CUTLASS expresses it as `TiledCopy` /
 `TiledMMA`; write a correct WMMA tensor-core GEMM tile from scratch and measure its GFLOP/s;
-explain swizzling as the generalization of A02's `+1` padding trick; and defend a choice between
-cuBLAS, CUTLASS/CuTe, Triton, and CuTile for a concrete workload.
+explain swizzling as the generalization of
+[A02](../A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive)'s `+1` padding trick; and defend
+a choice between cuBLAS, CUTLASS/CuTe, [Triton](../../../docs/GLOSSARY.md#triton), and CuTile for a
+concrete workload.
 
 ---
 
@@ -97,7 +104,8 @@ cuBLAS, CUTLASS/CuTe, Triton, and CuTile for a concrete workload.
 
 ### Start from the wall A06 hits
 
-A06 built the textbook shared-memory tiled GEMM. It is a *big* win over naive — and it still leaves
+[A06 §3](../A06.tiled-matrix-multiply/README.md#3-deep-dive) built the textbook shared-memory tiled
+GEMM. It is a *big* win over naive — and it still leaves
 most of the machine on the floor. Three independent reasons, in order of severity:
 
 **(1) You are not using the matrix hardware at all.** A06's inner loop is `acc += a * b` — an
@@ -117,11 +125,12 @@ below in §3 and in the PTX ISA reference in §8.)
 
 **(2) The tensor core dictates the data layout, not you.** An MMA instruction is *warp-collective*
 and the ISA fixes which of the 32 lanes holds which matrix element in which register. So "feed the
-tensor core" is a layout problem: you must get a tile from global memory, through shared memory,
+tensor core" is a layout problem: you must get a tile from
+[global memory](../../../docs/GLOSSARY.md#global-memory), through shared memory,
 into exactly the register positions the instruction demands. Get one index wrong and you get a
 silently wrong GEMM.
 
-**(3) Latency must be hidden by software, not just occupancy.** At tensor-core throughput the
+**(3) Latency must be hidden by software, not just [occupancy](../../../docs/GLOSSARY.md#occupancy).** At tensor-core throughput the
 global→shared copy becomes the critical path, so production kernels run a **multi-stage software
 pipeline** (`cp.async` / TMA prefetching stage *k+1* while the MMA consumes stage *k*). That means
 several shared-memory buffers, barriers, and index math that all depend on the pipeline depth.
@@ -148,7 +157,8 @@ Here is the whole idea in one move. Stop writing index *expressions* and start b
 > A **`Layout`** is a pair `(Shape, Stride)`. It is a function from a coordinate to a linear index:
 > take the inner product of the (natural) coordinate with the stride.
 > A **`Tensor`** is a `Layout` composed with data (a pointer or iterator).
-> — *CuTe Layouts*, NVIDIA CUTLASS docs (v4.6.1, retrieved 2026-07-29)
+> — *CuTe Layouts*, [NVIDIA CUTLASS docs](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia)
+> (v4.6.1, retrieved 2026-07-29)
 
 Work the smallest possible example. Take shape `(4,2)` — four rows, two columns:
 
@@ -304,7 +314,8 @@ abstraction can target four architectures: only the traits change.
 
 ### 3.3 Tensor cores and MMA shapes — the fixed crate sizes
 
-Tensor-core instructions are **fixed-shape and mixed-precision**: small M×N×K, low-precision
+[Tensor-core instructions](../A06.tiled-matrix-multiply/README.md#matrix-cores-mfma-and-tensor-cores)
+are **fixed-shape and mixed-precision**: small M×N×K, low-precision
 inputs, wider accumulator. You do not get to pick the shape; you build around it.
 
 | Architecture | Main dense MMA interface | Granularity | Accumulator lives in |
@@ -349,7 +360,8 @@ performance on the table versus a CUTLASS kernel that controls the fragment layo
 
 ### 3.4 Swizzling — A02's `+1` padding trick, generalized
 
-A02 fixed a 32-way shared-memory bank conflict by padding a `[32][32]` tile to `[32][33]`. That
+[A02 §3](../A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive) fixed a 32-way shared-memory
+bank conflict by padding a `[32][32]` tile to `[32][33]`. That
 works, and it is a *point solution*: it costs dead memory, it assumes 4-byte elements and 32 banks,
 and — fatally for tensor cores — a padded row stride breaks the 128-bit alignment that vectorized
 and `ldmatrix`-style loads require.
@@ -437,7 +449,8 @@ You write over **tiles**, not threads. The programming model, verified from the 
 
 If that reads like Triton — yes. Both are tile-level, block-scoped, Python-first, and both delegate
 the thread mapping and instruction selection to a compiler. The difference is portability scope:
-Triton targets NVIDIA **and** AMD; CuTile targets NVIDIA and lowers through NVIDIA's **Tile IR**.
+[Triton](../A08.triton-foundations/README.md) targets NVIDIA **and** AMD; CuTile targets NVIDIA and
+lowers through NVIDIA's **Tile IR**.
 
 **Maturity, stated precisely (as of 2026-07-29):**
 
@@ -537,7 +550,7 @@ make yourself, which is exactly the axis the §6 decision table scores.*
 >
 > **There is no `hip/` or `triton/` directory in this module.** That is not an omission to fix
 > later: CuTe/CUTLASS/CuTile have no AMD backend. The portable version of this material is
-> [A08](../A08.triton-foundations/)/[A09](../A09.advanced-triton-flash-attention/) (Triton) and, on the AMD side,
+> [A08](../A08.triton-foundations/README.md)/[A09](../A09.advanced-triton-flash-attention/README.md) (Triton) and, on the AMD side,
 > Composable Kernel — see the table in §1.
 
 All commands run from this module directory.
@@ -563,11 +576,13 @@ Set `SM_ARCH` to your GPU: `sm_70` Volta, `sm_80` A100, `sm_89` Ada, `sm_90` Hop
 ### Lab 1 — A tensor-core GEMM you can actually run (`mma_tensor_core`)
 
 File: [`cuda/mma_tensor_core.cu`](cuda/mma_tensor_core.cu). No CUTLASS, no CuTe — just the
-documented `nvcuda::wmma` API from the CUDA C++ Programming Guide.
+documented `nvcuda::wmma` API from the
+[CUDA C++ Programming Guide](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia).
 
 It runs two kernels on the same `1024³` fp16 problem and verifies both against a CPU reference:
 
-1. `simt_gemm` — a naive SIMT baseline (`acc += a*b` in the scalar pipeline). This is A06's
+1. `simt_gemm` — a naive SIMT baseline (`acc += a*b` in the scalar pipeline). This is
+   [A06](../A06.tiled-matrix-multiply/README.md#4-hands-on-labs)'s
    arithmetic without the tiling, deliberately: it isolates *"am I using the matrix hardware?"*
    from *"is my tiling good?"*.
 2. `wmma_gemm` — one 16×16 output tile per warp, accumulating over K in 16-wide steps with
@@ -617,7 +632,9 @@ in §8): `make_layout`, `make_shape`, `make_stride`, `print_layout`, `size<I>`, 
 - The hierarchical layout `(2,(2,2)):(4,(2,1))` is neither row- nor column-major yet is still
   indexable with a 2-D coordinate.
 - In the swizzle section, the "before" column read maps all 32 lanes to **one** bank and the
-  "after" read maps them to **32 distinct** banks — A02's lesson, without touching the stride.
+  "after" read maps them to **32 distinct** banks —
+  [A02 §3](../A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive)'s lesson, without touching
+  the stride.
 
 > [!NOTE]
 > I could not compile this file in the authoring environment (no NVIDIA toolchain, no CUTLASS
@@ -633,7 +650,7 @@ make profile-cuda                                    # nsys timeline
 ncu --set full ./cuda/mma_tensor_core.exe            # kernel counters
 ```
 
-**What to look for in Nsight Compute:** on the WMMA kernel, a non-zero **tensor-core / "Tensor"
+**What to look for in [Nsight Compute](../../../docs/REFERENCES.md#nsight-compute-nvidia):** on the WMMA kernel, a non-zero **tensor-core / "Tensor"
 pipe utilization** (the SIMT kernel's is zero), alongside poor global **load efficiency** — the
 memory path, not the math, is the WMMA kernel's limiter. The exact metric names vary by Nsight
 Compute version; use `ncu --query-metrics | grep -i tensor` on your install rather than trusting a
@@ -661,10 +678,15 @@ intensity
 ```
 
 So for the lab's `N = 1024`: **AI = 256 FLOP/byte** — and it grows *linearly* with N. Compare that
-against your GPU's ridge point (peak fp16-tensor-core FLOP/s ÷ peak HBM bytes/s, both from your
+against your GPU's
+[ridge point](../../B-gpu-ml-performance/B01.accelerator-architecture/README.md#the-ridge-point-computed-from-cited-peaks)
+(peak fp16-tensor-core FLOP/s ÷ peak HBM bytes/s, both from your
 GPU's datasheet or whitepaper): on current data-center parts the ridge point is well below 256, so a
-large dense GEMM is firmly **compute-bound**. That is *why* GEMM is where tensor cores pay off, and
-why vector add (A01, AI ≈ 0.083) never could.
+large dense GEMM is firmly
+**[compute-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**. That is
+*why* GEMM is where tensor cores pay off, and
+why vector add ([A01 §5](../A01.foundations-and-programming-model/README.md#5-performance-analysis),
+AI ≈ 0.083) never could.
 
 This also tells you the failure mode to expect: a compute-bound kernel that *doesn't* hit peak is
 failing on **instruction supply** — the wrong functional unit (no MMA), or the MMA units starved by
@@ -782,7 +804,8 @@ bugs are almost always the memory path rather than the MMA itself.*
 ### Pitfall 1 — The MMA is warp-collective; a divergent lane breaks it
 
 `wmma::mma_sync` (and `mma.sync` underneath) requires **all 32 lanes of the warp** to execute it.
-The CUDA C++ Programming Guide is explicit that all threads in the warp must execute the same
+The [CUDA C++ Programming Guide](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia) is
+explicit that all threads in the warp must execute the same
 `wmma` calls, in the same order; otherwise behavior is undefined and hangs are a realistic outcome.
 So any bounds check around an MMA must be **warp-uniform**. In Lab 1 the tile guard depends on
 `blockIdx` and `threadIdx.y` (the warp index), never on `threadIdx.x` — that is not stylistic.
@@ -804,7 +827,8 @@ problem, not a skill issue. Budget for it, and prefer generating only the config
 
 ### Pitfall 4 — Padding is not a substitute for swizzling here
 
-A02's `+1` trick removes the bank conflict but destroys the power-of-two row stride that 128-bit
+[A02 §3](../A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive)'s `+1` trick removes the bank
+conflict but destroys the power-of-two row stride that 128-bit
 vector loads, `ldmatrix`, and TMA descriptors depend on. In a tensor-core kernel, reach for a
 swizzle. (Conversely, in a simple fp32 transpose, padding is simpler and fine — use the cheap fix
 where it works.)
@@ -815,7 +839,8 @@ fp16 MMA with fp32 accumulate is far more accurate than fp16 accumulate, but the
 rounded to ~3 decimal digits with a narrow exponent range. bf16 trades mantissa for range and is
 usually the better default for training. Lab 1 sidesteps this on purpose by initializing with values
 exactly representable in fp16 (multiples of 0.25) so a tight tolerance is meaningful and any failure
-is a real bug, not rounding. Track B04 covers precision properly.
+is a real bug, not rounding. Track
+[B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md) covers precision properly.
 
 ### Pitfall 6 — Arch-conditional instructions do not degrade gracefully
 
@@ -841,7 +866,8 @@ testing, and gate with `__CUDA_ARCH__`.
 
 - Your shapes are standard and cuBLAS already saturates the GPU. Measure first; you will often find
   there is nothing to win.
-- You need one vendor-neutral source tree. CuTe cannot give you that — use Triton, or maintain a
+- You need one vendor-neutral source tree. CuTe cannot give you that — use
+  [Triton](../A08.triton-foundations/README.md), or maintain a
   CUTLASS path and a Composable Kernel path and accept the duplication.
 - Your bottleneck is elsewhere (data loading, communication, kernel launch overhead). Profile before
   you write a GEMM.
@@ -862,17 +888,30 @@ testing, and gate with `__CUDA_ARCH__`.
 - **CuTe is the layer library authors build on.** Reading `examples/cute/tutorial/sgemm_2.cu` is
   the single highest-leverage hour in this module: it is a complete pipelined GEMM whose structure
   you will recognize in every serious kernel you read afterwards.
-- **FlashAttention-class kernels** are the canonical "why fusion needs layout control" case: the
+- **[FlashAttention](../../../docs/GLOSSARY.md#attention-and-flashattention)-class kernels** are the
+  canonical "why fusion needs layout control" case: the
   whole point is to *never materialize* the attention matrix, which requires composing tile layouts
-  through softmax and a second GEMM. A07/A09 build the idea; CUTLASS and Triton are how it ships.
+  through softmax and a second GEMM.
+  [A07](../A07.softmax-and-fused-kernels/README.md)/[A09](../A09.advanced-triton-flash-attention/README.md)
+  build the idea; CUTLASS and Triton are how it ships.
 - **The AMD mirror image is already in production**: Composable Kernel powers the FlashAttention and
   GEMM backends used by PyTorch and vLLM on ROCm. Same hierarchy, same tile-based programming model,
-  MFMA instead of `mma.sync`, LDS instead of shared memory, 64-lane wavefronts instead of 32-lane
+  [MFMA](../A06.tiled-matrix-multiply/README.md#matrix-cores-mfma-and-tensor-cores) instead of
+  `mma.sync`, LDS instead of shared memory, 64-lane wavefronts instead of 32-lane
   warps.
 - **Tile-level DSLs (Triton, CuTile) are where the industry is moving** for everything that is not a
   vendor-tuned primitive: you get most of the performance for a fraction of the code, and you stop
   re-deriving index math per architecture. The open question — genuinely open, not rhetorical — is
   how much of the last 10–20% of peak you concede for that.
+
+**Where to go next.** [A09](../A09.advanced-triton-flash-attention/README.md) is the portable route
+to the fused-kernel cases above: the same layout-and-fusion reasoning, written in Triton, which
+compiles for AMD as well as NVIDIA.
+[B01 §3.2](../../B-gpu-ml-performance/B01.accelerator-architecture/README.md#32-matrix-engines-in-detail)
+covers the matrix engines themselves on both vendors, and teaches you to read the datasheet peak that
+§5 asked you to compare against. If you are on AMD, go back to
+[A06](../A06.tiled-matrix-multiply/README.md) rather than forward from here — it makes the same
+tiling-and-matrix-core argument in a form you can build and run.
 
 ---
 
@@ -882,9 +921,11 @@ Every version-sensitive claim in this module traces to one of these, retrieved *
 repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 
 **CUTLASS / CuTe (primary sources)**
-- **CUTLASS repository** — README carries the current version banner, the CuTe overview, the
-  supported-GPU/compute-capability table, and the arch-conditional-instruction warning.
-  <https://github.com/NVIDIA/cutlass>
+- [**CUTLASS and CuTe repository**](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia) — README
+  carries the current version banner, the CuTe overview, the
+  supported-GPU/compute-capability table, and the arch-conditional-instruction warning. It is the
+  source behind §3.1's status table, §5's relative-performance charts, and §6's Pitfall 6; the
+  bibliography entry holds the URL and its retrieval date.
 - **CUTLASS 4.6.1 release notes** (published 2026-07-15) — the version and date used throughout §3.
   <https://github.com/NVIDIA/cutlass/releases/tag/v4.6.1>
 - **CuTe Layouts** (CUTLASS docs, v4.6.1) — `Layout` = `(Shape, Stride)`; `Tensor` = `Layout` + data;
@@ -923,19 +964,20 @@ repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 - **Tile IR documentation** · <https://docs.nvidia.com/cuda/tile-ir/>
 
 **CUDA / PTX (tensor cores)**
-- **CUDA C++ Programming Guide — Warp Matrix Functions (`nvcuda::wmma`)** — the `fragment` /
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia) — its
+  *Warp Matrix Functions* section is the normative reference for the `fragment` /
   `load_matrix_sync` / `mma_sync` / `store_matrix_sync` API used in Lab 1, the SM70+ requirement,
   and the all-threads-in-the-warp rule cited in §6.
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#warp-matrix-functions>
 - **PTX ISA — `mma`, `wgmma`, `ldmatrix`, `tcgen05`** — the authoritative shape and dtype lists.
   Go here before quoting any MMA shape, including the ones in §3.3.
   <https://docs.nvidia.com/cuda/parallel-thread-execution/index.html>
-- **CUDA C++ Best Practices Guide** — coalescing, shared memory, bank conflicts (A02 background).
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — coalescing, shared memory, bank conflicts (A02 background); the bank-conflict model §3.4's
+  swizzle argument starts from.
 - **NVIDIA architecture whitepapers** — tensor-core generations and datasheet peaks used for the
   §5 ridge-point comparison. Use the whitepaper for *your* GPU:
   [A100/Ampere](https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/nvidia-ampere-architecture-whitepaper.pdf) ·
-  [H100/Hopper](https://resources.nvidia.com/en-us-tensor-core) ·
+  [H100/Hopper](../../../docs/REFERENCES.md#nvidia-hopper-architecture-whitepaper-nvidia) ·
   [Blackwell](https://resources.nvidia.com/en-us-blackwell-architecture)
 
 **AMD counterparts (for the reader skipping this module)**
@@ -947,10 +989,14 @@ repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
   <https://rocm.docs.amd.com/projects/hipBLASLt/en/latest/>
 - **AMD Instinct MI300 / CDNA3 ISA reference** — the authoritative MFMA instruction list.
   <https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-mi300-cdna3-instruction-set-architecture.pdf>
+- [**AMD matrix instruction calculator**](../../../docs/REFERENCES.md#amd-matrix-instruction-calculator-amd)
+  — per-instruction MFMA shapes, cycle counts and register layouts, i.e. the AMD reading of §3.3's
+  MMA-shape table.
 
 **Background**
-- Williams, Waterman, Patterson (2009). *Roofline: an insightful visual performance model.* — the
-  §5 framing. <https://dl.acm.org/doi/10.1145/1498765.1498785>
+- [**Roofline** (Williams, Waterman and Patterson, 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — the §5 framing: why a GEMM's arithmetic intensity, not its FLOP count, decides which ceiling
+  applies.
 
 ---
 

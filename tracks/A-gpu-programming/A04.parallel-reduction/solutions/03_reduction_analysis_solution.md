@@ -29,7 +29,9 @@ copy-ceiling floor = 1.0737e9 B / 4.8e12 B/s = 2.237e-4 s = 223.7 µs
 The **copy ceiling is the honest target**. The datasheet number is a theoretical pin-level figure
 that no kernel — not even a pure `memcpy` — reaches on real silicon, because of DRAM page
 activation, refresh, ECC, and the fact that a real access stream is never perfectly scheduled.
-Measuring your own ceiling (A02 Lab 1) and judging against *that* is the difference between "we are
+Measuring your own ceiling
+([A02 Lab 1](../../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs)) and judging
+against *that* is the difference between "we are
 leaving 24% on the table" and "we are at 84% of what this machine can do".
 
 ## 3. Fraction of peak

@@ -71,6 +71,9 @@ serves the topic; state what you omitted and why in Section 4.
 - Papers, official docs, and reputable blogs — each with a link, attributed correctly.
 - Every non-obvious claim in the module should trace to something here or in
   [REFERENCES.md](REFERENCES.md).
+- A source used by more than one module belongs in `REFERENCES.md`; link to its anchor rather
+  than repeating the URL. A source only this module uses stays here, with a retrieval date if
+  it is vendor documentation. See [Cross-referencing](#cross-referencing) below.
 
 ### 9. Self-Assessment & Interview Drills
 - **Conceptual** questions (with answers) that check understanding.
@@ -90,6 +93,81 @@ serves the topic; state what you omitted and why in Section 4.
 5. **Cite as you go.** No orphan claims.
 6. **Call out AMD vs NVIDIA differences explicitly** wherever they matter.
 7. **No dead abstractions.** Don't add a helper used once, or a config knob nobody sets.
+
+---
+
+## Cross-referencing
+
+A module is a node in a graph, not a standalone document. A reader who hits an unexplained term
+should be one click from its definition, and a reader who finishes should know where to go next.
+Four rules make that true without turning the prose blue.
+
+### 1. Link the first mention, not every mention
+
+The first time a section names another module or a glossary term, link it. After that, use the
+plain word. A page where every technical noun is a link is harder to read than one where none
+are.
+
+### 2. Use the canonical link forms
+
+Depth of `../` depends on where the file sits: a module `README.md` is three levels below the
+repo root, a page in `exercises/` or `solutions/` is four.
+
+| From a module `README.md` | Write |
+|---|---|
+| Another module | `[A03](../A03.execution-model-and-occupancy/README.md)` |
+| Another module, another track | `[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md)` |
+| A specific section | `[A03 §3](../A03.execution-model-and-occupancy/README.md#3-deep-dive)` |
+| A glossary term | `[occupancy](../../../docs/GLOSSARY.md#occupancy)` |
+| A shared source | `[Roofline](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)` |
+
+The nine section anchors are identical in every module:
+
+`#1-tldr--layman-analogy` · `#2-first-principles` · `#3-deep-dive` · `#4-hands-on-labs` ·
+`#5-performance-analysis` · `#6-challenges-drawbacks--tradeoffs` · `#7-real-world-use-cases` ·
+`#8-cited-references` · `#9-self-assessment--interview-drills`
+
+The doubled hyphens are not typos. Both GitHub and this site drop punctuation such as `&` and
+`;` and then turn *each remaining space* into a hyphen, so `Challenges, Drawbacks & Tradeoffs`
+leaves two spaces where the `&` was. `mkdocs.yml` pins `pymdownx.slugs.slugify` for exactly this
+reason: stock Python-Markdown collapses those spaces and would disagree with GitHub, breaking
+every deep link on one surface or the other.
+
+### 3. Open with prerequisites, close with where to go next
+
+The header block carries `Prerequisites:`. Add a **Where to go next** block at the end of section
+7, naming at most three modules and saying *why* each one follows — a bare list of IDs is
+navigation, not teaching:
+
+```markdown
+**Where to go next.** [A06](../A06.tiled-matrix-multiply/README.md) scales this module's
+shared-memory staging up to a real GEMM; [B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md)
+turns "memory-bound" from a label into a number you can compute.
+```
+
+### 4. Cite at the claim, not only at the bottom
+
+Section 8 is the bibliography, not the citation mechanism. When the body makes a claim that rests
+on a source, link the source *there*, at the sentence that needs it. Section 8 then explains what
+each source is for.
+
+- **Shared sources** live in [REFERENCES.md](REFERENCES.md) and are linked by anchor. Never paste
+  a URL that already has an entry there.
+- **Module-specific sources** stay in section 8 with a full citation. Papers are identified by
+  DOI or arXiv ID; vendor documentation carries a **retrieval date**, because it moves.
+- Never invent a citation, a DOI, or a benchmark. If you cannot verify a claim, hedge it in the
+  text instead of asserting it.
+
+### Verify before you commit
+
+```powershell
+python check_links.py            # every relative link and anchor, both surfaces
+python build_reference_index.py  # refresh the "Where each source is cited" table
+```
+
+CI runs both. `check_links.py --external` additionally HTTP-checks every URL; run it when you add
+sources. Some publishers (ACM, MIT Press, some corporate blogs) answer `403` to automated
+requests — that is expected and not a defect.
 
 ---
 

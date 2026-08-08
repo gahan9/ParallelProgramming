@@ -2,28 +2,33 @@
 
 > Track B · Module 02 · Status: **DONE** · Est. 6 hours · Depth 3/5
 >
-> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/) (kernels,
+> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md) (kernels,
 > error checking, event timing) and
-> [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/) (the measured bandwidth
+> [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md) (the measured bandwidth
 > ladder this module turns into a model).
 > Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Python (stdlib only, for the plotter).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
 **TL;DR.** A kernel cannot go faster than two hard limits allow: the rate the machine can do
-arithmetic (**peak FLOP/s**, call it `P`) and the rate it can move bytes (**bandwidth**, `B`).
+arithmetic (**peak FLOP/s**, call it `P`) and the rate it can move bytes
+(**[bandwidth](../../../docs/GLOSSARY.md#bandwidth)**, `B`).
 If a kernel does `I` FLOPs for every byte it pulls from memory, then bandwidth alone caps it at
-`I × B` FLOP/s. Put the two together and you have the entire roofline model:
+`I × B` FLOP/s. Put the two together and you have the entire
+[roofline model](../../../docs/GLOSSARY.md#roofline-model):
 
 ```
 attainable FLOP/s  =  min(P,  I × B)
 ```
 
-`I` is the kernel's **arithmetic intensity**. The intensity where the two limits meet is the
-**ridge point**, `I_ridge = P / B`. Below it you are **memory-bound** and the only lever that
+`I` is the kernel's **[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity)**. The
+intensity where the two limits meet is the
+**ridge point**, `I_ridge = P / B`. Below it you are
+**[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)** and the only lever that
 matters is moving fewer bytes; above it you are **compute-bound** and the only lever that matters
 is issuing better arithmetic. One division, one comparison, and you know which half of the
 optimization literature to ignore.
@@ -127,8 +132,10 @@ rate  =  F / time  <=  F / max(F/P, M/B)
                     =  min(P,  I x B)
 ```
 
-That is the roofline. Everything else in this module — every operator table, every diagram,
-every profiler chart — is bookkeeping on those two terms.
+That is the roofline, in the form
+[Williams, Waterman and Patterson published it in 2009](../../../docs/REFERENCES.md#roofline-williams-et-al-2009),
+and the ridge-point vocabulary below is theirs too. Everything else in this module — every
+operator table, every diagram, every profiler chart — is bookkeeping on those two terms.
 
 > **The load-bearing assumption is `max`, not `+`.** If a kernel cannot overlap loads with math
 > at all, the honest bound is `time >= F/P + M/B`, which is up to 2× worse. The roofline takes
@@ -158,8 +165,8 @@ Three consequences that trip people up:
   `5 × 16 KB` of L1/L2 traffic but only `16 KB` of HBM traffic. Its HBM intensity is 5× its L2
   intensity. Both numbers are correct; they answer different questions. This is exactly why
   **hierarchical rooflines** exist (Yang, Kurth & Williams — see Section 8).
-- **Wasted bytes count.** An uncoalesced kernel that fetches 128-byte lines to use 4 bytes of
-  each moves 32× the bytes it needed. Its *measured* intensity collapses by 32×, and it will sit
+- **Wasted bytes count.** An [uncoalesced](../../../docs/GLOSSARY.md#coalescing) kernel that
+  fetches 128-byte lines to use 4 bytes of each moves 32× the bytes it needed. Its *measured* intensity collapses by 32×, and it will sit
   neatly on a roofline it should never have been anywhere near. Always compare against the
   intensity of the *ideal* implementation, not the one you wrote.
 - **`I` is a property of the algorithm and its data layout, not of the GPU.** Vector add has
@@ -202,14 +209,17 @@ limit.** A vector add does **0.083**. That is a factor of roughly **3,000**.
 This is the most important number in ML performance engineering, and it explains the shape of
 the entire field:
 
-- Matrix cores made `P` grow by more than 20× in a few generations. `B` grew by perhaps 3×.
+- [Matrix cores](../../../docs/GLOSSARY.md#tensor-core-nvidia-and-matrix-core-amd) made `P` grow
+  by more than 20× in a few generations. `B` grew by perhaps 3×.
   So the ridge point marched right, and kernels that used to be near it are now far to its left.
 - **Faster compute makes more kernels memory-bound, not fewer.** Every elementwise op, every
   normalization, every attention softmax, the entire decode phase of inference — all of them are
   pinned to the bandwidth roof on modern hardware.
 - Which is why the dominant optimizations of the last five years are all *byte-deleting*
-  techniques: kernel fusion, FlashAttention, quantization, activation checkpointing trade-offs,
-  paged KV caches. None of them make the math faster. They make there be less traffic.
+  techniques: kernel [fusion](../../../docs/GLOSSARY.md#fusion),
+  [FlashAttention](../../../docs/GLOSSARY.md#attention-and-flashattention), quantization,
+  activation checkpointing trade-offs, paged KV caches. None of them make the math faster. They
+  make there be less traffic.
 
 ```mermaid
 %%{init: {
@@ -294,13 +304,15 @@ I = 1 / 4 = 0.25 FLOP/byte
 ```
 
 Three times better than vector add purely because there is nothing to write back. Still 1,000×
-below the ridge. A good reduction is judged by **what fraction of the copy ceiling it reaches**,
-never by its GFLOP/s — a point [A04](../../A-gpu-programming/A04.parallel-reduction/) makes with
+below the ridge. A good [reduction](../../../docs/GLOSSARY.md#reduction) is judged by **what
+fraction of the copy ceiling it reaches**, never by its GFLOP/s — a point
+[A04 §5](../../A-gpu-programming/A04.parallel-reduction/README.md#5-performance-analysis) makes with
 code and this module makes with a model.
 
 #### Softmax — and why fusion is the whole game
 
-The textbook safe softmax is three passes over the row (find the max, exponentiate, normalize):
+The textbook safe [softmax](../../../docs/GLOSSARY.md#softmax) is three passes over the row (find
+the max, exponentiate, normalize):
 
 ```
 FLOPs per element:  max compare (1) + subtract (1) + exp (1) + accumulate (1) + divide (1) = 5
@@ -311,11 +323,15 @@ bytes, fused single pass (online normalization): read 4, write 4  = 8
 I_fused = 5 / 8 = 0.625 FLOP/byte
 ```
 
-**2.5× the intensity, identical arithmetic, identical output.** Both are still deeply
+**2.5× the intensity, identical arithmetic, identical output.** The single-pass form is the
+online normalizer of
+[Milakov and Gimelshein (2018)](../../../docs/REFERENCES.md#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018),
+which is what makes one pass numerically safe. Both are still deeply
 memory-bound — the classification did not change — but the fused version's roof is 2.5× higher,
 so it finishes 2.5× sooner. Internalize this: *fusion rarely changes your verdict; it moves you
 up the memory-bound slope by deleting bytes.* That is the model's prediction for
-[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/), which measures it.
+[A07 §5](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md#5-performance-analysis),
+which measures it.
 
 #### GEMM — the operator that escapes
 
@@ -328,7 +344,8 @@ bytes =  3N² x s
 I     =  2N³ / (3N² s)  =  2N / (3s)
 ```
 
-**Intensity grows linearly with `N`.** That is what makes GEMM the only major ML primitive that
+**Intensity grows linearly with `N`.** That is what makes [GEMM](../../../docs/GLOSSARY.md#gemm)
+the only major ML primitive that
 is genuinely compute-bound — and only once it is big enough. Solving `2N/(3s) >= I_ridge`:
 
 | Precision | `s` | `I(N)` | MI300X ridge | Smallest compute-bound `N` |
@@ -349,8 +366,10 @@ than on its GEMMs.
 Also notice what the `3N²` assumed: **perfect reuse**. A naive one-thread-per-output kernel reads
 a full row and column per output element, moving `2N³` elements instead of `3N²` — intensity
 collapses to `2N³/(2N³ × 4) = 0.25 FLOP/byte`, the same as a reduction, no matter how large `N`
-gets. Tiling is not a 20% optimization; it is the difference between `I = 0.25` and `I = N/6`.
-[A06](../../A-gpu-programming/A06.tiled-matrix-multiply/) builds exactly that.
+gets. [Tiling](../../../docs/GLOSSARY.md#tiling) is not a 20% optimization; it is the difference
+between `I = 0.25` and `I = N/6`.
+[A06 §4](../../A-gpu-programming/A06.tiled-matrix-multiply/README.md#4-hands-on-labs) builds
+exactly that.
 
 #### Attention — memory-bound unless fused
 
@@ -374,9 +393,13 @@ FLOPs. Against MI300X's bf16 ridge of 247 it is memory-bound at *every* sequence
 inequality has no solution. The fused version is `≈ 0.505 s`, crossing the ridge at
 `s ≈ 490` on MI300X and staying compute-bound forever after.
 
-**That is FlashAttention's justification stated as an inequality rather than an anecdote**, and
-it is why [A09](../../A-gpu-programming/A09.advanced-triton-flash-attention/) treats fused
-attention as an algorithm change rather than an optimization. Exercise 2 walks the full derivation, including the causal, decode, and
+**That is FlashAttention's justification stated as an inequality rather than an anecdote** — the
+IO-complexity argument of
+[Dao et al. (2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022) in two lines of
+byte counting — and it is why
+[A09 §2](../../A-gpu-programming/A09.advanced-triton-flash-attention/README.md#2-first-principles)
+treats fused attention as an algorithm change rather than an optimization. Exercise 2 walks the
+full derivation, including the causal, decode, and
 grouped-query variants — decode attention lands at `I ≈ 1 FLOP/byte`, which is why token
 generation throughput tracks HBM bandwidth almost linearly.
 
@@ -446,7 +469,7 @@ Five steps, in this order. Do not skip step 5.
 2. **Get bytes.** Analytically for the ideal implementation, and from the profiler for the real
    one (`FETCH_SIZE`/`WRITE_SIZE`, or `dram__bytes_*`). A large ratio between the two is an
    access-pattern bug, not a roofline result — go back to
-   [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/).
+   [A02 §3](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive).
 3. **Compute `I` and the roof.** `I = FLOPs / bytes`; `roof = min(P, I × B)` with `P` and `B`
    from Lab 1, not from a datasheet.
 4. **Compute achieved FLOP/s** from your measured kernel time, and plot the point.
@@ -469,7 +492,9 @@ who have read about one.
 All commands run from this module directory. There is no `triton/` directory here: the module's
 subject is a *model*, and the labs that matter are microbenchmarks that must control instruction
 selection and memory traffic precisely — which is exactly what a high-level DSL abstracts away.
-Triton kernels are analyzed *with* this model in A08 and B03.
+Triton kernels are analyzed *with* this model in
+[A08](../../A-gpu-programming/A08.triton-foundations/README.md) and
+[B03](../B03.profiling-and-bottleneck-analysis/README.md).
 
 ```bash
 # AMD
@@ -665,7 +690,8 @@ as a prediction the lab either confirms or refutes on your hardware, not as an e
 
 ### Reading a memory-bound kernel correctly
 
-For a kernel with `I` far left of the ridge, **GFLOP/s is the wrong headline**. Consider A02's
+For a kernel with `I` far left of the ridge, **GFLOP/s is the wrong headline**. Consider
+[A02 §5](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#5-performance-analysis)'s
 transpose ladder, measured there on an MI300X (`gfx942`, ROCm 6.2) — transpose does *zero*
 arithmetic, so `I = 0` and the roofline degenerates to the bandwidth axis alone:
 
@@ -693,7 +719,8 @@ Softmax, from Section 3, is the cleanest case where the model makes a falsifiabl
 | Fused single-pass | `5N` | `8N` | 0.625 | **2.5×** |
 
 Both are memory-bound, so runtime is `bytes / B` in each case and the ratio is exactly
-`20N / 8N = 2.5`. If A07's fused kernel measures ~2.5× and not ~5×, the model was right and the
+`20N / 8N = 2.5`. If [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)'s
+fused kernel measures ~2.5× and not ~5×, the model was right and the
 implementation is fine. If it measures 1.2×, the model is telling you the fused version is not
 actually achieving bandwidth — go find out why. **A model earns its place by being wrong in
 informative ways**, and that only works if you commit to the prediction first.
@@ -845,7 +872,8 @@ There is no PCIe, NVLink, Infinity Fabric, or network axis in the classic roofli
 multi-GPU or multi-node workload the binding ceiling is frequently interconnect bandwidth, and
 the on-device roofline will cheerfully report that every kernel is fine while the job is 70%
 idle waiting on an all-reduce. The extension exists (add a ceiling per interconnect level, with
-intensity measured in FLOPs per byte *communicated*) and it is the right tool for B07's sharding
+intensity measured in FLOPs per byte *communicated*) and it is the right tool for
+[B07](../B07.distributed-training-and-sharding/README.md)'s sharding
 material — but it is not what you get out of the box.
 
 ### Tradeoffs to hold in mind
@@ -879,7 +907,8 @@ material — but it is not what you get out of the box.
 - **LLM inference serving.** Prefill is compute-bound (large GEMMs, high intensity); decode is
   memory-bound (`I ≈ 1 FLOP/byte`, dominated by streaming the KV cache and the weights). That
   single distinction drives continuous batching, paged attention, speculative decoding,
-  grouped-query attention, and weight-only quantization — all of them intensity plays. B06 builds
+  grouped-query attention, and weight-only quantization — all of them intensity plays.
+  [B06](../B06.inference-serving-optimizations/README.md) builds
   on this directly.
 - **GEMM library tile selection.** cuBLAS, rocBLAS, CUTLASS, and hipBLASLt pick tile shapes to
   push intensity above the ridge point for the given problem size and dtype. The heuristic tables
@@ -896,16 +925,27 @@ material — but it is not what you get out of the box.
   70% of achievable HBM bandwidth" is a testable assertion — far more robust than a wall-clock
   threshold, which drifts with every clock and driver change.
 
+**Where to go next.** [B03](../B03.profiling-and-bottleneck-analysis/README.md) replaces the
+analytic byte and FLOP counts this module derives with counters read off the hardware, which is
+the only way to find out whether a kernel is where the model says it should be.
+[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) is the fastest way to
+falsify the model: it measures the fused softmax whose 2.5× speedup Section 5 predicted before any
+code existed. [B05](../B05.transformer-performance/README.md) applies the same intensity
+arithmetic to a whole transformer, where the prefill/decode split turns out to be the ridge point
+argument at model scale.
+
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live.
+The rest are specific to this module and carry their full citation here.
 
-- Williams, S., Waterman, A., & Patterson, D. (2009). *Roofline: An Insightful Visual Performance
-  Model for Multicore Architectures.* Communications of the ACM 52(4). **The original paper**;
-  Section 2's derivation and the ridge-point terminology come from here.
-  <https://dl.acm.org/doi/10.1145/1498765.1498785>
+- [**Roofline** (Williams, Waterman & Patterson, 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — *Roofline: An Insightful Visual Performance Model for Multicore Architectures*, Communications
+  of the ACM 52(4). **The original paper**; Section 2's derivation and the ridge-point terminology
+  come from here, and every verdict in this module is an application of its `min(P, I × B)`.
 - Yang, C., Kurth, T., & Williams, S. (2019/2020). *Hierarchical Roofline analysis for GPUs:
   Accelerating performance optimization for the NERSC-9 Perlmutter system.* Concurrency and
   Computation: Practice and Experience. The multi-level extension discussed in Section 6,
@@ -919,31 +959,37 @@ Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 - **Empirical Roofline Toolkit (ERT)**, Berkeley Lab. The reference implementation of measuring
   ceilings by microbenchmark rather than reading a datasheet.
   <https://bitbucket.org/berkeleylab/cs-roofline-toolkit/>
-- **NVIDIA Nsight Compute — Kernel Profiling Guide** (chapter *Roofline Charts*) and the Nsight
-  Compute reference on hierarchical roofline sections and the `roofline` section set.
-  <https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html> ·
-  <https://docs.nvidia.com/nsight-compute/NsightCompute/index.html>
-- **AMD ROCm Compute Profiler (formerly Omniperf)** — empirical hierarchical roofline on
-  MI200/MI300 (L1/LDS/L2/HBM ceilings), `--roof-only`, `roofline.csv`.
-  <https://rocm.docs.amd.com/projects/rocprofiler-compute/en/latest/what-is-rocprof-compute.html> ·
-  <https://rocm.docs.amd.com/projects/rocprofiler-compute/en/latest/how-to/analyze/cli.html>
+- [**Nsight Compute Profiling Guide**](../../../docs/REFERENCES.md#nsight-compute-profiling-guide-nvidia)
+  (chapter *Roofline Charts*) and the
+  [**Nsight Compute**](../../../docs/REFERENCES.md#nsight-compute-nvidia) reference — the
+  hierarchical roofline sections and the `roofline` section set Lab 4 invokes, plus the definitions
+  of the `dram__bytes_*` and FFMA counters in Section 3's table.
+- [**ROCm compute and systems profilers**](../../../docs/REFERENCES.md#rocm-compute-and-systems-profilers-amd)
+  — `rocprof-compute` (formerly Omniperf): empirical hierarchical roofline on MI200/MI300
+  (L1/LDS/L2/HBM ceilings), `--roof-only`, `roofline.csv`. The AMD half of Lab 4, and the tool
+  whose ceilings you compare Lab 1's against.
 - Ofenbeck, G., Steinmann, R., Caparrós Cabezas, V., Spampinato, D. G., & Püschel, M. (2014).
   *Applying the roofline model.* IEEE ISPASS. An honest treatment of how hard it is to measure
   the quantities the model needs — the source of Section 6, Pitfall 6.
   <https://doi.org/10.1109/ISPASS.2014.6844463>
-- Dao, T., Fu, D., Ermon, S., Rudra, A., & Ré, C. (2022). *FlashAttention: Fast and Memory-Efficient
-  Exact Attention with IO-Awareness.* NeurIPS. The attention derivation in Section 3 and
-  Exercise 2. <https://arxiv.org/abs/2205.14135>
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — *Fast and Memory-Efficient Exact Attention with IO-Awareness*, NeurIPS. The IO-complexity
+  argument Section 3 restates as a byte count, and the source of the fused/unfused split in
+  Exercise 2.
+- [**Online normalizer calculation for softmax** (Milakov & Gimelshein, 2018)](../../../docs/REFERENCES.md#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018)
+  — the single-pass formulation that makes Section 3's `I_fused = 0.625` reachable without losing
+  numerical safety.
 - Ivanov, A., Dryden, N., Ben-Nun, T., Li, S., & Hoefler, T. (2021). *Data Movement Is All You
   Need: A Case Study on Optimizing Transformers.* MLSys. Quantifies how much of transformer
   runtime is data movement rather than arithmetic. <https://arxiv.org/abs/2007.00072>
 - **AMD Instinct MI300X product specifications** — the HBM and per-precision peak figures in
-  Section 2's table. <https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html>
-- **NVIDIA H100 Tensor Core GPU specifications** — the H100 SXM figures in Section 2's table.
-  <https://www.nvidia.com/en-us/data-center/h100/>
-- **CUDA C++ Best Practices Guide** — effective-bandwidth measurement and the arithmetic-intensity
-  framing used in the labs.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
+  Section 2's table (retrieved 8 Aug 2026).
+  <https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html>
+- **NVIDIA H100 Tensor Core GPU specifications** — the H100 SXM figures in Section 2's table
+  (retrieved 8 Aug 2026). <https://www.nvidia.com/en-us/data-center/h100/>
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — effective-bandwidth measurement and the arithmetic-intensity framing used in the labs; the
+  normative account of how to time a kernel honestly before you plot it.
 
 ---
 
@@ -1083,5 +1129,7 @@ output shape is in
 - Build a two-level roofline by hand: add an L2 ceiling measured with a working set that fits in
   L2, and plot a kernel against both. Compare your chart to `ncu --set roofline` or
   `rocprof-compute --roof-only`.
-- Instrument the fused vs 3-pass softmax from A07 and check the model's 2.5× prediction from
-  Section 5. If it misses, find out which of Section 6's nine pitfalls explains the gap.
+- Instrument the fused vs 3-pass softmax from
+  [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) and check the model's
+  2.5× prediction from Section 5. If it misses, find out which of Section 6's nine pitfalls
+  explains the gap.

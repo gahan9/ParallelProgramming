@@ -2,11 +2,13 @@
 
 > Track B · Module 05 · Status: **DONE** · Est. 7 hours · Depth 4/5
 >
-> Prerequisites: [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/) (fusion, online
-> softmax) and B02's roofline vocabulary. You should know *what* a transformer does; this module is
-> about where its time and memory go.
+> Prerequisites: [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) (fusion,
+> online softmax) and
+> [B02](../B02.roofline-and-arithmetic-intensity/README.md)'s roofline vocabulary. You should know
+> *what* a transformer does; this module is about where its time and memory go.
 > Tooling: Python only — `tools/` is stdlib-only, `bench/` needs a GPU + `torch`.
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -14,10 +16,15 @@
 
 **TL;DR.** A transformer layer is `(4 + 2m)d²` parameters — about `12d²` at the usual FFN
 multiplier `m = 4` — and a forward pass costs about `2 ×` params in FLOPs per token, `6 ×` for
-training. Those two formulas plus the KV-cache size are the whole back-of-envelope toolkit. The one
+training. Those two formulas plus the [KV-cache](../../../docs/GLOSSARY.md#kv-cache) size are the
+whole back-of-envelope toolkit. The one
 insight that matters more than any other: **the same model has two completely different performance
-personalities.** Processing many tokens at once (prefill, training) gives you big GEMMs, high
-arithmetic intensity, and a **compute-bound** workload. Generating one token at a time (decode)
+personalities.** Processing many tokens at once
+([prefill](../../../docs/GLOSSARY.md#prefill-and-decode), training) gives you big
+[GEMMs](../../../docs/GLOSSARY.md#gemm), high
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity), and a
+**[compute-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**
+workload. Generating one token at a time (decode)
 collapses those GEMMs into matrix-*vector* products with arithmetic intensity ≈ 1, making you
 **memory-bandwidth-bound** — you re-read every weight in the model to produce a single token. That
 single fact predicts single-stream generation speed to within a small factor from nothing but a
@@ -47,12 +54,16 @@ and the analogy tells you it will *not* help the banquet, which was never corrid
 
 **Where it breaks.** Three places, each worth knowing:
 1. The corridor is not a fixed-width pipe. You only get full HBM bandwidth with well-shaped,
-   coalesced accesses (A02); a badly laid-out read gets a fraction of the spec sheet number.
+   [coalesced](../../../docs/GLOSSARY.md#coalescing) accesses
+   ([A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md)); a badly laid-out
+   read gets a fraction of the spec sheet number.
 2. There is no pantry analogue for the **KV cache** — a per-customer notebook that grows with every
    plate you serve them. Eventually the notebooks, not the pantry, are what fill the kitchen, and
    that is what caps how many customers you can serve at once (§3.4).
-3. Real kitchens don't have a hard ceiling on hands *and* corridor simultaneously. The roofline
-   model (B02) does, and crossing from one ceiling to the other is the whole story here.
+3. Real kitchens don't have a hard ceiling on hands *and* corridor simultaneously. The
+   [roofline model](../../../docs/GLOSSARY.md#roofline-model)
+   ([B02](../B02.roofline-and-arithmetic-intensity/README.md)) does, and crossing from one ceiling
+   to the other is the whole story here.
 
 **By the end of this module you can:** derive a model's parameter count, prefill FLOPs, decode
 FLOPs, and KV-cache size from its config on a whiteboard; predict single-stream tokens/second from a
@@ -66,7 +77,9 @@ therefore which optimization is worth doing.
 
 ### 2.1 Count the parameters, from the shapes
 
-Forget the diagrams. A decoder layer is a small pile of matrices. With hidden size `d`, `h` heads,
+Forget the diagrams. A decoder layer — the architecture of
+[Vaswani et al. (2017)](../../../docs/REFERENCES.md#attention-is-all-you-need-vaswani-et-al-2017),
+minus the encoder — is a small pile of matrices. With hidden size `d`, `h` heads,
 head dimension `d_head = d/h`, and FFN inner width `d_ffn = m·d`:
 
 | Tensor | Shape | Parameters |

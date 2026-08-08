@@ -2,7 +2,7 @@
 
 **Competency:** connecting a microarchitectural counter to a source-level cause.
 
-[A02 Lab 2](../../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#lab-2--transpose-coalescing--shared-memory--bank-conflicts)
+[A02 Lab 2](../../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#lab-2--transpose-coalescing--shared-memory--bank-conflicts-transpose)
 builds a three-rung ladder — `transpose_naive`, `transpose_tiled`,
 `transpose_tiled_padded` — and *asserts* that the ladder climbs because of
 coalescing, then shared-memory staging, then bank-conflict removal. A02 measured

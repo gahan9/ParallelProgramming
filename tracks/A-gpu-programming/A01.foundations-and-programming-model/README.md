@@ -2,16 +2,19 @@
 
 > Track A · Module 01 · Status: **DONE** (gold-standard reference module) · Est. 6 hours · Depth 1/5
 >
-> Prerequisites: comfort with C/C++ and a terminal. No GPU experience assumed.
-> Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton (Python). See [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Prerequisites: comfort with C/C++ and a terminal. No GPU experience assumed — this is the entry
+> point of the curriculum. Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton (Python).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** A GPU runs *one* program (a **kernel**) across *thousands* of threads at once. You, the
-programmer, (1) copy data from CPU memory to GPU memory, (2) launch a kernel with a grid of threads,
-(3) copy results back. Each thread computes its own global index and works on its slice of the data.
+**TL;DR.** A GPU runs *one* program (a **[kernel](../../../docs/GLOSSARY.md#kernel)**) across
+*thousands* of [threads](../../../docs/GLOSSARY.md#thread) at once. You, the programmer, (1) copy
+data from CPU memory to GPU memory, (2) launch a kernel with a grid of threads, (3) copy results
+back. Each thread computes its own global index and works on its slice of the data.
 Getting this mental model right — and *always checking for errors* — is 80% of not shooting yourself
 in the foot later.
 
@@ -72,15 +75,19 @@ So the model must give each thread a way to know "who am I?" That's the whole tr
 global_index = block_id * threads_per_block + thread_id_within_block
 ```
 
-Every GPU language spells this the same way (`blockIdx.x * blockDim.x + threadIdx.x`). This one line
-maps a flat data array onto a 2-level hierarchy of threads.
+Every GPU language spells this the same way (`blockIdx.x * blockDim.x + threadIdx.x`) — the
+thread/block/grid hierarchy it indexes is the one defined in the
+[CUDA C++ Programming Guide](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia). This one
+line maps a flat data array onto a 2-level hierarchy of threads.
 
 ### Why two levels (blocks *and* threads), not one flat pool?
 
 Because hardware is physical. Threads that need to cooperate (share fast memory, synchronize) must
-live on the *same* physical engine. So the model groups threads into **blocks** (a cooperating team,
-scheduled onto one SM/CU) and groups blocks into a **grid** (the whole job). Threads in different
-blocks *cannot* assume anything about each other's timing. This constraint is not arbitrary — it is
+live on the *same* physical engine. So the model groups threads into
+**[blocks](../../../docs/GLOSSARY.md#block-nvidia-and-workgroup-amd)** (a cooperating team,
+scheduled onto one SM/CU) and groups blocks into a **[grid](../../../docs/GLOSSARY.md#grid)** (the
+whole job). Threads in different blocks *cannot* assume anything about each other's timing. This
+constraint is not arbitrary — it is
 what lets the GPU scale from a laptop chip with 20 engines to a data-center chip with 300 by simply
 running more blocks in parallel. **The same code scales because blocks are independent.**
 
@@ -114,7 +121,8 @@ sequenceDiagram
 ```
 
 Miss step 2 and your kernel reads garbage. Forget that step 3 is *asynchronous* and you'll "time" a
-kernel that hasn't run yet. These are the first bugs everyone hits — Section 6 makes them explicit.
+kernel that hasn't run yet. These are the first bugs everyone hits —
+[Section 6](#6-challenges-drawbacks--tradeoffs) makes them explicit.
 
 ---
 
@@ -156,22 +164,26 @@ flowchart TB
 | Physical engine | SM (Streaming Multiprocessor) | CU (Compute Unit) | Runs many warps/wavefronts concurrently |
 | One lane | Thread | Work-item | One index, its own registers |
 
-**The single most important AMD-vs-NVIDIA difference for this module:** the lockstep bundle is **64
-lanes on AMD (wavefront)** and **32 lanes on NVIDIA (warp)**. Your block size should be a multiple
-of this (multiples of 64 are safe on both). Pick 128 or 256 threads/block as a sane default and you
-are aligned on either vendor.
+**The single most important AMD-vs-NVIDIA difference for this module:** the
+[lockstep bundle](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd) is **64 lanes on AMD
+(wavefront)** and **32 lanes on NVIDIA (warp)**
+([AMD CDNA architecture](../../../docs/REFERENCES.md#amd-cdna-architecture-amd)). Your block size
+should be a multiple of this (multiples of 64 are safe on both). Pick 128 or 256 threads/block as a
+sane default and you are aligned on either vendor.
 
 ### SIMT: how one instruction drives dozens of lanes
 
-The hardware does **Single Instruction, Multiple Threads**. The scheduler fetches *one* instruction
-and issues it to all lanes of a warp/wavefront simultaneously, each lane operating on its own data
-and registers. This is why GPUs are so efficient: one expensive instruction-fetch amortized over
-32–64 arithmetic operations.
+The hardware does **[Single Instruction, Multiple Threads](../../../docs/GLOSSARY.md#simt)**. The
+scheduler fetches *one* instruction and issues it to all lanes of a warp/wavefront simultaneously,
+each lane operating on its own data and registers. This is why GPUs are so efficient: one expensive
+instruction-fetch amortized over 32–64 arithmetic operations.
 
-The corollary — which we set up here and pay off in A03 — is **divergence**: if lanes in the same
-warp take different `if` branches, the hardware must execute *both* branches serially, masking the
-inactive lanes. So the bounds check `if (idx < n)` in a kernel is nearly free (only the last partial
-warp diverges), but data-dependent branching inside hot loops can halve throughput.
+The corollary — which we set up here and pay off in
+[A03 §3](../A03.execution-model-and-occupancy/README.md#3-deep-dive) — is
+**[divergence](../../../docs/GLOSSARY.md#divergence)**: if lanes in the same warp take different
+`if` branches, the hardware must execute *both* branches serially, masking the inactive lanes. So
+the bounds check `if (idx < n)` in a kernel is nearly free (only the last partial warp diverges),
+but data-dependent branching inside hot loops can halve throughput.
 
 ### Why `if (idx < n)` is mandatory, not optional
 
@@ -191,14 +203,17 @@ if (idx < n) { /* safe work */ }
 Each SM/CU can host many warps/wavefronts at once. When one warp stalls waiting on memory (hundreds
 of cycles), the scheduler instantly runs another ready warp — this is how GPUs *hide latency*
 instead of avoiding it. The fraction of the maximum resident warps you actually achieve is
-**occupancy**, and it's capped by how many **registers** each thread uses and how much **shared
-memory / LDS** each block uses. High occupancy is usually good, but not always the goal — we'll
-quantify the tradeoff in A03. For now: prefer 128–256 threads/block and don't blow the register
-budget.
+**[occupancy](../../../docs/GLOSSARY.md#occupancy)**, and it's capped by how many **registers** each
+thread uses and how much **shared memory / LDS** each block uses —
+[A02 §3](../A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive) sizes both of those budgets
+on real silicon. High occupancy is usually good, but not always the goal — we'll quantify the
+tradeoff in A03. For now: prefer 128–256 threads/block and don't blow the register budget.
 
 ### HIP ↔ CUDA: the same idea, two spellings
 
-HIP is intentionally a near-mirror of CUDA, which is why one mental model serves both:
+HIP is intentionally a near-mirror of CUDA, which is why one mental model serves both — the
+correspondence below is the one stated by the
+[HIP programming model](../../../docs/REFERENCES.md#hip-programming-model-amd):
 
 | CUDA | HIP | Meaning |
 |---|---|---|
@@ -277,13 +292,15 @@ HBM bandwidth in Lab 3.
 Files: [`hip/coalescing.cpp`](hip/coalescing.cpp) · [`cuda/coalescing.cu`](cuda/coalescing.cu).
 
 Same amount of work, two access patterns:
-- **Coalesced:** thread `i` reads element `i` (consecutive addresses within a warp).
+- **[Coalesced](../../../docs/GLOSSARY.md#coalescing):** thread `i` reads element `i` (consecutive
+  addresses within a warp).
 - **Strided:** thread `i` reads element `i * STRIDE` (scattered addresses).
 
 **What to observe:** the coalesced kernel achieves a large fraction of peak HBM bandwidth; the
 strided kernel can be *several times slower* doing identical arithmetic. This is the single most
 important performance lesson for memory-bound kernels, and it's the on-ramp to the roofline model
-(Track B02). We measure it here so the idea is concrete before it's formalized.
+(Track [B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md)). We
+measure it here so the idea is concrete before it's formalized.
 
 #### The whole experiment is two lines
 
@@ -409,7 +426,8 @@ flowchart LR
 
 **Takeaway:** identical arithmetic, identical thread count — only `idx` changed. Keep the innermost
 index contiguous across threads and the hardware does the coalescing for you; scatter it and you
-pay for bytes you never use.
+pay for bytes you never use. [A02](../A02.memory-hierarchy-and-coalescing/README.md) turns this
+measurement into a technique: cache-line transactions, shared-memory staging, and bank conflicts.
 
 ### Lab 4 (optional) — Profile it
 
@@ -423,6 +441,8 @@ make profile-cuda       # nsys timeline; then: ncu --set full ./cuda/vector_add.
 **What to look for:** in the profiler, confirm the H2D/D2H copies often take *longer than the
 kernel itself* for this tiny amount of arithmetic — the payoff for Section 6's "PCIe is the hidden
 bottleneck" point.
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) turns this
+one-off look at a trace into a repeatable method for naming a bottleneck.
 
 #### Reading the `rocprofv3` output
 
@@ -576,11 +596,14 @@ you immediately.
 ### The arithmetic-intensity argument
 
 Vector add does, per element: read 8 bytes (`A[i]`, `B[i]`), one add (1 FLOP), write 4 bytes
-(`C[i]`). That's **1 FLOP per 12 bytes**, an arithmetic intensity of ~0.083 FLOP/byte. A data-center
-GPU delivers on the order of **hundreds of TFLOP/s** of compute but only a few **TB/s** of memory
-bandwidth. The crossover (the roofline "ridge point") sits far to the right of 0.083. So vector add
-is **hopelessly memory-bound** — its speed is decided entirely by bandwidth, and no amount of faster
-math helps.
+(`C[i]`). That's **1 FLOP per 12 bytes**, an
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) of ~0.083 FLOP/byte. A
+data-center GPU delivers on the order of **hundreds of TFLOP/s** of compute but only a few **TB/s**
+of memory bandwidth. The crossover (the
+[roofline](../../../docs/REFERENCES.md#roofline-williams-et-al-2009) "ridge point") sits far to the
+right of 0.083. So vector add is
+**hopelessly [memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)** —
+its speed is decided entirely by bandwidth, and no amount of faster math helps.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#F8FAFC', 'primaryBorderColor': '#0891B2', 'lineColor': '#64748B'}}}%%
@@ -599,7 +622,9 @@ flowchart LR
   class CB,BW,COMP trackB
 ```
 
-Vector add sits far left on the roofline — formal treatment in Track B02.
+Vector add sits far left on the roofline — formal treatment in Track
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md), which turns this
+back-of-envelope into a number and a ceiling you can plot against.
 
 The kernel's *effective bandwidth* is:
 
@@ -624,7 +649,8 @@ healthy fraction of peak on the coalesced pattern, the kernel is doing about as 
 
 **Optimization delta to internalize:** switching from strided to coalesced access — *zero* change to
 the math — is often a multiple-x speedup. Memory access pattern, not FLOPs, is the first lever for
-memory-bound kernels.
+memory-bound kernels; [A02 §5](../A02.memory-hierarchy-and-coalescing/README.md#5-performance-analysis)
+measures that lever end to end on a transpose.
 
 ---
 
@@ -685,11 +711,13 @@ events, the correct approach.
 
 ### Pitfall 4 — PCIe is the hidden bottleneck
 
-For this tiny workload, copying `A` and `B` to the device and `C` back over **PCIe** (tens of GB/s)
-usually costs *more* than the kernel (HBM at TB/s + trivial math). The lesson generalizes: **data
+For this tiny workload, copying `A` and `B` to the device and `C` back over
+**[PCIe](../../../docs/GLOSSARY.md#pcie-and-host-device-transfer)** (tens of GB/s) usually costs
+*more* than the kernel (HBM at TB/s + trivial math). The lesson generalizes: **data
 movement, not computation, dominates** many real workloads. The fixes you'll meet later — keeping
-data resident on the GPU, fusing kernels, overlapping copy with compute via streams — all attack
-this. For now, just *see* it in the profiler (Lab 4).
+data resident on the GPU, fusing kernels ([A07](../A07.softmax-and-fused-kernels/README.md)),
+overlapping copy with compute via streams — all attack this. For now, just *see* it in the profiler
+(Lab 4).
 
 ### Pitfall 5 — Integer overflow in byte-size math
 
@@ -763,7 +791,8 @@ explains exactly when this stops being style and starts being a real, silent bug
 ### Tradeoffs to hold in mind
 
 - **Block size:** too small underutilizes the SM/CU; too large can hurt occupancy via register
-  pressure. 128–256 is a safe default; A03 shows how to tune it.
+  pressure. 128–256 is a safe default;
+  [A03 §3](../A03.execution-model-and-occupancy/README.md#3-deep-dive) shows how to tune it.
 - **Portability vs native:** HIP buys you AMD+NVIDIA from one source, at the cost of occasionally
   trailing the very latest CUDA-only features. Triton buys you both vendors *and* far less code, at
   the cost of less control than hand-written C++.
@@ -779,33 +808,51 @@ explains exactly when this stops being style and starts being a real, silent bug
   exactly this vector-add pattern, just fused and typed. When PyTorch runs `a + b` on CUDA/ROCm, it
   launches a kernel shaped like Lab 2.
 - **Coalescing** (Lab 3) is why frameworks store tensors in contiguous, aligned layouts and why a
-  transpose or a bad stride can tank performance — the same lesson at production scale.
+  transpose or a bad stride can tank performance — the same lesson at production scale, and the
+  whole subject of [A02](../A02.memory-hierarchy-and-coalescing/README.md).
 - **The host/device dance and PCIe cost** motivate `pin_memory`, `non_blocking=True` transfers, and
   keeping activations on-device throughout training — standard practice in real pipelines.
 - **The async-launch model** is the foundation of overlapping data loading with compute, the bread
   and butter of high-throughput training and inference loops.
 
 Libraries embodying this module's ideas: PyTorch/JAX elementwise ops, Thrust/rocThrust,
-CUB/hipCUB, and every custom Triton elementwise kernel you'll write in A08.
+CUB/hipCUB, and every custom [Triton](../../../docs/GLOSSARY.md#triton) elementwise kernel you'll
+write in [A08](../A08.triton-foundations/README.md).
+
+**Where to go next.** [A02](../A02.memory-hierarchy-and-coalescing/README.md) takes Lab 3's stride
+measurement apart and hands you the tools to *fix* it rather than only observe it — cache-line
+transactions, shared memory, and bank conflicts.
+[A03](../A03.execution-model-and-occupancy/README.md) expands §3's one-paragraph occupancy sketch
+into the arithmetic that decides your block size and how much latency the scheduler can hide.
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) makes §5's
+"hopelessly memory-bound" a number you can compute before writing a kernel, instead of a verdict
+you reach after profiling one.
 
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Every source this module leans on is shared with other modules, so
+each is cited by anchor into the [master bibliography](../../../docs/REFERENCES.md), where the URL
+and its retrieval date live.
 
-- **CUDA C++ Programming Guide** — programming model, execution model, memory model.
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html>
-- **CUDA C++ Best Practices Guide** — coalescing, occupancy, async transfers, timing with events.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
-- **HIP Programming Model** — HIP grid/block/thread model, `hipLaunchKernelGGL`.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/understand/programming_model.html>
-- **AMD CDNA architecture** — CU, wavefront (64), LDS, HBM bandwidth.
-  <https://www.amd.com/en/technologies/cdna.html>
-- Williams, Waterman, Patterson (2009). *Roofline* — the compute-vs-memory bound framing used in §5.
-  <https://dl.acm.org/doi/10.1145/1498765.1498785>
-- **Triton tutorials** — the vector-add kernel structure in `triton/vector_add.py`.
-  <https://triton-lang.org/main/getting-started/tutorials/index.html>
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia) —
+  programming model, execution model, memory model. The normative definition of the
+  grid/block/thread hierarchy that §2 derives from the problem and §3 maps onto silicon.
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — coalescing, occupancy, async transfers, timing with events. The vendor rules behind Lab 3's
+  stride sweep and Lab 2's event-based timing.
+- [**HIP Programming Model**](../../../docs/REFERENCES.md#hip-programming-model-amd) — HIP
+  grid/block/thread model, `hipLaunchKernelGGL`. The source for §3's CUDA-to-HIP correspondence
+  table and the AMD spelling every `hip/` sample uses.
+- [**AMD CDNA architecture**](../../../docs/REFERENCES.md#amd-cdna-architecture-amd) — CU, wavefront
+  (64), LDS, HBM bandwidth. Where §3's 64-lane wavefront — the one AMD-vs-NVIDIA difference this
+  module insists on — comes from.
+- [**Roofline** (Williams, Waterman and Patterson, 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — the compute-vs-memory bound framing used in §5, and the ridge point that puts vector add's
+  0.083 FLOP/byte firmly on the bandwidth side of it.
+- [**Triton tutorials**](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  — the vector-add kernel structure in `triton/vector_add.py`.
 
 ---
 

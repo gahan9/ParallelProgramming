@@ -2,15 +2,15 @@
 
 > Track B · Module 07 · Status: **DONE** · Est. 8 hours · Depth 4/5
 >
-> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/)
-> (kernels, host/device model), [A04](../../A-gpu-programming/A04.parallel-reduction/)
+> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)
+> (kernels, host/device model), [A04](../../A-gpu-programming/A04.parallel-reduction/README.md)
 > (reduction — and its floating-point associativity warning), and
-> [B01](../B01.accelerator-architecture/) for the **interconnect hierarchy**, whose
-> §3.5 measures the links this module spends: 7 × 128 GB/s bidirectional Infinity
+> [B01](../B01.accelerator-architecture/README.md) for the **interconnect hierarchy**, whose
+> [§3.5](../B01.accelerator-architecture/README.md#35-scale-up-interconnect) measures the links this module spends: 7 × 128 GB/s bidirectional Infinity
 > Fabric per MI300X (896 GB/s aggregate) against 5.3 TB/s of HBM — a ~6× gap that
 > is the reason everything below exists. Helpful:
-> [B05](../B05.transformer-performance/) (transformer shapes),
-> [B06](../B06.inference-serving-optimizations/) (serving and the KV cache).
+> [B05](../B05.transformer-performance/README.md) (transformer shapes),
+> [B06](../B06.inference-serving-optimizations/README.md) (serving and the KV cache).
 > This module derives what it needs so it stands alone, and builds on B01's link
 > arithmetic rather than repeating it.
 >
@@ -18,6 +18,8 @@
 > analytic models — no GPU, no `torch`, no `numpy`. You can do this entire module
 > on a laptop, and you *should*: the point is to make the go/no-go decision before
 > you ask for 512 GPUs.
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 

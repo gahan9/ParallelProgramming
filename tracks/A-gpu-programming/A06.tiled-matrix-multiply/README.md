@@ -2,39 +2,47 @@
 
 > Track A · Module 06 · Status: **DONE** · Est. 8 hours · Depth 3/5
 >
-> Prerequisites: [A01](../A01.foundations-and-programming-model/) (kernels, grid/block/thread, error
-> checking, event timing) and [A02](../A02.memory-hierarchy-and-coalescing/) (coalescing, shared
-> memory / LDS, `__syncthreads`, bank conflicts). A03 (occupancy) and A04 (reduction) deepen the
-> analysis but are not required. Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton (Python).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Prerequisites: [A01](../A01.foundations-and-programming-model/README.md) (kernels,
+> grid/block/thread, error checking, event timing) and
+> [A02](../A02.memory-hierarchy-and-coalescing/README.md) (coalescing, shared memory / LDS,
+> `__syncthreads`, bank conflicts). [A03](../A03.execution-model-and-occupancy/README.md)
+> (occupancy) and [A04](../A04.parallel-reduction/README.md) (reduction) deepen the analysis but are
+> not required. Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton (Python).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** Matrix multiply is where essentially all of deep learning's arithmetic happens — linear
-layers, attention projections, and convolutions (via implicit GEMM) are all `C = A · B`. A naive
-GEMM does `2N³` FLOPs but issues `~2N³` operand loads, giving an arithmetic intensity of **0.25
-FLOP/byte** that is *independent of `N`* — it is pinned to the far-left, hopelessly memory-bound end
-of the roofline. Staging `T × T` tiles in shared memory reuses each loaded element `T` times, so
-intensity becomes **`T/4`** and *scales with the tile*. Giving each thread a small register-held
-micro-tile of `C` breaks the tile size free of the 1024-thread block limit, which is the only way a
-SIMT kernel gets past the roofline ridge point and becomes genuinely compute-bound.
+**TL;DR.** [Matrix multiply](../../../docs/GLOSSARY.md#gemm) is where essentially all of deep
+learning's arithmetic happens — linear layers, attention projections, and convolutions (via implicit
+GEMM) are all `C = A · B`. A naive GEMM does `2N³` FLOPs but issues `~2N³` operand loads, giving an
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) of **0.25 FLOP/byte** that is
+*independent of `N`* — it is pinned to the far-left, hopelessly memory-bound end of the
+[roofline](../../../docs/GLOSSARY.md#roofline-model). Staging `T × T` tiles in
+[shared memory](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd) reuses each loaded
+element `T` times, so intensity becomes **`T/4`** and *scales with the tile*. Giving each thread a
+small register-held micro-tile of `C` breaks the tile size free of the 1024-thread block limit,
+which is the only way a SIMT kernel gets past the roofline ridge point and becomes genuinely
+compute-bound.
 
 **Layman analogy — the library.** You are computing thousands of sums, and every number you need
 lives on a shelf in a library across the building.
 
 - **Naive GEMM** is walking to the shelf, fetching *one* number, walking back to your desk, adding
   it, and walking back for the next. The arithmetic is trivial; you spend your entire day walking.
-- **Shared-memory tiling** is checking out a whole *stack* of books to a table in the reading room
-  that your study group shares. One trip, then everyone at the table reuses those books many times
-  before anyone walks back to the shelves. The walking is amortized over `T` uses.
+- **Shared-memory [tiling](../../../docs/GLOSSARY.md#tiling)** is checking out a whole *stack* of
+  books to a table in the reading room that your study group shares. One trip, then everyone at the
+  table reuses those books many times before anyone walks back to the shelves. The walking is
+  amortized over `T` uses.
 - **Register blocking** is keeping a couple of pages open in your own hands. No trip to the shared
   table at all for those — the fastest possible access, but you only have two hands.
 
 The analogy is load-bearing: it correctly predicts that the *ratio of work to trips* is what matters
 (intensity), that a bigger stack means fewer trips (`I ∝ T`), and that the table has a fixed size, so
-a bigger stack means fewer study groups can be seated (shared memory vs occupancy).
+a bigger stack means fewer study groups can be seated (shared memory vs
+[occupancy](../../../docs/GLOSSARY.md#occupancy)).
 
 **Where it breaks.** Three places, and each one is a real GPU constraint the library has no analogue
 for. (1) The reading-room table is shared by a *team working in lockstep*, so before anyone reads a
@@ -42,7 +50,8 @@ book, everyone must confirm the whole stack has arrived — that is `__syncthrea
 polite social equivalent. (2) The corridor to the shelves has a fixed total width shared by *all*
 study groups at once; adding groups does not add bandwidth, which is why occupancy alone never fixes
 a memory-bound kernel. (3) Real libraries do not have a special desk that multiplies 16×16 blocks of
-numbers in one motion — GPUs do, and they are called **matrix cores** (§3).
+numbers in one motion — GPUs do, and they are called
+**[matrix cores](../../../docs/GLOSSARY.md#tensor-core-nvidia-and-matrix-core-amd)** (§3).
 
 **By the end of this module you can:** derive the arithmetic intensity of naive vs tiled vs
 register-blocked GEMM from first principles and predict which side of the roofline each lands on;
@@ -117,8 +126,9 @@ intensity                 = 2N³ / (8N³/T) = T / 4  FLOP/byte
 
 ### Where the ridge point is
 
-The roofline **ridge point** is `peak FLOP/s ÷ peak bytes/s` — the intensity at which a kernel stops
-being bandwidth-limited and starts being math-limited.
+The [roofline](../../../docs/REFERENCES.md#roofline-williams-et-al-2009) **ridge point** is
+`peak FLOP/s ÷ peak bytes/s` — the intensity at which a kernel stops being bandwidth-limited and
+starts being math-limited.
 
 | Device (datasheet, approximate) | fp32 vector peak | HBM bandwidth | Ridge point |
 |---|---|---|---|
@@ -217,7 +227,8 @@ if (row < M && col < N) C[row * N + col] = acc;
 
 **Why the loads are coalesced.** In both staging statements the index that varies with
 `threadIdx.x` is the *column* of a row-major matrix. Consecutive lanes therefore touch consecutive
-addresses and the hardware fuses them into one wide transaction — the A02 rule, applied to the tile
+addresses and the hardware fuses them into one wide transaction — the
+[A02](../A02.memory-hierarchy-and-coalescing/README.md#2-first-principles) rule, applied to the tile
 load itself. Swap the roles and the tile load becomes the new bottleneck even though the compute is
 unchanged.
 
@@ -257,7 +268,8 @@ sequenceDiagram
 ```
 
 - **Barrier 1** is a **read-after-write** guard: the tile must be *fully populated* before anyone
-  reads it. Drop it and a fast wavefront reads slots a slow one has not written yet.
+  reads it. Drop it and a fast [wavefront](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd)
+  reads slots a slow one has not written yet.
 - **Barrier 2** is a **write-after-read** guard: the tile must be *fully consumed* before iteration
   `t+1` overwrites it. Drop it and a fast wavefront racing into the next iteration clobbers data a
   slow wavefront is still accumulating from.
@@ -298,7 +310,8 @@ factor `TM` (for `TM = TN`). Global intensity also improves, to
 `BM·BN / (2·(BM + BN))` FLOP/byte — note it is **independent of `BK`**, so `BK` is free to be small
 (cheap shared memory, deeper pipelining) without hurting intensity.
 
-The cost is **registers**. `acc[4][4]` alone is 16 VGPRs per thread; an `8 × 8` micro-tile is 64
+The cost is **[registers](../../../docs/GLOSSARY.md#registers)**. `acc[4][4]` alone is 16 VGPRs per
+thread; an `8 × 8` micro-tile is 64
 before you count operands and addresses. Push too far and the compiler spills to scratch memory —
 which is HBM wearing a disguise, and instantly undoes everything. Check it explicitly:
 
@@ -310,7 +323,8 @@ nvcc  -Xptxas -v ...                              # NVIDIA: registers, spill sto
 ### Layout, padding, and the bank conflicts that remain
 
 The `hip/matmul.cpp` register-blocked kernel stores `A`'s tile **transposed** (`As[BK][BM]`) so that
-the inner loop walks `m` contiguously. That transposing store is a textbook A02 bank-conflict
+the inner loop walks `m` contiguously. That transposing store is a textbook A02
+[bank-conflict](../../../docs/GLOSSARY.md#bank-conflict)
 generator: with a row stride of `BM = 64` words, all 16 loader lanes writing column `aCol` land in
 the same bank. The fix is the same one-word pad:
 
@@ -342,9 +356,11 @@ load t -> [ compute t | load t+1 ] -> [ compute t+1 | load t+2 ] -> ...
 
 It costs 2× shared memory and one extra barrier per iteration, and it needs the loads issued early
 enough that the latency is genuinely hidden. NVIDIA gives you `cp.async` (Ampere+) and the
-`cuda::pipeline` API for asynchronous global→shared copies; AMD CDNA has `buffer_load ... lds`
+[`cuda::pipeline` API](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia) for asynchronous
+global→shared copies; AMD CDNA has `buffer_load ... lds`
 direct-to-LDS paths that Composable Kernel and hipBLASLt exploit. This is the single largest
-remaining win for a hand-written kernel and it is the reason CUTLASS parameterizes on a *stage
+remaining win for a hand-written kernel and it is the reason
+[CUTLASS](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia) parameterizes on a *stage
 count*.
 
 **Split-K / Stream-K.** When `M` and `N` are small but `K` is huge (common in inference: a
@@ -370,8 +386,8 @@ faster math path that a hand-written SIMT kernel simply cannot reach.
 Three consequences you should be able to state in an interview:
 
 1. **A hand-written fp32 SIMT GEMM is capped by the vector FMA ceiling**, which is roughly 8–16×
-   below the matrix-core ceiling. No amount of tiling closes that gap — you are optimizing toward the
-   wrong roof.
+   below the [matrix-core ceiling](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd). No amount
+   of tiling closes that gap — you are optimizing toward the wrong roof.
 2. **Matrix cores make the memory problem worse, not better.** Raising the compute ceiling by 8×
    moves the ridge point right by 8×, so a matrix-core GEMM needs *far* more reuse (larger tiles,
    deeper pipelining, L2-aware scheduling) to stay fed. See the bonus in
@@ -379,7 +395,7 @@ Three consequences you should be able to state in an interview:
 3. **The fragment layouts are fixed and non-obvious.** Each MFMA/MMA shape dictates precisely which
    lane holds which element of the A/B fragments and the accumulator. Getting that right by hand,
    for every shape and precision, is what CUTLASS/CuTe (NVIDIA) and rocWMMA/Composable Kernel (AMD)
-   exist to do for you.
+   exist to do for you ([A10](../A10.cute-cutlass-and-cutile/README.md) is that layer).
 
 ### CDNA vs Hopper, for this kernel
 
@@ -505,7 +521,9 @@ watch the point walk right across the roofline as you go down the ladder.
 
 ### The question, and how to answer it before you measure
 
-Same question as always: **memory-bound or compute-bound?** For GEMM you can answer it on paper,
+Same question as always:
+**[memory-bound or compute-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)?**
+For GEMM you can answer it on paper,
 which is what makes this kernel such a good teaching vehicle. Compute the intensity, compare it to
 the ridge point, and the profiler should merely *confirm* you.
 
@@ -542,7 +560,8 @@ flowchart LR
   class RIDGE neutral
 ```
 
-The diagram is the module's thesis: the first three rungs move you *right* along the roofline toward
+The diagram is the module's thesis: the first three rungs move you *right* along the
+[roofline](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) toward
 the ridge, and only the last one raises the roof.
 
 ### What to expect from Lab 1
@@ -664,8 +683,9 @@ it and still be broken, because you never tested a ragged `K`.
 
 Doubling `TILE` doubles intensity *and* quadruples shared-memory use, halving (or worse) the number
 of resident blocks. Past some point the loss of latency hiding beats the gain in reuse. There is no
-formula; sweep and measure. This is the same occupancy-vs-reuse tension A02 raised, now with a
-second dimension (`TM × TN` register pressure) added to it.
+formula; sweep and measure. This is the same occupancy-vs-reuse tension
+[A02 §6](../A02.memory-hierarchy-and-coalescing/README.md#6-challenges-drawbacks--tradeoffs) raised,
+now with a second dimension (`TM × TN` register pressure) added to it.
 
 ### Pitfall 3 — Register spilling silently reverts everything
 
@@ -713,15 +733,18 @@ are fp16/bf16 — that is what matrix cores do natively, and for good reason.
   GEMMs — the overwhelming majority of the FLOPs in training and in the prefill phase of inference.
   A06 is the kernel behind that number.
 - **Attention.** `QKᵀ` and `scores·V` are batched GEMMs. **FlashAttention**
-  ([Dao et al., 2022](https://arxiv.org/abs/2205.14135)) is, at its core, this module's tiling
-  applied to attention so that the `S × S` score matrix is never materialized in HBM — the same
-  reuse argument, applied to a fused kernel. Track A07/A09 build it.
+  ([Dao et al., 2022](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)) is, at its core,
+  this module's tiling applied to attention so that the `S × S` score matrix is never materialized
+  in HBM — the same reuse argument, applied to a fused kernel. Track
+  [A07](../A07.softmax-and-fused-kernels/README.md)/[A09](../A09.advanced-triton-flash-attention/README.md)
+  build it.
 - **Convolutions.** cuDNN and MIOpen implement most convolutions as **implicit GEMM**, mapping the
   conv into a tiled matrix product without materializing the im2col matrix.
 - **The libraries themselves.** [rocBLAS](https://rocm.docs.amd.com/projects/rocBLAS/en/latest/) /
   [hipBLASLt](https://rocm.docs.amd.com/projects/hipBLASLt/en/latest/) and
   [Composable Kernel](https://github.com/ROCm/composable_kernel) on AMD;
-  [CUTLASS](https://github.com/NVIDIA/cutlass) and cuBLAS on NVIDIA. Reading CUTLASS's
+  [CUTLASS](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia) and cuBLAS on NVIDIA. Reading
+  CUTLASS's
   [efficient GEMM](https://github.com/NVIDIA/cutlass/blob/main/media/docs/cpp/efficient_gemm.md)
   document after this module is the natural next step — you will recognize every layer of its
   hierarchy.
@@ -732,36 +755,51 @@ are fp16/bf16 — that is what matrix cores do natively, and for good reason.
   Triton kernel shaped exactly like [`triton/matmul.py`](triton/matmul.py) and autotunes the block
   sizes — the automated version of this module's manual ladder.
 
+**Where to go next.**
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) generalizes the
+intensity arithmetic of §2 into a method you apply to any kernel, so "which side of the ridge" stops
+being a GEMM-only trick. [A07](../A07.softmax-and-fused-kernels/README.md) takes up the one reason §6
+gives for writing a matmul by hand — fusion — and builds a kernel whose payoff is the epilogue the
+library will not give you. [A10](../A10.cute-cutlass-and-cutile/README.md) is where the block →
+warp → thread tile hierarchy you hand-wrote here becomes a library abstraction, with the
+matrix-core fragment layouts §3 only described.
+
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live.
+Sources only this module leans on keep their URL here.
 
-- **CUDA C++ Programming Guide — Shared Memory** (the canonical tiled matrix-multiply example this
-  module's Lab 1 follows).
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory>
-- **CUDA C++ Programming Guide — Warp Matrix Functions (WMMA)** — the Tensor Core fragment API.
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#warp-matrix-functions>
-- **CUDA C++ Best Practices Guide** — coalescing, shared memory, occupancy, and the
-  measure-then-optimize discipline used in §5.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
-- **NVIDIA CUTLASS** — production template library for GEMM; its *Efficient GEMM in CUDA* document is
-  the reference for multi-level (block → warp → thread) blocking and pipelining.
-  <https://github.com/NVIDIA/cutlass> ·
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia) —
+  its *Shared Memory* chapter is the canonical tiled matrix-multiply example Lab 1 follows; its
+  *Warp Matrix Functions* (WMMA) chapter is the Tensor Core fragment API §3 points at; and it is the
+  normative description of the `cp.async` / `cuda::pipeline` staging §3 describes.
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — coalescing, shared memory, occupancy, and the measure-then-optimize discipline used in §5.
+- [**CUTLASS and CuTe** (NVIDIA)](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia) — production
+  template library for GEMM and the subject of [A10](../A10.cute-cutlass-and-cutile/README.md). Its
+  *Efficient GEMM in CUDA* document is the reference for the multi-level (block → warp → thread)
+  blocking of §3 and for the stage-count pipelining that §3 only sketches.
   <https://github.com/NVIDIA/cutlass/blob/main/media/docs/cpp/efficient_gemm.md>
-- **rocBLAS documentation** (AMD's BLAS, `rocblas_sgemm` and friends).
+- **rocBLAS documentation** (AMD's BLAS, `rocblas_sgemm` and friends) — the library §5's last table
+  row and §6's headline measure you against. Retrieved **8 Aug 2026**.
   <https://rocm.docs.amd.com/projects/rocBLAS/en/latest/>
-- **hipBLASLt documentation** — the tuned, epilogue-fusing GEMM path on CDNA.
+- **hipBLASLt documentation** — the tuned, epilogue-fusing GEMM path on CDNA, and the production
+  answer §6 arrives at. Retrieved **8 Aug 2026**.
   <https://rocm.docs.amd.com/projects/hipBLASLt/en/latest/>
-- **AMD Matrix Cores** (ROCm blog) — what MFMA instructions do, their shapes, and how to reach them.
+- **AMD Matrix Cores** (ROCm blog) — what MFMA instructions do, their shapes, and how to reach them;
+  the AMD half of §3's matrix-core comparison. Retrieved **8 Aug 2026**.
   <https://rocm.blogs.amd.com/software-tools-optimization/matrix-cores/README.html>
-- **AMD Matrix Instruction Calculator** — enumerates every MFMA shape and its register layout per
-  architecture.
-  <https://github.com/ROCm/amd_matrix_instruction_calculator>
-- **AMD CDNA 3 architecture white paper** — CU structure, LDS, and matrix-core throughput.
-  <https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf>
-- **AMD Composable Kernel** — the tile-programming framework behind many ROCm GEMM/fused kernels.
+- [**AMD matrix instruction calculator**](../../../docs/REFERENCES.md#amd-matrix-instruction-calculator-amd)
+  — enumerates every MFMA shape and its per-lane register layout, which is the "fixed and
+  non-obvious" fragment problem §3 says the libraries exist to solve.
+- [**AMD CDNA 3 white paper**](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd) — CU
+  structure, LDS, and the matrix-core throughput behind §3's claim that a hand-written fp32 SIMT
+  kernel is optimizing toward the lower roof.
+- **AMD Composable Kernel** — the tile-programming framework behind many ROCm GEMM/fused kernels,
+  and the AMD counterpart to the CUTLASS layering in §3. Retrieved **8 Aug 2026**.
   <https://github.com/ROCm/composable_kernel>
 - Simon Boehm. *How to Optimize a CUDA Matmul Kernel for cuBLAS-like Performance: a Worklog* — a
   careful, reproducible step-by-step of exactly the ladder in §5, with measurements.
@@ -769,17 +807,16 @@ Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 - Volkov & Demmel (2008). *Benchmarking GPUs to Tune Dense Linear Algebra* (SC '08) — the paper that
   established register blocking and low occupancy as legitimate GEMM strategies.
   <https://doi.org/10.1109/SC.2008.5214359>
-- Williams, Waterman & Patterson (2009). *Roofline: An Insightful Visual Performance Model for
-  Multicore Architectures* — the model used throughout §2 and §5.
-  <https://doi.org/10.1145/1498765.1498785>
-- Dao et al. (2022). *FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness* —
-  tiling applied to attention; the §7 payoff.
-  <https://arxiv.org/abs/2205.14135>
-- **Triton — Matrix Multiplication tutorial** — the block-level model used in Lab 2, including L2
+- [**Roofline** (Williams, Waterman & Patterson, 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — the model used throughout §2 and §5, and the source of the ridge-point definition the whole
+  optimization ladder is measured against.
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — tiling applied to attention; the §7 payoff.
+- [**Triton documentation and tutorials**](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  — the *Matrix Multiplication* tutorial is the block-level model used in Lab 2, including L2
   grouping and autotuning.
-  <https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html>
-- **HIP Programming Guide** — `__shared__`, `__syncthreads`, launch bounds, and LDS limits.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/>
+- [**HIP Programming Guide**](../../../docs/REFERENCES.md#hip-programming-guide-amd) — `__shared__`,
+  `__syncthreads`, launch bounds, and LDS limits.
 
 ---
 

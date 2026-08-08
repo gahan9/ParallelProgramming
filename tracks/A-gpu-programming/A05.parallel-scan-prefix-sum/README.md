@@ -2,10 +2,12 @@
 
 > Track A · Module 05 · Status: **DONE** · Est. 6 hours · Depth 3/5
 >
-> Prerequisites: [A01](../A01.foundations-and-programming-model/) (kernels, grid/block/thread,
-> error checking, event timing) and [A02](../A02.memory-hierarchy-and-coalescing/) (shared
-> memory / LDS, `__syncthreads()`, bank conflicts). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) ·
-> Triton (Python). Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Prerequisites: [A01](../A01.foundations-and-programming-model/README.md) (kernels,
+> grid/block/thread, error checking, event timing) and
+> [A02](../A02.memory-hierarchy-and-coalescing/README.md) (shared memory / LDS,
+> `__syncthreads()`, bank conflicts). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) ·
+> Triton (Python). Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -17,9 +19,9 @@ tree of depth `log₂n`, and a tree is exactly what a GPU is good at. Two classi
 tree: **Hillis–Steele** (simple, `O(n log n)` work, `O(log n)` depth) and **Blelloch**
 (up-sweep + down-sweep, `O(n)` work, `O(log n)` depth). Because a block can only cooperate over a
 tile it holds on-chip, large arrays use a **3-phase decomposition** — scan each tile, scan the tile
-totals, add the offsets back. Scan is not an exercise: it is the machinery under stream
-compaction, radix sort, sparse-matrix row offsets, and every ragged/variable-length batch in ML
-serving.
+totals, add the offsets back. [Scan](../../../docs/GLOSSARY.md#scan-prefix-sum) is not an exercise:
+it is the machinery under stream compaction, radix sort, sparse-matrix row offsets, and every
+ragged/variable-length batch in ML serving.
 
 **Layman analogy — the bank statement.** A statement's **running balance** column looks strictly
 sequential: line 7's balance is line 6's balance plus line 7's amount, so surely one clerk must
@@ -33,15 +35,16 @@ give the same answer.
 
 **Where the analogy breaks** — each break is a real engineering constraint:
 
-- **Rounds need a barrier.** Nobody may start round 2 until *every* clerk finished round 1, or a
-  clerk reads a half-updated figure. That barrier is `__syncthreads()`, and it means the slowest
-  lane sets the pace (§3, §6).
+- **Rounds need a [barrier](../../../docs/GLOSSARY.md#barrier).** Nobody may start round 2 until
+  *every* clerk finished round 1, or a clerk reads a half-updated figure. That barrier is
+  `__syncthreads()`, and it means the slowest lane sets the pace (§3, §6).
 - **Total work goes *up*, not down.** The single clerk did `n − 1` additions; the room of clerks
   does about `n log₂n`. Parallel does not mean less work — it means less *time*, bought with more
   work (§2, §5, and the drill in `exercises/03_scan_analysis.md`).
 - **It assumes any clerk can cheaply read any earlier line.** True inside a block, where the tile
-  is in shared memory / LDS. **False across blocks** — blocks cannot see or wait for each other,
-  which is the entire reason for the 3-phase decomposition (§3).
+  is in [shared memory / LDS](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd).
+  **False across blocks** — blocks cannot see or wait for each other, which is the entire reason
+  for the 3-phase decomposition (§3).
 - **Money in cents is exact; `float` isn't.** Re-bracketing changes the rounding, so the parallel
   balance can differ from the sequential one in the last bits (§6).
 
@@ -83,8 +86,9 @@ into `log₂n` rounds — the whole module is about paying for that re-bracketin
 
 **By the end of this module you can:** explain why a scan is parallelizable at all and state the
 exact algebraic property it depends on; implement Hillis–Steele and Blelloch tile scans that are
-free of read-write hazards and bank conflicts; scan an array far larger than one block with the
-3-phase decomposition; convert between inclusive and exclusive scans without off-by-ones; build
+free of read-write hazards and [bank conflicts](../../../docs/GLOSSARY.md#bank-conflict); scan an
+array far larger than one block with the 3-phase decomposition; convert between inclusive and
+exclusive scans without off-by-ones; build
 **stream compaction** on top of a scan and verify it against `std::copy_if`; and argue from a cost
 model when the work-*inefficient* algorithm is the right choice.
 
@@ -251,9 +255,11 @@ for (int offset = 1; offset < blockDim.x; offset *= 2) {
 ```
 
 Within one step, lane `tid` *reads* `s[tid - offset]` while lane `tid - offset` *writes* it. There
-is no ordering between lanes of different warps/wavefronts, so whether you get the pre-step or
-post-step value is a scheduling accident. The symptom is the worst kind: mostly-right answers that
-change with block size and disappear under a debugger. Two correct fixes, both in `hip/scan.cpp`:
+is no ordering between lanes of different
+[warps/wavefronts](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd), so whether you get the
+pre-step or post-step value is a scheduling accident. The symptom is the worst kind: mostly-right
+answers that change with block size and disappear under a debugger. Two correct fixes, both in
+`hip/scan.cpp`:
 
 | Fix | Mechanism | LDS per tile | Barriers per step |
 |---|---|---|---|
@@ -269,7 +275,9 @@ __syncthreads();
 ```
 
 Which is better is a real tradeoff, not a style question: ping-pong halves the barrier count,
-register staging halves the LDS footprint (and LDS is an occupancy currency — A02 §6). At
+register staging halves the LDS footprint (and LDS is an
+[occupancy](../../../docs/GLOSSARY.md#occupancy) currency —
+[A02 §6](../A02.memory-hierarchy-and-coalescing/README.md#6-challenges-drawbacks--tradeoffs)). At
 `n = 1024` floats that is 8 KB vs 4 KB per block.
 
 > [!TIP]
@@ -281,11 +289,13 @@ register staging halves the LDS footprint (and LDS is an occupancy currency — 
 ### Blelloch: up-sweep then down-sweep
 
 Blelloch gets work efficiency by building each partial sum **once** and then *distributing* it,
-instead of recomputing overlapping sums. Two passes over the same in-place tree.
+instead of recomputing overlapping sums. Two passes over the same in-place tree. The derivation
+below, and the in-place indexing it produces, follow
+[Harris, Sengupta and Owens](../../../docs/REFERENCES.md#parallel-prefix-sum-with-cuda-harris-sengupta-and-owens).
 
-**Up-sweep (a reduction).** Pairwise-combine with doubling stride. After it, the slot at index
-`2^k·j − 1` holds the sum of the `2^k` elements below it, and the **last slot holds the tile
-total**.
+**Up-sweep (a [reduction](../A04.parallel-reduction/README.md#3-deep-dive)).** Pairwise-combine
+with doubling stride. After it, the slot at index `2^k·j − 1` holds the sum of the `2^k` elements
+below it, and the **last slot holds the tile total**.
 
 **Seed the root with the identity.** Overwrite the last slot with `0`. This one assignment is what
 makes the output *exclusive*: it declares "nothing precedes this whole range."
@@ -398,8 +408,10 @@ stride-1 across lanes. One more item on the "work-inefficient but cheap" side of
 ### Scanning arrays larger than one block
 
 A block can barrier internally; **blocks cannot barrier with each other**. `__syncthreads()` is
-block-scoped by design (A01 §2: block independence is what lets the same binary scale across GPU
-sizes). So a device-wide scan must be *decomposed*:
+block-scoped by design
+([A01 §2](../A01.foundations-and-programming-model/README.md#2-first-principles): block
+independence is what lets the same binary scale across GPU sizes). So a device-wide scan must be
+*decomposed*:
 
 ```mermaid
 %%{init: {
@@ -453,8 +465,9 @@ one write, "memcpy speeds" — in a **single pass** (Merrill & Garland 2016, §8
 Sketch (we deliberately do **not** implement it here; correctness depends on memory-fence
 discipline that deserves its own module):
 
-1. Tiles are assigned to blocks in order, and each tile owns a **status descriptor** in global
-   memory holding a flag plus two values: its local **aggregate** and its **inclusive prefix**.
+1. Tiles are assigned to blocks in order, and each tile owns a **status descriptor** in
+   [global memory](../../../docs/GLOSSARY.md#global-memory) holding a flag plus two values: its
+   local **aggregate** and its **inclusive prefix**.
 2. A block reduces its tile, publishes `aggregate` and sets the flag to **A**, then starts
    **looking back** at its predecessors.
 3. For each predecessor it inspects: flag **X** → not ready, keep polling; flag **A** → add that
@@ -507,7 +520,8 @@ directory, `make exercises` / `make solutions` build them in place, and `make cl
 
 > **Match `GPU_ARCH` to your GPU.** `gfx950` = MI350, `gfx942` = MI300, `gfx90a` = MI200,
 > `gfx1100` = RDNA3. Find yours with `/opt/rocm/bin/offload-arch` (or `rocminfo | grep gfx`).
-> A01 §4 lists the two failure modes worth recognizing (`libamdhip64.so` not found →
+> [A01 §4](../A01.foundations-and-programming-model/README.md#4-hands-on-labs) lists the two
+> failure modes worth recognizing (`libamdhip64.so` not found →
 > rpath/`LD_LIBRARY_PATH`; `hipErrorNoBinaryForGpu` → wrong arch).
 
 ### Lab 1 — Three scans and a decomposition (`scan`)
@@ -526,7 +540,9 @@ The program runs three parts, all verified against a CPU prefix sum:
   often close to nothing. That is not a broken measurement; it is §5's whole point.
 - **Part 3 — full 3-phase exclusive scan.** **What to observe:** the reported recursion depth
   (3 levels for 4 M elements at a 256-element tile), and that the effective GB/s is well under the
-  copy ceiling you measured in A02 Lab 1 — because phase 3 pays a second full pass.
+  copy ceiling you measured in
+  [A02 Lab 1](../A02.memory-hierarchy-and-coalescing/README.md#lab-1--find-your-hbm-ceiling-bandwidth)
+  — because phase 3 pays a second full pass.
 
 > The inputs are deliberately small integers, so every partial sum is exactly representable in
 > `float` and the comparison against the CPU is **exact** (`!=`, not a tolerance). Any mismatch is
@@ -586,9 +602,13 @@ Per 1024-float tile, HBM traffic is 4096 B in + 4096 B out = 8192 B. The adds:
 | Hillis–Steele | 9,217 | **1.13** |
 | Blelloch | 2,046 | **0.25** |
 
-A data-center GPU's roofline ridge point is on the order of **20–30 FLOP/byte** (divide your
-part's peak fp32 by its peak HBM bandwidth). Both algorithms sit one to two orders of magnitude
-below it: scan is **firmly memory-bound**, exactly like A01's vector add and A02's transpose.
+A data-center GPU's
+[roofline ridge point](../../../docs/REFERENCES.md#roofline-williams-et-al-2009) is on the order of
+**20–30 FLOP/byte** (divide your part's peak fp32 by its peak HBM bandwidth). Both algorithms sit
+one to two orders of magnitude below it: scan is **firmly
+[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**,
+exactly like [A01](../A01.foundations-and-programming-model/README.md)'s vector add and
+[A02](../A02.memory-hierarchy-and-coalescing/README.md)'s transpose.
 
 The consequence is the most useful thing in this module: **the 4.5× extra work of Hillis–Steele is
 mostly invisible** when bandwidth is the ceiling, because the extra adds execute in the shadow of
@@ -792,7 +812,8 @@ analysis, regular-expression search, tree depth, image component labelling. The 
 is the same idea in new clothes:
 
 - **Stream compaction / filtering** (Lab 2). Sparse-tensor pruning, top-k candidate filtering,
-  culling in graphics, dropping padding tokens, garbage collection of KV-cache blocks. Anywhere
+  culling in graphics, dropping padding tokens, garbage collection of
+  [KV-cache](../../../docs/GLOSSARY.md#kv-cache) blocks. Anywhere
   you see "keep the ones that pass and pack them densely," there is a scan.
 - **Radix sort.** For each digit pass, a scan of the per-digit histogram gives each element's
   destination offset. Scan is why GPU radix sort is fast, and therefore why `torch.sort`,
@@ -801,7 +822,8 @@ is the same idea in new clothes:
   counts. Building CSR from COO, or from a mask, is a scan.
 - **Run-length encoding / decoding.** Encode: scan the "is this a new run" flags to get output
   positions. Decode: scan the run lengths to get each run's start, then a search per output element.
-- **Ragged / jagged batches in ML serving.** This is the one to remember. FlashAttention's
+- **Ragged / jagged batches in ML serving.** This is the one to remember.
+  [FlashAttention](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)'s
   variable-length API takes `cu_seqlens` — *cumulative* sequence lengths, i.e. the exclusive scan
   of the per-sequence lengths — so a batch of differently-sized sequences can live in one flat
   tensor with no padding. PyTorch nested tensors, `torch.nn.utils.rnn.pack_padded_sequence`, and
@@ -814,14 +836,25 @@ is the same idea in new clothes:
 
 Libraries embodying this module: **rocPRIM / hipCUB** (`inclusive_scan`, `exclusive_scan`,
 `segmented_inclusive_scan`, `inclusive_scan_by_key`), **CUB / Thrust**
-(`DeviceScan::ExclusiveSum`), **torch.cumsum**, **`tl.cumsum` / `tl.associative_scan`** in Triton,
-and cuDF/RAPIDS for dataframe group-by offsets.
+(`DeviceScan::ExclusiveSum`), **torch.cumsum**, **`tl.cumsum` / `tl.associative_scan`** in
+[Triton](../../../docs/GLOSSARY.md#triton), and cuDF/RAPIDS for dataframe group-by offsets.
+
+**Where to go next.** [A07](../A07.softmax-and-fused-kernels/README.md) is where the fusion
+argument of §6 gets paid off: it keeps a whole multi-pass row operation on-chip instead of paying
+a round trip to HBM per pass, which is the one good reason to write a scan yourself.
+[A08](../A08.triton-foundations/README.md) turns Lab 3's `tl.cumsum` from a convenience into a
+programming model, so you write the composition across blocks and let the compiler own the tree.
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) makes §5's
+"passes over the data" argument quantitative — the same reasoning, as an arithmetic intensity you
+compute before you write the kernel.
 
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Scan's founding papers are specific to this module and keep their own citations here. Every source
+shared with the rest of the curriculum is cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live.
 
 - Blelloch, G. (1990). *Prefix Sums and Their Applications*, CMU-CS-90-190 — the definitive
   treatment: the up-sweep/down-sweep algorithm, work efficiency, segmented scan, and the
@@ -836,32 +869,31 @@ Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
   depth-vs-size tradeoff for prefix circuits; where the `log₂n` depth / `O(n)` size result comes
   from.
   <https://doi.org/10.1145/322217.322232>
-- Harris, M., Sengupta, S. & Owens, J. D. *Parallel Prefix Sum (Scan) with CUDA*, GPU Gems 3
-  Ch. 39 — the GPU implementation this module follows, including the `CONFLICT_FREE_OFFSET`
-  bank-padding macro used verbatim in §3.
-  <https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda>
+- [**Parallel Prefix Sum (Scan) with CUDA** (Harris, Sengupta and Owens)](../../../docs/REFERENCES.md#parallel-prefix-sum-with-cuda-harris-sengupta-and-owens)
+  — GPU Gems 3 Ch. 39; the GPU derivation of the work-efficient algorithm that §3 follows,
+  including the `CONFLICT_FREE_OFFSET` bank-padding macro used verbatim there.
 - Merrill, D. & Garland, M. (2016). *Single-pass Parallel Prefix Scan with Decoupled Look-back*,
   NVIDIA Technical Report NVR-2016-002 — the `~2n` single-pass algorithm described in §3, with the
   X/A/P status-flag protocol.
   <https://research.nvidia.com/publication/2016-03_single-pass-parallel-prefix-scan-decoupled-look-back>
 - **CUB `DeviceScan` documentation** — the shipped decoupled-look-back implementation, and the
   explicit warning that results are not deterministic for pseudo-associative operators (§6).
-  <https://nvidia.github.io/cccl/unstable/cub/api/structcub_1_1DeviceScan.html>
+  (retrieved 8 Aug 2026) <https://nvidia.github.io/cccl/unstable/cub/api/structcub_1_1DeviceScan.html>
 - **rocPRIM documentation** — the AMD equivalent: device-level `inclusive_scan`, `exclusive_scan`,
-  segmented and by-key scans (§7).
+  segmented and by-key scans (§7). (retrieved 8 Aug 2026)
   <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/>
-- **CUDA C++ Best Practices Guide** — shared memory, bank conflicts, `__syncthreads()` rules used
-  throughout §3 and §6.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
-- **HIP Programming Manual** — HIP shared memory, `__syncthreads`, wavefront size portability.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/>
-- **Triton language reference** — `tl.cumsum` and `tl.associative_scan`, used in
-  `triton/scan.py`.
-  <https://triton-lang.org/main/python-api/triton.language.html>
-- Williams, Waterman & Patterson (2009). *Roofline* — the compute-vs-memory framing in §5.
-  <https://dl.acm.org/doi/10.1145/1498765.1498785>
-- **FlashAttention** — the `cu_seqlens` variable-length interface cited in §7 is an exclusive scan
-  of sequence lengths.
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — shared memory, bank conflicts, `__syncthreads()` rules used throughout §3 and §6.
+- [**HIP Programming Guide**](../../../docs/REFERENCES.md#hip-programming-guide-amd) — HIP shared
+  memory, `__syncthreads`, wavefront size portability; the AMD column of §3's divergence table.
+- [**Triton documentation and tutorials**](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  — the language reference for `tl.cumsum` and `tl.associative_scan`, used in `triton/scan.py`
+  (Lab 3).
+- [**Roofline** (Williams et al., 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — the compute-vs-memory framing §5 uses, and where its ridge point comes from.
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — the ragged-batch example in §7; its reference implementation's variable-length interface takes
+  `cu_seqlens`, an exclusive scan of sequence lengths.
   <https://github.com/Dao-AILab/flash-attention>
 
 ---

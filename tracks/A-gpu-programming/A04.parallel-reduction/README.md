@@ -2,23 +2,29 @@
 
 > Track A · Module 04 · Status: **DONE** · Est. 6 hours · Depth 3/5
 >
-> Prerequisites: [A01](../A01.foundations-and-programming-model/) (kernels, grid/block/thread,
-> error checking, event timing) and [A02](../A02.memory-hierarchy-and-coalescing/) (shared memory /
+> Prerequisites: [A01](../A01.foundations-and-programming-model/README.md) (kernels,
+> grid/block/thread, error checking, event timing) and
+> [A02](../A02.memory-hierarchy-and-coalescing/README.md) (shared memory /
 > LDS, bank conflicts, `__syncthreads`). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton (Python).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** A **reduction** collapses `N` values into one (sum, max, min, product, any/all). Done
+**TL;DR.** A **[reduction](../../../docs/GLOSSARY.md#reduction)** collapses `N` values into one
+(sum, max, min, product, any/all). Done
 sequentially it takes `N−1` dependent steps. Done as a **binary tree** it takes the *same* `N−1`
 additions but only `log₂ N` *levels* — so 16.7 million numbers finish in 24 levels instead of 16.7
 million. That is the algorithmic idea, and it is the easy half. The hard half is that a naive GPU
-tree wastes most of the machine: it diverges inside the warp, conflicts in shared memory, leaves
+tree wastes most of the machine: it diverges inside the
+[warp](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd), conflicts in
+[shared memory](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd), leaves
 half the threads idle, and pays barrier overhead for steps that do not need one. This module walks
-the classic **nine-rung optimization ladder** from Mark Harris's *Optimizing Parallel Reduction in
-CUDA*, implements every rung in one benchmarked, verified program, and ends where every good
+the classic **nine-rung optimization ladder** from Mark Harris's
+*[Optimizing Parallel Reduction in CUDA](../../../docs/REFERENCES.md#optimizing-parallel-reduction-in-cuda-harris)*,
+implements every rung in one benchmarked, verified program, and ends where every good
 reduction ends: **memory-bandwidth-bound**, with success measured as a fraction of peak HBM.
 
 **Layman analogy.** A stadium of **50,000 people** each holds a number, and you want the total. The
@@ -92,7 +98,9 @@ regroup `(a⊕b)⊕(c⊕d)` instead of `((a⊕b)⊕c)⊕d`. Commutativity is a b
 which is what a grid-stride loop quietly relies on.
 
 Note what is *not* required: that the operator be exact. Float addition is associative *in theory*
-(real numbers) but not *in practice* (rounding). We parallelize anyway, and pay attention in §6.
+(real numbers) but not *in practice* (rounding — the standard account is
+[Goldberg, 1991](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)).
+We parallelize anyway, and pay attention in §6.
 
 ### Work versus depth — the two numbers that describe any parallel algorithm
 
@@ -109,7 +117,8 @@ sequential : W = 16,777,215 ops,  D = 16,777,215 steps
 tree       : W = 16,777,215 ops,  D = 24 steps
 ```
 
-An algorithm that reduced depth by *doing more work* (many parallel algorithms do — prefix sum is
+An algorithm that reduced depth by *doing more work* (many parallel algorithms do —
+[prefix sum](../A05.parallel-scan-prefix-sum/README.md) is
 the famous example) would be a worse trade here, because as we are about to see, work is what costs.
 
 ### Brent's theorem, and why it predicts the winning kernel
@@ -162,7 +171,8 @@ for (unsigned s = 1; s < blockDim.x; s *= 2) {
 
 It is correct. It is also, on real hardware, **around an order of magnitude slower than it needs to
 be** — and the reasons are not algorithmic at all. They are: which *lanes* are active, which
-*banks* they touch, how many *elements* each thread was given, and how many *barriers* it executes.
+*banks* they touch, how many *elements* each thread was given, and how many
+*[barriers](../../../docs/GLOSSARY.md#barrier)* it executes.
 Section 3 removes them one at a time.
 
 ---
@@ -272,7 +282,8 @@ instruction for all its lanes, so the hardware runs the add with half the lanes 
 `s = 2` it is every fourth lane, and so on. There is *no* step at which a warp is fully busy, and
 *every* warp in the block participates in *every* step. Two costs, not one:
 
-- **Divergence:** useful work per issued instruction falls as `1/(2s)`.
+- **[Divergence](../../../docs/GLOSSARY.md#divergence):** useful work per issued instruction falls
+  as `1/(2s)`.
 - **The `%` itself:** integer modulo by a runtime value is not a cheap instruction on a GPU. (Had
   `2*s` been a compile-time power of two the compiler would turn it into a mask; it cannot here.)
 
@@ -287,8 +298,10 @@ Now the *first* `blockDim/(2s)` threads are the active ones — a contiguous ran
 either fully active or fully idle. Divergence is gone. But look at the addresses: consecutive lanes
 now touch shared-memory words `0, 2s, 4s, …`.
 
-Shared memory (LDS on AMD) is banked: **32 banks of 4-byte words**, and a warp can service 32
-accesses in one cycle only if they land in 32 *distinct* banks (A02 §3). With a stride of `2s` words,
+Shared memory (LDS on AMD) is banked: **32 [banks](../../../docs/GLOSSARY.md#bank-conflict) of
+4-byte words**, and a warp can service 32
+accesses in one cycle only if they land in 32 *distinct* banks
+([A02 §3](../A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive)). With a stride of `2s` words,
 lanes collide modulo 32:
 
 | step `s` | word stride | distinct banks touched by 32 lanes | conflict |
@@ -360,7 +373,9 @@ Three things about this famous six-line function, and all three are interview ma
 2. **Why it is fragile.** The whole trick rests on "lanes of one warp execute in lockstep, so no
    barrier is needed." AMD's HIP documentation states that guarantee explicitly for wavefronts.
    **NVIDIA voided it in Volta**: independent thread scheduling means lanes of a warp can have
-   separate program counters and are not guaranteed to reconverge. The volatile-only tail is
+   separate program counters and are not guaranteed to reconverge
+   ([CUDA C++ Programming Guide](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia)).
+   The volatile-only tail is
    *undefined behavior* on Volta and later — it may still work, which is the worst possible failure
    mode. NVIDIA's own guidance is to insert `__syncwarp()` between the steps or to switch to
    shuffles. Our [`cuda/reduction.cu`](cuda/reduction.cu) does the former; compare it side by side
@@ -421,7 +436,8 @@ and it collapses `N` elements down to `gridDim.x × BLOCK` before a single barri
 overhead becomes `O(number of blocks)` instead of `O(N)`. **This is the rung that reaches peak
 bandwidth**, and it is why the shallower-tree rungs before it stopped mattering.
 
-Harris's slides derive the same result from the cost model: keep `O(N / log N)` threads, each doing
+[Harris's slides](../../../docs/REFERENCES.md#optimizing-parallel-reduction-in-cuda-harris) derive
+the same result from the cost model: keep `O(N / log N)` threads, each doing
 `O(log N)` serial work.
 
 #### Stage 8 — warp shuffles: the modern idiom
@@ -439,7 +455,7 @@ __device__ float warp_reduce_shfl(float v) {
 A whole-block reduction becomes: reduce within each 32-lane group, have one lane per group publish
 to a tiny shared array, `__syncthreads()` once, reduce that array in the first group. **One barrier
 instead of `log₂(BLOCK)`, and `BLOCK/32` floats of LDS instead of `BLOCK`** — which directly buys
-occupancy back.
+[occupancy](../../../docs/GLOSSARY.md#occupancy) back.
 
 Two portability points that come up constantly:
 
@@ -457,7 +473,8 @@ Two portability points that come up constantly:
 
 **`__shfl_down` vs `__shfl_xor`.** `__shfl_down` produces the answer in lane 0 only; the butterfly
 form `v += __shfl_xor(v, mask, 32)` produces it in **every** lane, for the same instruction count.
-Use `xor` whenever all lanes need the result — softmax normalization and layer-norm are the standard
+Use `xor` whenever all lanes need the result — [softmax](../../../docs/GLOSSARY.md#softmax)
+normalization and layer-norm are the standard
 examples, since every lane must then divide by the reduced value.
 
 #### Finishing the job: combining across blocks
@@ -576,7 +593,8 @@ determinism probe (8 repeats of the same input):
    stage 9 usually is not.
 
 Absolute times and GB/s are **hardware-, driver-, and `N`-dependent** — do not compare your numbers
-to anyone else's, compare them to your own machine's copy ceiling (A02 Lab 1).
+to anyone else's, compare them to your own machine's copy ceiling
+([A02 Lab 1](../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs)).
 
 ### Lab 2 — What the compiler already knows (`triton/reduction.py`)
 
@@ -627,7 +645,10 @@ arithmetic       = (N-1) / (4N) ≈ 0.25 FLOP/byte
 effective_GBps   = N * sizeof(float) / kernel_time_seconds
 ```
 
-A data-center GPU's roofline ridge point — where memory-bound becomes compute-bound — sits around
+A data-center GPU's
+[roofline](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) ridge point —
+where [memory-bound becomes compute-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound) —
+sits around
 **30 FLOP/byte** (order 10² TFLOP/s ÷ order 10¹² B/s). At 0.25 FLOP/byte a reduction is roughly
 **120× to the left of the ridge**: as memory-bound as a kernel can be.
 
@@ -659,7 +680,8 @@ flowchart LR
 you reach a high fraction of HBM bandwidth, there is nothing left to optimize in the kernel.*
 
 **Therefore: the success metric for a reduction is `effective_GBps / your measured copy ceiling`.**
-Not the speedup over stage 1, not the instruction count. Get your ceiling from A02 Lab 1
+Not the speedup over stage 1, not the instruction count. Get your ceiling from
+[A02 Lab 1](../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs)
 (`hip/bandwidth.exe`), and expect a well-tuned reduction to land in the 80–90% range of it.
 
 ### Expected shape of results
@@ -683,7 +705,7 @@ Cumulatively this is a **large multiple**, not a few percent: the original Harri
 roughly a **30× improvement from kernel 1 to kernel 7** on a 4 M-element reduction (on a G80 — the
 absolute numbers are of historical interest only; the ordering has held up across twenty years of
 architectures). The per-stage table is in
-[the deck](https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf); reproduce its
+[the deck](../../../docs/REFERENCES.md#optimizing-parallel-reduction-in-cuda-harris); reproduce its
 *shape* on your own hardware rather than trusting either their numbers or ours.
 
 ### Reading your own result
@@ -787,7 +809,9 @@ of how much trouble they cause:
   enough, adding a small value rounds to no change. The tree is actually **better** here — its error
   grows like `O(log N)` rather than `O(N)` — which is a rare case where the parallel algorithm is
   also the more accurate one. Where accuracy really matters, accumulate in float64 or use a
-  compensated (Kahan) sum, and accept the cost.
+  compensated (Kahan) sum
+  ([Goldberg, 1991](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)),
+  and accept the cost.
 
 ### Pitfall 6 — Reducing when you should not be reducing
 
@@ -824,22 +848,26 @@ after GEMM. Everywhere a tensor becomes a scalar (or a smaller tensor), this is 
   cascade reduction in ATen, backed by CUB (CUDA) or hipCUB/rocPRIM (ROCm). Every `dim=` argument
   variant is the same ladder with a different mapping of threads to the reduced axis; reducing along
   the **contiguous** axis is the coalesced case, reducing across it is the transpose problem from
-  A02 in disguise.
+  [A02](../A02.memory-hierarchy-and-coalescing/README.md) in disguise.
 - **Gradient norms for clipping.** `clip_grad_norm_` computes `sqrt(Σ ‖g‖²)` over *every parameter
   tensor in the model* — thousands of small reductions per optimizer step. This is exactly the
   "many small reductions" case of §6 pitfall 6, which is why PyTorch ships `torch._foreach_norm`:
   one fused launch instead of thousands. It is also the place where the atomics-determinism issue
   bites hardest, since the clipping scale feeds directly into the weight update.
-- **Softmax denominators.** `softmax(x)ᵢ = exp(xᵢ − max(x)) / Σⱼ exp(xⱼ − max(x))` needs **two**
+- **[Softmax denominators](../A07.softmax-and-fused-kernels/README.md).**
+  `softmax(x)ᵢ = exp(xᵢ − max(x)) / Σⱼ exp(xⱼ − max(x))` needs **two**
   reductions per row — a max (for numerical stability) and a sum. Every lane needs both results, so
-  this is the canonical `__shfl_xor` butterfly case. FlashAttention's central trick is a *running*
+  this is the canonical `__shfl_xor` butterfly case.
+  [FlashAttention](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)'s central trick is a *running*
   (online) version of these two reductions so the softmax never needs the full row in memory at once
   — the reduction pattern is the load-bearing part of the algorithm.
 - **Normalization layers.** BatchNorm, LayerNorm, RMSNorm and GroupNorm all compute mean and
   variance over some axis — two reductions (or one, using the sum/sum-of-squares trick, which is
   faster and numerically worse). Because these run per layer per step, their launch overhead is a
   measurable fraction of training time, which is why every framework fuses them.
-- **Distributed training: allreduce.** `torch.distributed.all_reduce`, NCCL and RCCL implement the
+- **[Distributed training: allreduce](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md).**
+  `torch.distributed.all_reduce`, [NCCL](../../../docs/REFERENCES.md#nccl-nvidia) and
+  [RCCL](../../../docs/REFERENCES.md#rccl-amd) implement the
   *same* algorithm one level up the hierarchy — ring and tree allreduce are literally a reduction
   where the "lanes" are GPUs and the "shared memory" is the interconnect (Infinity Fabric,
   NVLink, InfiniBand). Data-parallel training performs one allreduce over the entire gradient buffer
@@ -851,39 +879,55 @@ after GEMM. Everywhere a tensor becomes a scalar (or a smaller tensor), this is 
 
 Libraries that embody this module: **rocPRIM / hipCUB** (AMD), **CUB / Thrust** (NVIDIA),
 **RCCL / NCCL** for the multi-GPU version, and every `tl.sum` in a Triton kernel you will write in
-A08.
+[A08](../A08.triton-foundations/README.md).
+
+**Where to go next.** [A05](../A05.parallel-scan-prefix-sum/README.md) asks the same tree for
+*every* prefix rather than just the total, which is where the work-efficiency §2 got for free turns
+into an explicit choice. [A07](../A07.softmax-and-fused-kernels/README.md) is the payoff §6 keeps
+pointing at: two of these reductions per row, folded into the operator that produced the data
+instead of launched after it.
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) turns Lab 3 from
+a sanity check into a method — divergence, bank-conflict and DRAM-throughput counters are how you
+prove which rung a kernel is standing on instead of inferring it from the clock.
 
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live. The
+last five are used only by this module, so they carry their citation in full.
 
-- Harris, M. **Optimizing Parallel Reduction in CUDA** (NVIDIA) — the seven-kernel ladder this
-  module implements, with the cost model behind the algorithm cascade.
-  <https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf>
-- **CUDA C++ Programming Guide** — execution model, `__syncthreads()` semantics, warp-level
-  primitives, independent thread scheduling on Volta and later.
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html>
-- **CUDA C++ Best Practices Guide** — shared-memory bank conflicts, occupancy, event timing, the
-  effective-bandwidth definition used in §5.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
+- [**Optimizing Parallel Reduction in CUDA** (Harris)](../../../docs/REFERENCES.md#optimizing-parallel-reduction-in-cuda-harris)
+  — the ladder §3 rebuilds rung by rung, the cost model behind the stage-7 cascade, and the source
+  of the historical 30× figure quoted in §5.
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia)
+  — the normative statement of `__syncthreads()` semantics, warp-level primitives, and the
+  independent thread scheduling that makes §3 stage 5's volatile-only warp tail undefined behavior
+  on Volta and later.
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — shared-memory bank conflicts (the stage-2 table), occupancy, event timing, and the
+  effective-bandwidth definition §5 measures against.
+- [**HIP Programming Model**](../../../docs/REFERENCES.md#hip-programming-model-amd) — the AMD
+  spelling of the three-level hierarchy in §3: wavefronts, workgroups, LDS, `__syncthreads()`.
+- [**Roofline** (Williams et al., 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — why 0.25 FLOP/byte settles the question of what a reduction can possibly be limited by, and
+  therefore why §5 reports a fraction of peak bandwidth rather than a speedup.
+- [**What Every Computer Scientist Should Know About Floating-Point Arithmetic** (Goldberg, 1991)](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)
+  — non-associativity, absorption in a long running sum, and compensated summation: the arithmetic
+  behind §2's caveat and §6 pitfall 5.
 - Lin, Y. & Grover, V. **Using CUDA Warp-Level Primitives** (NVIDIA blog) — why the volatile-only
   warp tail is unsafe on Volta+, and the `__syncwarp()` / `__shfl_*_sync` replacements.
-  <https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/>
+  Retrieved 8 Aug 2026. <https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/>
 - **HIP C++ Language Extensions** — `warpSize` semantics (not a compile-time constant),
   wavefront lockstep guarantee, shuffle `width` sub-groups, the 64-bit `_sync` mask.
+  Retrieved 8 Aug 2026.
   <https://rocm.docs.amd.com/projects/HIP/en/latest/how-to/hip_cpp_language_extensions.html>
-- **HIP Programming Model** — grid/block/thread mapping, shared memory, `__syncthreads()`.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/understand/programming_model.html>
 - **rocPRIM** — AMD's production reduction/scan primitives; what to use instead of hand-rolling.
-  <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/>
+  Retrieved 8 Aug 2026. <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/>
 - Brent, R. P. (1974). *The Parallel Evaluation of General Arithmetic Expressions*, JACM 21(2) —
   the `T_P ≤ W/P + D` bound used in §2.
   <https://dl.acm.org/doi/10.1145/321812.321815>
-- Williams, Waterman, Patterson (2009). *Roofline: An Insightful Visual Performance Model* — the
-  compute-vs-memory framing of §5.
-  <https://dl.acm.org/doi/10.1145/1498765.1498785>
 - Higham, N. J. (1993). *The Accuracy of Floating Point Summation*, SIAM J. Sci. Comput. 14(4) —
   the `O(log N)` vs `O(N)` error growth claim in §6.
   <https://epubs.siam.org/doi/10.1137/0914050>

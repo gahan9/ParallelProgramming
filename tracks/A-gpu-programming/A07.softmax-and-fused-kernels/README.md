@@ -2,20 +2,24 @@
 
 > Track A · Module 07 · Status: **DONE** · Est. 7 hours · Depth 4/5
 >
-> Prerequisites: [A04](../A04.parallel-reduction/) (block and warp reductions), [A02](../A02.memory-hierarchy-and-coalescing/) (why HBM traffic is the budget). [A06](../A06.tiled-matrix-multiply/) helps but is not required.
-> Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton. See [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Prerequisites: [A04](../A04.parallel-reduction/README.md) (block and warp reductions), [A02](../A02.memory-hierarchy-and-coalescing/README.md) (why HBM traffic is the budget). [A06](../A06.tiled-matrix-multiply/README.md) helps but is not required.
+> Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton. Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** Softmax turns raw scores into probabilities with `exp(x_i) / Σ exp(x_j)`. Written that
+**TL;DR.** [Softmax](../../../docs/GLOSSARY.md#softmax) turns raw scores into probabilities with `exp(x_i) / Σ exp(x_j)`. Written that
 way it **overflows**: `expf(100)` is `+inf` in fp32, so one large score turns an entire row into
 `nan`. The fix — subtract the row maximum first — is mathematically identical and numerically safe,
 but naively costs an extra full pass over memory. This module fixes the overflow *and* wins the pass
-back, using a running `(max, sum)` recurrence that merges partial results. Then it fuses
-`scale → mask → softmax` into one kernel and cuts HBM traffic by 3.5×. The recurrence you derive
-here is the exact mechanism FlashAttention uses, so this module is the bridge from kernels to
+back, using a running `(max, sum)` recurrence that merges partial results. Then it
+[fuses](../../../docs/GLOSSARY.md#fusion)
+`scale → mask → softmax` into one kernel and cuts [HBM](../../../docs/GLOSSARY.md#global-memory)
+traffic by 3.5×. The recurrence you derive
+here is the exact mechanism [FlashAttention](../../../docs/GLOSSARY.md#attention-and-flashattention)
+uses, so this module is the bridge from kernels to
 transformers.
 
 **Layman analogy.** Softmax is **grading on a curve**. You have raw exam scores and want to convert
@@ -85,7 +89,8 @@ Count traversals of the row (this is the real currency — see §5):
 | Naive (unsafe) | read to sum, read to normalize, write → **2 reads + 1 write** |
 | Safe, textbook | read for max, read to sum, read to normalize, write → **3 reads + 1 write** |
 
-Softmax does only a handful of FLOPs per element, so it is deeply **memory-bound**: the pass count
+Softmax does only a handful of FLOPs per element, so it is deeply
+**[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**: the pass count
 *is* the runtime. Paying 33% more traffic for correctness feels like a bad trade — and Section 3
 shows you do not have to make it.
 
@@ -96,7 +101,9 @@ shows you do not have to make it.
 ### The online recurrence: both statistics in one pass
 
 The obstacle is that `max` seems to need its own pass, because you cannot start summing
-`exp(x - max)` before you know `max`. The insight (Milakov & Gimelshein) is that you *can* start —
+`exp(x - max)` before you know `max`. The insight
+([Milakov and Gimelshein, 2018](../../../docs/REFERENCES.md#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018))
+is that you *can* start —
 you just have to be willing to **retroactively correct** the sum when a bigger max shows up.
 
 Track a pair over the elements seen so far:
@@ -128,8 +135,10 @@ s = s_a · exp(m_a - m) + s_b · exp(m_b - m)
 ```
 
 This operator is **associative and commutative**, with identity `(-inf, 0)`. That is precisely the
-requirement for a tree reduction (A04), so the same combine works across lanes, across a block, and
-— in FlashAttention — across K/V tiles. The implementation in
+requirement for a tree [reduction](../../../docs/GLOSSARY.md#reduction)
+([A04](../A04.parallel-reduction/README.md)), so the same combine works across lanes, across a block, and
+— in [FlashAttention](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022) — across K/V tiles.
+The implementation in
 [`hip/softmax.cpp`](hip/softmax.cpp) exposes it as one `combine()` function used by every level.
 
 ```mermaid
@@ -181,7 +190,9 @@ s  = 0 · exp(-inf - -inf) + 0 · exp(-inf - -inf)
              ^^^^^^^^^^^^^^ = exp(nan) = nan
 ```
 
-`-inf - (-inf)` is `nan` in IEEE-754, so an unguarded merge silently poisons the row. The module's
+`-inf - (-inf)` is `nan` in
+[IEEE-754](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991),
+so an unguarded merge silently poisons the row. The module's
 `combine()` therefore tests for `m == -inf` before computing a rescale factor. This is not a
 theoretical concern: it is exactly what happens to a **fully-masked row** in a padded attention
 batch, and it is the single most common `NaN`-in-attention bug. Exercise 2 makes you fix it.
@@ -190,7 +201,8 @@ batch, and it is the single most common `NaN`-in-attention bug. Exercise 2 makes
 
 The reductions use `__shfl_xor` (a butterfly) rather than `__shfl_down`, so **every** lane ends up
 holding the reduced value and no follow-up broadcast is needed. The lane count comes from the
-device built-in `warpSize` — **64 on CDNA wavefronts, 32 on NVIDIA warps** — so nothing hard-codes a
+device built-in `warpSize` —
+**64 on CDNA [wavefronts](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd), 32 on NVIDIA warps** — so nothing hard-codes a
 width. Block size is 256: a power of two (the pair-combine tree halves it each step) and a multiple
 of both 32 and 64, so it is well-formed on either vendor.
 
@@ -203,7 +215,7 @@ y = softmax( (Q Kᵀ) / √d + causal_mask )
 ```
 
 Written the obvious way that is three kernel launches, and **a kernel boundary destroys all reuse**:
-registers do not survive it, and an L2 cache will not hold a multi-MiB tensor. So each stage makes a
+[registers](../../../docs/GLOSSARY.md#registers) do not survive it, and an L2 cache will not hold a multi-MiB tensor. So each stage makes a
 full round trip to HBM.
 
 ```mermaid
@@ -309,7 +321,7 @@ reference, and reports time plus the HBM bytes each path moves.
 the fused path makes **2**. Since the operator is ≈ 1 FLOP/byte, the time ratio should track the
 traffic ratio far more closely than any FLOP count would predict. The fused kernel loads the whole
 row even for causal rows, deliberately, so the comparison stays apples-to-apples — skipping fully
-masked blocks is FlashAttention's block-sparsity win and belongs to [A09](../A09.advanced-triton-flash-attention/).
+masked blocks is FlashAttention's block-sparsity win and belongs to [A09](../A09.advanced-triton-flash-attention/README.md).
 
 ### Lab 3 — The same thing in ~40 lines ([`triton/softmax.py`](triton/softmax.py))
 
@@ -324,9 +336,10 @@ explicit control over the register budget and the reduction shape.
 ### Softmax is memory-bound, so count traversals
 
 Per element, row-wise softmax does roughly one `exp`, a compare, an add, and a divide — call it a
-handful of FLOPs against 4 bytes read and 4 bytes written. That is an arithmetic intensity around
+handful of FLOPs against 4 bytes read and 4 bytes written. That is an
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) around
 **1 FLOP/byte**, which sits far below the ridge point of any modern data-center GPU (see
-[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/)). Consequence: **you cannot
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md)). Consequence: **you cannot
 optimize softmax by doing less math.** The only lever is moving fewer bytes.
 
 For an `R × C` fp32 tensor, one traversal is `4·R·C` bytes:
@@ -344,7 +357,7 @@ The fused path moves **3.5× fewer bytes** than the unfused one (`28 → 8`) for
 
 ### Judging your numbers
 
-Run [A02](../A02.memory-hierarchy-and-coalescing/)'s `bandwidth` lab first to get your machine's
+Run [A02 §4](../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs)'s `bandwidth` lab first to get your machine's
 achievable copy ceiling, then compare: a well-written 1-pass softmax should reach a large fraction
 of it, because it is doing little more than a read-modify-write. If it does not, the suspects are
 insufficient parallelism (too few rows to fill the GPU), a `cols` value that makes the row-per-block
@@ -366,7 +379,8 @@ decision you must document.
 
 **Register pressure caps the 1-pass kernel.** Caching the row in registers is what buys the
 algorithmic minimum, but it only works while `cols ≤ BLOCK * ITEMS`, and raising `ITEMS` raises
-registers per thread, which lowers occupancy ([A03](../A03.execution-model-and-occupancy/)) and can
+registers per thread, which lowers [occupancy](../../../docs/GLOSSARY.md#occupancy)
+([A03 §3](../A03.execution-model-and-occupancy/README.md#3-deep-dive)) and can
 spill. There is a real ceiling here: past some row length you must fall back to the 2-pass kernel or
 tile the row — which is exactly the reasoning that produces FlashAttention.
 
@@ -374,7 +388,7 @@ tile the row — which is exactly the reasoning that produces FlashAttention.
 `x ≈ 11.1`. Even *with* max subtraction, accumulating the sum in fp16 loses precision quickly for
 long rows. The standard practice is to compute the statistics and the sum in **fp32** while storing
 inputs and outputs in fp16/bf16 — cross-reference
-[B04](../../B-gpu-ml-performance/B04.precision-and-quantization/).
+[B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md).
 
 **Fusion costs flexibility.** A fused kernel is one more specialized kernel to maintain, and it
 hard-codes the pipeline: change the mask shape or insert dropout and you are editing the kernel
@@ -385,12 +399,12 @@ combination.
 **Determinism.** The tree reduction fixes the summation order for a given block size, so results are
 reproducible run-to-run — but they will differ from a sequential CPU sum, and they change if you
 change the block size or item count. Floating-point addition is not associative (see
-[A04](../A04.parallel-reduction/)); do not treat a bit-level diff against a reference as a bug
+[A04](../A04.parallel-reduction/README.md)); do not treat a bit-level diff against a reference as a bug
 without checking the tolerance argument first.
 
 **When not to bother.** If your row length is tiny (a few dozen elements) the launch and reduction
 overhead dominates and none of this matters. Profile before optimizing
-([B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/)).
+([B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md)).
 
 ---
 
@@ -399,7 +413,7 @@ overhead dominates and none of this matters. Profile before optimizing
 - **Attention.** Every transformer layer runs softmax over score rows. The online recurrence you
   derived here is the mechanism that lets **FlashAttention** tile attention without ever
   materializing the `N × N` score matrix — the single most important inference/training optimization
-  of the last several years. That is [A09](../A09.advanced-triton-flash-attention/).
+  of the last several years. That is [A09](../A09.advanced-triton-flash-attention/README.md).
 - **Next-token sampling.** Temperature scaling, top-k, and top-p all operate on the softmax
   distribution; the scale-then-mask-then-softmax fusion in Lab 2 is literally the sampling path.
 - **Classification heads and cross-entropy.** Fused `log_softmax` + NLL is the standard loss
@@ -411,27 +425,45 @@ overhead dominates and none of this matters. Profile before optimizing
   tutorial ships a fused softmax as its canonical second example. If fusion were not worth it, none
   of that machinery would exist.
 
+**Where to go next.** [A09](../A09.advanced-triton-flash-attention/README.md) is the direct
+continuation: it tiles the `(max, sum)` recurrence you derived here across K/V blocks, which is the
+whole reason attention can be computed exactly without materializing the score matrix. Take
+[A08](../A08.triton-foundations/README.md) first if Lab 3 felt like a black box — A09 is written in
+Triton, and it is easier to learn one new thing at a time.
+[B05](../../B-gpu-ml-performance/B05.transformer-performance/README.md) then zooms out, placing this
+operator inside a whole transformer where softmax is one line item in an end-to-end budget rather
+than the kernel under the microscope.
+
 ---
 
 ## 8. Cited References
 
-- Milakov & Gimelshein (2018). *Online normalizer calculation for softmax* — the `(max, sum)`
-  recurrence this module derives. <https://arxiv.org/abs/1805.02867>
-- Dao et al. (2022). *FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness* —
-  generalizes the online recurrence to tiled attention. <https://arxiv.org/abs/2205.14135>
-- Dao (2023). *FlashAttention-2* — improved work partitioning.
-  <https://arxiv.org/abs/2307.08691>
-- **CUDA C++ Programming Guide** — warp shuffle functions, `__shfl_xor_sync` semantics.
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html>
-- **CUDA C++ Best Practices Guide** — memory-bound kernel guidance, fusion, event timing.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
-- **HIP Programming Guide** — `warpSize`, wavefront semantics, cross-lane operations.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/>
-- **Triton tutorials — Fused Softmax** — the canonical Triton row-softmax.
-  <https://triton-lang.org/main/getting-started/tutorials/index.html>
-- Goldberg (1991). *What Every Computer Scientist Should Know About Floating-Point Arithmetic* —
-  IEEE-754 behaviour, including `inf`/`nan` propagation.
-  <https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html>
+Every source this module leans on is shared with other modules, so each is cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live.
+
+- [**Online normalizer calculation for softmax** (Milakov and Gimelshein, 2018)](../../../docs/REFERENCES.md#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018)
+  — the `(max, sum)` recurrence this module derives. §3 rests on it entirely, and so does everything
+  downstream of it.
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — generalizes the online recurrence to tiled attention; the reason §3's associativity argument is
+  worth the space it takes.
+- [**FlashAttention-2** (Dao, 2023)](../../../docs/REFERENCES.md#flashattention-2-dao-2023)
+  — improved work partitioning. Read it once the recurrence is tiled in
+  [A09](../A09.advanced-triton-flash-attention/README.md); it has nothing to add to a single-row
+  softmax.
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia)
+  — warp shuffle functions, `__shfl_xor_sync` semantics: the normative description of the butterfly
+  reduction §3 uses.
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — memory-bound kernel guidance, fusion, event timing — the vendor framing behind §5's "count
+  traversals" argument.
+- [**HIP Programming Guide**](../../../docs/REFERENCES.md#hip-programming-guide-amd) — `warpSize`,
+  wavefront semantics, cross-lane operations: the AMD half of the portability claim in §3.
+- [**Triton documentation and tutorials**](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  — the canonical fused row softmax that Lab 3 reproduces.
+- [**What Every Computer Scientist Should Know About Floating-Point Arithmetic** (Goldberg, 1991)](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)
+  — IEEE-754 behaviour, including the `inf`/`nan` propagation that makes §2's overflow and §3's
+  `-inf` merge behave the way they do.
 
 Full curriculum bibliography: [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 
@@ -451,7 +483,8 @@ Full curriculum bibliography: [../../../docs/REFERENCES.md](../../../docs/REFERE
    say where the `nan` is born.
 5. The unfused pipeline makes 7 traversals and the fused one makes 2. Why does that ratio predict
    the speedup better than counting FLOPs would?
-6. Your fused softmax reaches only 30% of the copy bandwidth you measured in A02. Give three
+6. Your fused softmax reaches only 30% of the copy bandwidth you measured in
+   [A02](../A02.memory-hierarchy-and-coalescing/README.md). Give three
    plausible causes and the check that distinguishes them.
 
 <details>
@@ -476,7 +509,7 @@ Full curriculum bibliography: [../../../docs/REFERENCES.md](../../../docs/REFERE
    whether GB/s rises. (b) Short rows, so reduction and launch overhead dominate; check by
    increasing `C`. (c) Occupancy limited by register pressure from `ITEMS`; check with the occupancy
    API or by lowering `ITEMS` and re-measuring. A profiler
-   ([B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/)) distinguishes them
+   ([B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md)) distinguishes them
    directly.
 
 </details>
@@ -501,4 +534,4 @@ In [`exercises/`](exercises/), with reference answers in [`solutions/`](solution
   compare traffic against composing `log(softmax(x))`.
 - Extend the fused kernel to skip fully-masked blocks in the causal case and measure the additional
   saving. You have just derived FlashAttention's block sparsity — continue in
-  [A09](../A09.advanced-triton-flash-attention/).
+  [A09](../A09.advanced-triton-flash-attention/README.md).

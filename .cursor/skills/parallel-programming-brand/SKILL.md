@@ -13,7 +13,7 @@ Use this skill whenever you:
 - Choose colors for tables, callouts, or architecture diagrams
 - Author a new module README or shared doc
 
-**Always read** [docs/BRAND.md](../../docs/BRAND.md) for the full token table and copy-paste Mermaid init blocks.
+**Always read** [docs/BRAND.md](../../../docs/BRAND.md) for the full token table and copy-paste Mermaid init blocks.
 
 ---
 

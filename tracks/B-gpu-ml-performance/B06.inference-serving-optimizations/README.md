@@ -2,11 +2,13 @@
 
 > Track B · Module 06 · Status: **DONE** · Est. 6 hours · Depth 4/5
 >
-> Prerequisites: **B04** (quantization, fp8) and **B05** (prefill vs decode, KV-cache sizing) — see
+> Prerequisites: [B04](../B04.precision-and-quantization/README.md) (quantization, fp8) and
+> [B05](../B05.transformer-performance/README.md) (prefill vs decode, KV-cache sizing) — see
 > [../README.md](../README.md) for track order. Both are referenced but neither is required: §2
 > re-derives the one result this module stands on.
 > Backends: **none required** — this is a systems module. Everything runs on stdlib Python 3
-> (`sim/`), so you can do the whole thing on a laptop. See [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> (`sim/`), so you can do the whole thing on a laptop. Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -16,11 +18,13 @@
 the **highest throughput you can**, and those two goals fight each other: batching more requests
 raises tokens/s and raises every individual user's latency. So you do not "optimize latency" or
 "optimize throughput" — you fix an SLO and maximize **goodput**, the rate of requests served *within*
-that SLO. The three levers that matter most, in order: **continuous batching** (admit and evict at
-every decode step, so the batch never idles), **paged KV cache** (stop reserving memory for a context
+that SLO. The three levers that matter most, in order:
+**[continuous batching](../../../docs/GLOSSARY.md#continuous-batching)** (admit and evict at
+every decode step, so the batch never idles), **paged
+[KV cache](../../../docs/GLOSSARY.md#kv-cache)** (stop reserving memory for a context
 length nobody reaches), and **prefix caching** (stop re-computing the same system prompt thousands of
-times a day). **Speculative decoding** is a fourth, narrower lever: it buys latency at low
-concurrency, and stops paying at high concurrency.
+times a day). **[Speculative decoding](../../../docs/GLOSSARY.md#speculative-decoding)** is a fourth,
+narrower lever: it buys latency at low concurrency, and stops paying at high concurrency.
 
 **Layman analogy — the restaurant.**
 
@@ -118,16 +122,21 @@ production symptoms to the right optimization with a falsifier for each.
 
 ### The one result everything rests on: two phases, two bottlenecks
 
-A generative request has two phases with *opposite* performance characters. (This is B05's territory;
+A generative request has two phases with *opposite* performance characters. (This is
+[B05 §2](../B05.transformer-performance/README.md#2-first-principles)'s territory;
 here is the compressed derivation, because nothing in this module makes sense without it.)
 
-**Prefill** processes the whole prompt at once. All `P` prompt tokens go through the model in parallel,
+**[Prefill](../../../docs/GLOSSARY.md#prefill-and-decode)** processes the whole prompt at once. All
+`P` prompt tokens go through the model in parallel,
 so the matrix multiplies are tall: for each weight matrix you load it once and do `P` rows of work.
-Arithmetic intensity is high → **prefill is compute-bound**. It produces exactly one token (the first).
+[Arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) is high → **prefill is
+compute-bound**. It produces exactly one token (the first).
 
 **Decode** generates one token per step per sequence. For a single sequence, each weight matrix is
 loaded from HBM to multiply against a *single* row. You move gigabytes of weights to do megaflops of
-work → **decode is memory-bandwidth-bound**, and it is *catastrophically* so at batch 1.
+work → **decode is
+[memory-bandwidth-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**,
+and it is *catastrophically* so at batch 1.
 
 That asymmetry is the source of everything that follows:
 

@@ -2,25 +2,30 @@
 
 > Track A · Module 08 · Status: **DONE** · Est. 6 hours · Depth 3/5
 >
-> Prerequisites: [A01](../A01.foundations-and-programming-model/) (kernels, grid/block/thread,
-> event timing), [A02](../A02.memory-hierarchy-and-coalescing/) (coalescing, shared memory),
-> [A03](../A03.execution-model-and-occupancy/) (occupancy, divergence). A04–A07 strongly
-> recommended: Labs 2–3 and the drills compare directly against those hand-written kernels.
+> Prerequisites: [A01](../A01.foundations-and-programming-model/README.md) (kernels,
+> grid/block/thread, event timing), [A02](../A02.memory-hierarchy-and-coalescing/README.md)
+> (coalescing, shared memory), [A03](../A03.execution-model-and-occupancy/README.md) (occupancy,
+> divergence). [A04](../A04.parallel-reduction/README.md)–[A07](../A07.softmax-and-fused-kernels/README.md)
+> strongly recommended: Labs 2–3 and the drills compare directly against those hand-written kernels.
 >
 > Backend: **Python** — one source that compiles for AMD *and* NVIDIA. No `hip/` or `cuda/`
-> directory in this module, by design. Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> directory in this module, by design. Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** Triton is a Python DSL that JIT-compiles GPU kernels. Its one idea: raise the unit
+**TL;DR.** [Triton](../../../docs/GLOSSARY.md#triton) is a Python DSL that JIT-compiles GPU
+[kernels](../../../docs/GLOSSARY.md#kernel). Its one idea: raise the unit
 of programming from **one thread** to **one block of elements**. You write what a *program*
 (≈ one CUDA block / HIP workgroup) does to a block-shaped slab of data; the compiler decides how
-that slab is split across lanes, how wide each load is, what goes in shared memory, where the
+that slab is split across lanes, how wide each load is, what goes in
+[shared memory](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd), where the
 barriers go, and what the instruction schedule looks like. The bounds check becomes a `mask`
 argument instead of an `if`. One source file replaces the `hip/` + `cuda/` pair you have been
-writing since A01. You give up per-lane control and gain code you can actually maintain — plus a
+writing since [A01](../A01.foundations-and-programming-model/README.md). You give up per-lane
+control and gain code you can actually maintain — plus a
 tuning *search* (`@triton.autotune`) in place of tuning by hand.
 
 **Layman analogy.** In A01–A07 you were a foreman who briefs **every worker individually**:
@@ -41,10 +46,12 @@ truck. You write one order; it works in either warehouse.
    worker. You fix it by rewriting the order, or by having the dispatcher *try several orders and
    time them* — that is `@triton.autotune`, and it is not free.
 2. **You do not pick the crew size, you pick the number of crews.** `num_warps` counts
-   warps/wavefronts, and a warp is 32 lanes on NVIDIA while a wavefront is 64 on AMD. The same
+   [warps/wavefronts](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd), and a warp is 32
+   lanes on NVIDIA while a wavefront is 64 on AMD. The same
    `num_warps=4` is 128 threads on one vendor and 256 on the other. **The code is portable; the
    tuning is not.**
-3. **Some jobs really do require talking to individual workers.** The lane-level tricks from A04
+3. **Some jobs really do require talking to individual workers.** The lane-level tricks from
+   [A04 §3](../A04.parallel-reduction/README.md#3-deep-dive)
    (`__shfl_down`, ballot, AMD DPP row-shifts) have no block-level spelling. When your algorithm
    needs one, the C++ kernel is not legacy — it is the only version that can express it.
 
@@ -79,7 +86,10 @@ loads, the barrier, and the read-back are a mechanical consequence. Even the shu
 mechanical once you have said "sum this block."
 
 **Boilerplate that is mechanically derivable is a compiler's job.** Humans writing it by hand
-produce exactly the bug classes A01 §6 and A02 §6 enumerate. That is the argument for Triton, and
+produce exactly the bug classes
+[A01 §6](../A01.foundations-and-programming-model/README.md#6-challenges-drawbacks--tradeoffs) and
+[A02 §6](../A02.memory-hierarchy-and-coalescing/README.md#6-challenges-drawbacks--tradeoffs)
+enumerate. That is the argument for Triton, and
 it is an argument about *bugs and maintenance* before it is one about performance.
 
 ### What must stay yours
@@ -91,12 +101,13 @@ Not everything collapses. Two things resist:
   and the problem shape. A compiler cannot *derive* it, but it can **search** it.
 - **The algorithm and the numerics.** `tl.exp` overflows exactly like `expf`. Triton will not
   discover the max-subtraction trick, the online-softmax recurrence, or the fp32 accumulator for
-  you. A07's numerics are still your problem.
+  you. [A07](../A07.softmax-and-fused-kernels/README.md#3-deep-dive)'s numerics are still your
+  problem.
 
 So the design falls out: express work per **block**, let the compiler own the intra-block
 mechanics, keep the tile shape as an explicit knob, and provide a search over that knob. That is
-Triton's design, and Tillet, Kung, and Cox's 2019 paper makes tiles the first-class value in the
-language for exactly this reason.
+Triton's design, and [Tillet, Kung, and Cox's 2019 paper](https://dl.acm.org/doi/10.1145/3315508.3329973)
+makes tiles the first-class value in the language for exactly this reason.
 
 ### The mental-model mapping
 
@@ -224,7 +235,9 @@ Two habits worth adopting now, both visible in `triton/matmul.py`:
 - **Pass strides, never assume contiguity.** `x.stride(0)` costs nothing and makes the kernel work
   on a transposed or sliced view. Assuming `row * n + col` is how a Triton kernel silently produces
   garbage on a non-contiguous tensor.
-- **Keep the fastest-varying index contiguous across the block.** A02's coalescing lesson has not
+- **Keep the fastest-varying index contiguous across the block.**
+  [A02](../A02.memory-hierarchy-and-coalescing/README.md)'s
+  [coalescing](../../../docs/GLOSSARY.md#coalescing) lesson has not
   been repealed. The compiler will vectorize a contiguous access; it cannot repair a strided one.
 
 ### What actually happens on the first call
@@ -297,8 +310,9 @@ def matmul_kernel(...):
 - **`num_warps`** is how many warps/wavefronts cooperate on one program. See the portability note
   below — this is the single least portable knob.
 - **`num_stages`** is the software-pipelining (prefetch) depth for loops, and matters mainly for
-  loops with loads feeding `tl.dot`. Triton's own documentation describes it primarily in terms of
-  NVIDIA SM80+ hardware; on AMD the useful value is empirical.
+  loops with loads feeding `tl.dot`.
+  [Triton's own documentation](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  describes it primarily in terms of NVIDIA SM80+ hardware; on AMD the useful value is empirical.
 - **`key`** lists the *runtime* arguments whose change invalidates the tuning result. Every distinct
   key tuple triggers a fresh search, so `key=["M", "N", "K"]` on a workload with hundreds of shapes
   means hundreds of searches. Keep the key as small as correctness allows.
@@ -315,18 +329,20 @@ This is the part of Triton where confident overstatement is common. What is well
 
 - **Triton runs on ROCm through the PyTorch ROCm wheels.** The ROCm PyTorch build ships
   `pytorch-triton-rocm`; you do not `pip install triton` from PyPI on an AMD machine (that is the
-  NVIDIA build). AMD documents Triton kernel optimization as a supported workflow and publishes
-  guidance and tutorials for it.
+  NVIDIA build). AMD documents
+  [Triton kernel optimization](https://rocm.docs.amd.com/en/latest/how-to/rocm-for-ai/inference-optimization/optimizing-triton-kernel.html)
+  as a supported workflow and publishes guidance and tutorials for it.
 - **The wavefront is 64 lanes on CDNA, and Triton's AMD backend uses that as its warp size.** So
   `num_warps=4` is 256 threads per program on MI300-class hardware and 128 on an NVIDIA GPU. Triton's
   own `triton.Config` documentation spells the arithmetic the NVIDIA way — "`num_warps=8` … 8 × 32 =
   256 threads" — which is correct on NVIDIA and wrong by 2× on AMD. That mismatch is a real, current
-  source of confusion; a 2026 PyTorch fix had to replace a hard-coded 32 threads-per-warp in a
-  Triton kernel launcher with a device query for exactly this reason.
+  source of confusion; a
+  [2026 PyTorch fix](https://github.com/pytorch/pytorch/pull/188881) had to replace a hard-coded 32
+  threads-per-warp in a Triton kernel launcher with a device query for exactly this reason.
 - **Therefore a config tuned on NVIDIA is not automatically optimal on AMD** — not because the
   compiler is worse, but because the same `num_warps` denotes a different thread count, a different
-  register budget per lane, and a different occupancy point. Re-tune per vendor. Ideally, keep two
-  config lists.
+  register budget per lane, and a different [occupancy](../../../docs/GLOSSARY.md#occupancy) point.
+  Re-tune per vendor. Ideally, keep two config lists.
 - **AMD exposes at least one knob NVIDIA does not.** `waves_per_eu` is an AMD-specific hint (it
   becomes the `amdgpu-waves-per-eu` LLVM function attribute) that pressures the register allocator
   and scheduler toward a target occupancy. It appears in ROCm's Triton tuning guidance and in
@@ -335,7 +351,8 @@ This is the part of Triton where confident overstatement is common. What is well
 
 What I will **not** claim, because it moves faster than any document: which specific Triton version
 supports which AMD feature, whether `num_stages` or `maxnreg` is honoured on your particular
-backend and release, or how close a given Triton GEMM gets to rocBLAS on your GPU. Triton's docs
+backend and release, or how close a given Triton [GEMM](../../../docs/GLOSSARY.md#gemm) gets to
+rocBLAS on your GPU. Triton's docs
 themselves note `maxnreg` is "not supported on all platforms," and the AMD backend is under active
 development. **Check `triton.__version__`, read the emitted assembly, and measure.** Anything in
 this section that your measurement contradicts: believe your measurement.
@@ -357,7 +374,9 @@ portable, tuning not — is the honest one-line summary of Triton on AMD.
 ## 4. Hands-On Labs
 
 This module is Python-only: there is no `hip/` or `cuda/` directory, because the hand-written C++
-counterparts already exist in A01 (`vector_add`), A06 (`matmul`), and A07 (`softmax`). Comparing
+counterparts already exist in [A01](../A01.foundations-and-programming-model/README.md)
+(`vector_add`), [A06](../A06.tiled-matrix-multiply/README.md) (`matmul`), and
+[A07](../A07.softmax-and-fused-kernels/README.md) (`softmax`). Comparing
 against them is the point of the labs, so read them side by side.
 
 ```bash
@@ -390,8 +409,10 @@ File: [`triton/vector_add.py`](triton/vector_add.py). Compare with
    CDNA, 32 on NVIDIA. Multiply by `num_warps` (default 4) to get the thread count the compiler
    actually launched — the number you would have written by hand as `blockDim.x`.
 2. **The bandwidth is essentially the same as `torch`'s `a + b`,** and both should land near the
-   HBM copy ceiling you measured in A02 Lab 1. For a memory-bound elementwise kernel, Triton is
-   not leaving anything on the table — there is nothing to leave.
+   HBM copy ceiling you measured in
+   [A02 Lab 1](../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs). For a
+   memory-bound elementwise kernel, Triton is not leaving anything on the table — there is nothing
+   to leave.
 3. **The `compiler report`** (register count, spill count, shared-memory bytes, where your Triton
    version exposes them). You wrote no shared memory; if the number is non-zero, the compiler put
    it there. A non-zero *spill* count is the one to worry about — it means values the compiler
@@ -415,7 +436,8 @@ happens on-chip, so HBM sees exactly one read and one write.
    `tl.exp` overflows exactly like `expf`. Triton removed your index math, not your numerics.
 3. The timing lands in the same ballpark as `torch.softmax`, which is itself a fused kernel. **The
    win of writing this yourself is not beating `torch.softmax` — it is fusing the operations
-   *around* it** into the same kernel, which is what A09 and every real attention kernel do.
+   *around* it** into the same kernel, which is what
+   [A09](../A09.advanced-triton-flash-attention/README.md) and every real attention kernel do.
 
 ### Lab 3 — `matmul`: `tl.dot` plus a real autotune
 
@@ -456,9 +478,11 @@ ncu --set full python triton/fused_softmax.py
 
 **What to look for.** In the profiler, a Triton kernel is just a kernel — the same counters apply.
 Check shared-memory traffic on the softmax kernel: you wrote none, so anything reported is the
-compiler's reduction tree. Check occupancy against A03's model and see whether the config the
-autotuner chose is the one your occupancy math would have predicted. When it is not, the autotuner
-is usually right and your model is missing something (often instruction-level parallelism).
+compiler's reduction tree. Check occupancy against
+[A03](../A03.execution-model-and-occupancy/README.md#3-deep-dive)'s model and see whether the
+config the autotuner chose is the one your occupancy math would have predicted. When it is not, the
+autotuner is usually right and your model is missing something (often instruction-level
+parallelism).
 
 > **Troubleshooting**
 > - `RuntimeError: ... no active driver` / `torch.cuda.is_available()` is `False` — wrong wheel for
@@ -487,7 +511,9 @@ with the GPU, the ROCm/CUDA version, and `triton.__version__` next to them.
 
 ### First, ask the A01 question
 
-Same question as every module: **memory-bound or compute-bound?** It decides what "good" means.
+Same question as every module:
+**[memory-bound or compute-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)?**
+It decides what "good" means.
 
 ```mermaid
 %%{init: {
@@ -541,8 +567,8 @@ python triton/matmul.py                                  # six configs, searched
 
 The kernel bodies are nearly identical. Any difference is attributable to the search — which is
 exactly the experiment you want, and exactly the reason the `matmul.py` here does not also change
-the launch ordering. (A06 uses a 1024³ problem and this module 2048³, so compare TFLOP/s, not
-milliseconds.)
+the launch ordering. ([A06](../A06.tiled-matrix-multiply/README.md) uses a 1024³ problem and this
+module 2048³, so compare TFLOP/s, not milliseconds.)
 
 ### The cost nobody puts in the benchmark
 
@@ -570,7 +596,8 @@ The diagnostic ladder, cheapest first:
    `BLOCK`, or raise `num_warps` so the same tile is spread over more lanes.
 4. **The config the autotuner picked.** If the winner is at the edge of your search space, your
    search space is too small — extend it in that direction and re-run.
-5. **The profiler.** Occupancy, shared-memory traffic, memory efficiency. Same counters as A02/A03;
+5. **The profiler.** Occupancy, shared-memory traffic, memory efficiency. Same counters as
+   [A02](../A02.memory-hierarchy-and-coalescing/README.md)/[A03](../A03.execution-model-and-occupancy/README.md);
    a Triton kernel is not special to `rocprofv3` or Nsight Compute.
 6. **The assembly.** Last resort, and the only way to answer "did `tl.dot` actually emit MFMA?"
 
@@ -681,9 +708,9 @@ owner who re-tunes. Otherwise the regression is found by a customer.
    per shape; a general compiler will not beat them at their own game, and AMD's own guidance is
    explicit that Triton is not used where rocBLAS or MIOpen is faster. Use the library; spend your
    Triton budget on the op the library does not have.
-2. **You need instructions or behaviour Triton does not expose.** Lane-level primitives (A04's
-   shuffles, AMD DPP), explicit barrier placement, precise register residency, specific
-   asynchronous-copy or matrix-core instructions. Reach for HIP/CUDA — and note that "Triton cannot
+2. **You need instructions or behaviour Triton does not expose.** Lane-level primitives
+   ([A04](../A04.parallel-reduction/README.md)'s shuffles, AMD DPP), explicit barrier placement,
+   precise register residency, specific asynchronous-copy or matrix-core instructions. Reach for HIP/CUDA — and note that "Triton cannot
    express it" is a statement about a version, so re-check when you upgrade.
 3. **Compilation latency matters in a short-lived process.** Cold-start inference, CLI tools,
    serverless functions, anything where the kernel runs a handful of times per process.
@@ -716,13 +743,15 @@ today.
 - **Unsloth** implements its fine-tuning speedups largely as hand-written Triton kernels (fused
   layer/RMS norm, fused cross-entropy, LoRA paths), trading library generality for fused kernels
   specialised to the training step.
-- **FlashAttention-style fused attention.** The algorithm's whole point is tiling Q/K/V so the
+- **[FlashAttention](../../../docs/GLOSSARY.md#attention-and-flashattention)-style fused
+  attention.** The algorithm's whole point is tiling Q/K/V so the
   attention matrix never reaches HBM — exactly Lab 2's fusion idea extended to a matmul-softmax-matmul
   chain. Triton's own tutorial set includes a fused-attention kernel built on this algorithm, and
   Triton implementations of FlashAttention-style kernels are widely used where a hand-written CUDA
   kernel is not available for the target hardware or dtype. (The original FlashAttention reference
-  implementation from Dao et al. is CUDA; the Triton versions are separate implementations of the
-  same algorithm.)
+  implementation from
+  [Dao et al.](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022) is CUDA; the Triton
+  versions are separate implementations of the same algorithm.)
 - **AMD's own ROCm guidance** treats Triton as a first-class kernel-authoring path, with published
   optimization guides, tuning knobs (`waves_per_eu`), and developer-hub tutorials for writing and
   optimizing Triton kernels on Instinct hardware.
@@ -730,6 +759,15 @@ today.
 The pattern across all five: **Triton is where fused, shape-specialised, or vendor-portable kernels
 live.** The unfused standard operations stay in rocBLAS/cuBLAS/MIOpen/cuDNN. That division of labour
 is the practical answer to Section 6's decision tree.
+
+**Where to go next.** [A09](../A09.advanced-triton-flash-attention/README.md) takes Lab 2's
+single-row fusion as far as it goes — a matmul-softmax-matmul chain where the attention matrix never
+reaches HBM — and is where `tl.dot`, `mask` and the autotuner stop being exercises.
+[A10](../A10.cute-cutlass-and-cutile/README.md) goes the other way, down to the layout algebra
+Triton hides, for the kernels where the compiler's choices are exactly what you need to override.
+When a Triton kernel is slower than you expected and Section 5's ladder runs out,
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) turns "the
+profiler says so" into a named bottleneck.
 
 ---
 
@@ -744,16 +782,17 @@ is version-dependent, the reference is the thing to re-check — not this README
   Computations.* MAPL '19 (co-located with PLDI). The original paper; the source of the "tiles as
   first-class values" framing in §2.
   <https://dl.acm.org/doi/10.1145/3315508.3329973>
-- **Triton documentation** — language reference and programming model.
-  <https://triton-lang.org/>
+- [**Triton documentation**](../../../docs/REFERENCES.md#triton-documentation-and-tutorials-triton-project)
+  — language reference and programming model; the source cited in §3 for the `num_stages`
+  description, and the page to re-read when an API used in the labs has moved.
 - **Triton tutorials** — vector add, fused softmax, matmul with autotune, fused attention. The labs
   in this module follow their structure deliberately, so you can read the upstream versions next to
   them.
-  <https://triton-lang.org/main/getting-started/tutorials/index.html>
+  <https://triton-lang.org/main/getting-started/tutorials/index.html> (retrieved 8 Aug 2026)
 - **`triton.Config` API reference** — the source of the `num_warps` / `num_stages` / `maxnreg`
   semantics quoted in §3, including the NVIDIA-centric "`num_warps=8` → 8 × 32 = 256 threads"
   arithmetic and the note that `maxnreg` is not supported on all platforms.
-  <https://triton-lang.org/main/python-api/generated/triton.Config.html>
+  <https://triton-lang.org/main/python-api/generated/triton.Config.html> (retrieved 8 Aug 2026)
 - **Triton source repository** — the ground truth for what the AMD backend currently supports.
   <https://github.com/triton-lang/triton>
 
@@ -763,10 +802,12 @@ is version-dependent, the reference is the thing to re-check — not this README
   MLIR and ISA analysis, TorchInductor knobs, and the occupancy computation. The source for §3's AMD
   claims, including the 64-lane wavefront and the `MLIR_ENABLE_DUMP` workflow.
   <https://rocm.docs.amd.com/en/latest/how-to/rocm-for-ai/inference-optimization/optimizing-triton-kernel.html>
+  (retrieved 8 Aug 2026)
 - **ROCm AI Developer Hub — Kernel development and optimization with Triton.** Hands-on notebook,
   including the recommendation to track recent Triton releases because AMD's optimization passes
   change between them.
   <https://rocm.docs.amd.com/projects/ai-developer-hub/en/latest/notebooks/gpu_dev_optimize/triton_kernel_dev.html>
+  (retrieved 8 Aug 2026)
 - **ROCm Blogs — *Unlock Peak Performance on AMD GPUs with Triton Kernel Optimizations*.**
   <https://rocm.blogs.amd.com/software-tools-optimization/kernel-development-optimizations-with-triton-on-/README.html>
 - **PyTorch PR #188881 — `[ROCm] nativert: query warp size for Triton kernel launch`.** Concrete
@@ -778,18 +819,19 @@ is version-dependent, the reference is the thing to re-check — not this README
 
 - **`torch.compile` / TorchInductor documentation** — the compiler whose GPU backend emits Triton;
   the basis for §7's first bullet.
-  <https://docs.pytorch.org/docs/stable/torch.compiler.html>
+  <https://docs.pytorch.org/docs/stable/torch.compiler.html> (retrieved 8 Aug 2026)
 - **PyTorch — Get Started Locally** — the current, version-pinned ROCm and CUDA wheel indices
   referenced by `requirements.txt` and `docs/SETUP.md`.
-  <https://pytorch.org/get-started/locally/>
+  <https://pytorch.org/get-started/locally/> (retrieved 8 Aug 2026)
 
 **Carried forward from earlier modules**
 
-- Williams, Waterman, Patterson (2009). *Roofline* — the memory-vs-compute framing §5 uses to decide
-  what "good" means for each lab.
-  <https://dl.acm.org/doi/10.1145/1498765.1498785>
-- **HIP programming model** — the per-thread model Triton's mapping table translates from.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/understand/programming_model.html>
+- [**Roofline** (Williams et al., 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — the memory-vs-compute framing §5 uses to decide what "good" means for each lab, and why
+  `vector_add` is judged against a bandwidth ceiling while `matmul` is judged against a library.
+- [**HIP programming model**](../../../docs/REFERENCES.md#hip-programming-model-amd) — the
+  per-thread model §2's mapping table translates from, and the AMD spelling of the wavefront
+  arithmetic §3 keeps returning to.
 
 ---
 

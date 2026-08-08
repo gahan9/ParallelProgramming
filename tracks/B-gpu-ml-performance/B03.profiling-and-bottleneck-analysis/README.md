@@ -2,23 +2,26 @@
 
 > Track B · Module 03 · Status: **DONE** · Est. 6 hours · Depth 3/5
 >
-> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/) (kernels,
-> async launches, event timing, its `rocprofv3` walkthrough),
-> [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/) (coalescing, LDS, bank
-> conflicts), B02 (roofline & arithmetic intensity — this module is where you *test* a roofline
-> hypothesis).
+> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)
+> (kernels, async launches, event timing, its `rocprofv3` walkthrough),
+> [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md) (coalescing, LDS,
+> bank conflicts), [B02](../B02.roofline-and-arithmetic-intensity/README.md) (roofline & arithmetic
+> intensity — this module is where you *test* a roofline hypothesis).
 > Backends: AMD (`hipcc` + `rocprofv3`) · NVIDIA (`nvcc` + `nsys`/`ncu`).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** Profiling is not "run the profiler and read the numbers". It is a **decision procedure**:
-form a hypothesis from the roofline, then take the *cheapest measurement that could kill it*.
-There are two levels and they are not interchangeable. **Timeline/system tracing** (`rocprofv3
---sys-trace`, `nsys profile`) answers *where does wall-clock go* across host API, copies, and
-kernels — always run this first, because it is how you discover that your kernel is 0.014% of the
+**TL;DR.** [Profiling](../../../docs/GLOSSARY.md#profiler) is not "run the profiler and read the
+numbers". It is a **decision procedure**: form a hypothesis from the
+[roofline](../../../docs/GLOSSARY.md#roofline-model), then take the *cheapest measurement that could
+kill it*. There are two levels and they are not interchangeable. **Timeline/system tracing**
+(`rocprofv3 --sys-trace`, `nsys profile`) answers *where does wall-clock go* across host API, copies,
+and [kernels](../../../docs/GLOSSARY.md#kernel) — always run this first, because it is how you
+discover that your kernel is 0.014% of the
 run. **Kernel counter profiling** (`rocprofv3 --pmc`, `ncu`) answers *what limits this one kernel* —
 run it only after the timeline proves the kernel matters. Everything else in this module is
 mechanics for those two sentences.

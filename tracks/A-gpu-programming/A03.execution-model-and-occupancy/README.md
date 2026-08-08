@@ -2,21 +2,26 @@
 
 > Track A · Module 03 · Status: **DONE** · Est. 6 hours · Depth 3/5
 >
-> Prerequisites: [A01](../A01.foundations-and-programming-model/) (grid/block/thread, error
-> checking, event timing) and [A02](../A02.memory-hierarchy-and-coalescing/) (hierarchy,
+> Prerequisites: [A01](../A01.foundations-and-programming-model/README.md) (grid/block/thread, error
+> checking, event timing) and [A02](../A02.memory-hierarchy-and-coalescing/README.md) (hierarchy,
 > coalescing, LDS). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** The block is how *you* organize threads; the **warp** (32 lanes, NVIDIA) or
+**TL;DR.** The [block](../../../docs/GLOSSARY.md#block-nvidia-and-workgroup-amd) is how *you*
+organize threads; the **[warp](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd)**
+(32 lanes, NVIDIA) or
 **wavefront** (64 lanes, AMD CDNA) is how the *hardware* executes them. One instruction is
 issued to all lanes of a warp at once, so two things follow and they are the whole module.
-(1) **Divergence:** if lanes of the same warp take different branches, the hardware runs
+(1) **[Divergence](../../../docs/GLOSSARY.md#divergence):** if lanes of the same warp take
+different branches, the hardware runs
 *both* bodies with the inactive lanes masked off — a divergent if/else costs the **sum** of
-its branches, not the average. (2) **Occupancy:** each SM/CU can host only so many warps at
+its branches, not the average. (2) **[Occupancy](../../../docs/GLOSSARY.md#occupancy):** each
+[SM/CU](../../../docs/GLOSSARY.md#sm-nvidia-and-cu-amd) can host only so many warps at
 once, capped by threads, blocks, registers, and shared memory; those resident warps are the
 budget the scheduler spends **hiding memory latency**. More occupancy is a means, not a goal.
 
@@ -100,7 +105,8 @@ prediction, register renaming, out-of-order windows — and it is paid per instr
 
 A GPU makes a different bet: pay the control cost **once**, then hand the decoded instruction
 to 32 or 64 arithmetic lanes, each with its own registers and its own data element. One fetch,
-64 results. That is **SIMT** (Single Instruction, Multiple Threads), and it is why a GPU can
+64 results. That is **[SIMT](../../../docs/GLOSSARY.md#simt)** (Single Instruction, Multiple
+Threads), and it is why a GPU can
 put an order of magnitude more FLOPs on the same silicon area.
 
 The bet only pays off *if the lanes want the same instruction*. Everything in this module is a
@@ -124,7 +130,8 @@ EXEC = 1111111111111111   reconverge
 On AMD GCN/CDNA this is literally a 64-bit hardware register called `EXEC`, and the compiler
 emits `s_and_saveexec_b64` / `s_cbranch_execz` around the branch. On NVIDIA pre-Volta it was a
 hardware reconvergence stack; Volta and later give each thread its own PC plus convergence
-barriers — a real behavioural difference we return to in §3.
+barriers — a real behavioural difference we return to in §3, specified in the
+[CUDA C++ Programming Guide](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia).
 
 ![A divergent branch executes both sides in turn; a uniform branch skips one entirely](../../../assets/divergence.svg)
 
@@ -165,12 +172,17 @@ memory-corruption bug for a rounding error's worth of performance.
 
 ### Derive latency hiding, and therefore occupancy
 
-A load from HBM costs hundreds of cycles (§A02: ~400–800). A CPU attacks that with caches,
+A load from HBM costs hundreds of cycles
+([A02 §2](../A02.memory-hierarchy-and-coalescing/README.md#2-first-principles): ~400–800). A CPU
+attacks that with caches,
 prefetchers and out-of-order execution. A GPU has a blunter, cheaper weapon: **switch to
 another warp that is ready to run.** Zero-cost context switch, because every resident warp's
-registers are already sitting in the register file — nothing to save or restore.
+[registers](../../../docs/GLOSSARY.md#registers) are already sitting in the register file —
+nothing to save or restore.
 
-How many warps do you need? Little's Law answers it: `concurrency = latency × throughput`.
+How many warps do you need?
+[Little's Law](../../../docs/REFERENCES.md#littles-law-little-1961) answers it:
+`concurrency = latency × throughput`.
 
 ```
 Want 3 TB/s sustained, with ~600 ns of memory latency:
@@ -217,9 +229,9 @@ registers are not the binding term.
 
 Do not memorize the numbers — the `occupancy` lab **prints your device's actual values**, and
 the ones you cannot query live in the [CUDA compute-capability
-tables](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities)
+tables](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia)
 and the [AMD GPU architecture
-specs](https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html).
+specs](../../../docs/REFERENCES.md#amd-gpu-architecture-specifications-amd).
 
 **The one difference that will bite you:** 32 versus 64 lanes. A 256-thread block is 8 warps
 on NVIDIA and 4 wavefronts on AMD. Any code that hardcodes 32 — a shuffle ladder starting at
@@ -361,7 +373,9 @@ Occupancy is never one number you tune — it is whichever of four independent b
 first, which is why the sweep in Lab 2 prints the limiters next to the clock.
 
 **Allocation is granular, so budgets round against you.** Registers are allocated in
-granules per warp/wavefront and shared memory/LDS in fixed-size blocks. Asking for 8,193 bytes
+granules per warp/wavefront and
+[shared memory/LDS](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd) in fixed-size
+blocks. Asking for 8,193 bytes
 of shared memory can consume the same budget as a much larger request and silently cost you a
 resident block. Always let the occupancy API do the arithmetic rather than dividing by hand:
 
@@ -374,7 +388,9 @@ HIP_CHECK(hipOccupancyMaxActiveBlocksPerMultiprocessor(
 
 **Telling the compiler your intent.** `__launch_bounds__` lets the compiler cap register usage
 so a target occupancy is achievable — and its second argument means **different things on the
-two vendors**, which is a real portability trap:
+two vendors** (the AMD spelling is normative in the
+[HIP Programming Guide](../../../docs/REFERENCES.md#hip-programming-guide-amd)), which is a
+real portability trap:
 
 ```cpp
 // CUDA: (maxThreadsPerBlock, minBlocksPerMultiprocessor)
@@ -398,7 +414,8 @@ to keep the pipes full, and the others fight it for the same registers:
 
 1. **ILP (instruction-level parallelism).** A thread with 8 independent loads in flight hides
    as much latency as 8 threads with 1 each — but it needs 8× the registers, i.e. *lower*
-   occupancy. This is the entire design of a high-performance GEMM: each thread holds a big
+   occupancy. This is the entire design of a high-performance
+   [GEMM](../../../docs/GLOSSARY.md#gemm): each thread holds a big
    register tile, occupancy is low, and throughput is near peak. Volkov's classic *Better
    Performance at Lower Occupancy* is the canonical treatment.
 2. **Cache footprint.** More resident warps means more *concurrent* working sets sharing the
@@ -409,13 +426,15 @@ to keep the pipes full, and the others fight it for the same registers:
    frequently measures as noise.
 
 The professional formulation: **occupancy is a diagnostic, not an objective.** If a kernel is
-latency-bound *and* low-occupancy, raising occupancy is the highest-value fix. If it is
+[latency-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound) *and*
+low-occupancy, raising occupancy is the highest-value fix. If it is
 already bandwidth-saturated or compute-bound, occupancy is the wrong thing to look at.
 
 ### Warp/wavefront-level primitives (preview of A05)
 
 Lanes of a warp can exchange registers directly, with no shared memory and no barrier. This is
-the building block of every fast reduction, scan, and softmax.
+the building block of every fast [reduction](../../../docs/GLOSSARY.md#reduction), scan, and
+softmax.
 
 | Operation | CUDA (modern) | HIP | Gotcha |
 |---|---|---|---|
@@ -465,7 +484,8 @@ here. From this directory, `make exercises` / `make solutions` build them in pla
 > so warp-level divergence and shuffles are not expressible in the language. The one lever
 > Triton exposes here is `num_warps` (and `num_stages`) as autotuning meta-parameters, which
 > is really "let the autotuner search occupancy for me" — covered where it belongs, in the
-> Triton module (A08). Teaching divergence and occupancy requires the lane-level control that
+> Triton module ([A08](../A08.triton-foundations/README.md)). Teaching divergence and
+> occupancy requires the lane-level control that
 > only HIP/CUDA give you, so both labs are C++ only.
 
 ### Lab 1 — Divergence: the same branch, free or 2× (`divergence`)
@@ -501,7 +521,8 @@ Files: [`hip/occupancy.cpp`](hip/occupancy.cpp) · [`cuda/occupancy.cu`](cuda/oc
 A **dependent pointer chase** over a cache-resident 4 MB table: each hop's address is unknown
 until the previous load returns, so one warp is stalled almost all the time and only *more
 resident warps* can fill the machine. Lanes stay contiguous (`next[p] = (p + STRIDE) % n`), so
-this measures dependent-load latency rather than coalescing — that was A02's job.
+this measures dependent-load latency rather than coalescing — that was
+[A02](../A02.memory-hierarchy-and-coalescing/README.md)'s job.
 
 The program first prints the device's real limits (`warpSize`, max threads per SM/CU, shared
 memory or LDS per SM/CU, register budget) and then runs **two controlled sweeps**, each row
@@ -553,7 +574,8 @@ make profile-cuda    # nsys timeline; then: ncu --set full ./cuda/divergence.exe
 
 ## 5. Performance Analysis
 
-Unlike A01/A02, **neither lab here is bandwidth-bound**, and that is the point: divergence is a
+Unlike [A01](../A01.foundations-and-programming-model/README.md#5-performance-analysis)/[A02](../A02.memory-hierarchy-and-coalescing/README.md#5-performance-analysis),
+**neither lab here is bandwidth-bound**, and that is the point: divergence is a
 *compute-issue* problem and occupancy is a *latency* problem. Different bottleneck, different
 metric.
 
@@ -644,7 +666,9 @@ issue while that load is in flight.
 reduction produce a clear slowdown *on a latency-bound kernel*. Run the same experiment on a
 bandwidth-saturated kernel (A02's `bandwidth`) and the same occupancy loss barely registers.
 **The value of occupancy is entirely conditional on your bottleneck** — which is why the
-roofline framing from A01 §5 and Track B02 comes *first*, and occupancy tuning second.
+roofline framing from A01 §5 and Track
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) comes
+*first*, and occupancy tuning second.
 
 ---
 
@@ -734,7 +758,8 @@ vendors**; 128 or 256 remains the sane default.
 If your grid is 1.1× the number of blocks the GPU can hold, you run two "waves" and the second
 is 90% empty — the kernel takes ~2× as long as the work suggests. Theoretical occupancy says
 nothing about this; achieved occupancy and the profiler timeline do. Prefer grid sizes that
-are a multiple of `blocks_per_SM × SM_count`, or use a grid-stride loop (A02's `bandwidth`) so
+are a multiple of `blocks_per_SM × SM_count`, or use a grid-stride loop
+([A02](../A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs)'s `bandwidth`) so
 the block count is yours to choose.
 
 ### Pitfall 7 — Divergence you genuinely cannot remove
@@ -770,13 +795,16 @@ the right answer is a CPU, or a different algorithm.
   expert** and launches contiguous, expert-uniform blocks. That is Exercise 1's lesson at
   cluster scale.
 - **Variable-length attention.** Ragged sequence lengths make a naive kernel run at the
-  longest sequence in the batch. FlashAttention-style kernels and vLLM's paged attention
+  longest sequence in the batch.
+  [FlashAttention](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)-style kernels and
+  vLLM's paged attention
   bucket and pad to uniform block shapes so that warps do equal work.
 - **Warp-level reductions are everywhere.** Softmax, LayerNorm/RMSNorm, loss reduction, and
   the intra-GPU stage of an all-reduce all end in a shuffle ladder like Exercise 2's — see
   **CUB** (`cub::WarpReduce`) and **rocPRIM / hipCUB** (`rocprim::warp_reduce`), which PyTorch
   and every framework lean on.
-- **GEMM deliberately runs at low occupancy.** CUTLASS, rocBLAS/Tensile and hand-written
+- **GEMM deliberately runs at low occupancy.**
+  [CUTLASS](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia), rocBLAS/Tensile and hand-written
   attention kernels hold large register tiles per thread to maximize ILP and data reuse,
   accepting 25–50% occupancy because it buys far more than latency hiding would. This is the
   Volkov result in production.
@@ -787,50 +815,65 @@ the right answer is a CPU, or a different algorithm.
   launch exactly `blocks_per_SM × SM_count` blocks and loop internally, to eliminate the wave
   quantization from Pitfall 6.
 
+**Where to go next.** [A04](../A04.parallel-reduction/README.md) turns the shuffle ladder
+previewed in §3 into a complete algorithm, where the warp is the unit of the reduction rather
+than a scheduling detail. [A06](../A06.tiled-matrix-multiply/README.md) is the kernel that
+spends its register budget on ILP instead of occupancy, so you can see the Volkov argument as
+working code rather than a caveat.
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) replaces the
+theoretical-versus-achieved gap you eyeball in Lab 3 with counters that name the stall.
+
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live.
+The rest are specific to this module and keep their URL here.
 
-- **CUDA C++ Programming Guide** — SIMT architecture, independent thread scheduling
-  (Volta+), warp-level primitives, and the compute-capability tables used for the per-SM
-  limits. <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html>
-- **CUDA C++ Best Practices Guide** — *Branching and Divergence*, *Occupancy*, register
-  pressure and the occupancy API.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia)
+  — SIMT architecture, independent thread scheduling (Volta+), warp-level primitives, and the
+  compute-capability tables used for the per-SM limits in §3.
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — *Branching and Divergence*, *Occupancy*, register pressure and the occupancy API: the
+  vendor form of §2's cost model and §3's occupancy arithmetic.
 - Luitjens. *Using CUDA Warp-Level Primitives* (NVIDIA Developer Blog) — why the `*_sync`
   forms are mandatory on Volta+, and how masks work.
-  <https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/>
+  <https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/> (retrieved 8 Aug 2026)
 - Luitjens. *Faster Parallel Reductions on Kepler* (NVIDIA Developer Blog) — the
   `__shfl_down` reduction ladder that Exercise 2 makes portable.
-  <https://developer.nvidia.com/blog/faster-parallel-reductions-kepler/>
+  <https://developer.nvidia.com/blog/faster-parallel-reductions-kepler/> (retrieved 8 Aug 2026)
 - Volkov (2010). *Better Performance at Lower Occupancy*, GTC — the ILP-vs-occupancy
   tradeoff quantified; the reason §3 refuses to treat occupancy as an objective.
   <https://www.nvidia.com/content/GTC-2010/pdfs/2238_GTC2010.pdf>
 - **HIP C++ language extensions** — `warpSize`, `__shfl*`, `__ballot`, `__any`/`__all`,
   and `__launch_bounds__` (note HIP's second parameter is
-  `MIN_WARPS_PER_EXECUTION_UNIT`).
+  `MIN_WARPS_PER_EXECUTION_UNIT`) — the portability rules §3 turns into review items.
   <https://rocm.docs.amd.com/projects/HIP/en/latest/reference/cpp_language_extensions.html>
-- **HIP programming model** — wavefronts, workgroups, and the SIMT mapping.
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/understand/programming_model.html>
-- **AMD CDNA 3 architecture white paper** — CU structure, SIMD units, 64-lane wavefronts,
-  64 KB LDS per CU. <https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf>
-- **AMD GPU architecture specifications & ISA guides** — authoritative per-part limits
-  (waves per SIMD, VGPR budgets, LDS granularity) and the `EXEC`-mask instructions
-  (`s_cbranch_execz`). <https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html> ·
-  <https://rocm.docs.amd.com/en/latest/conceptual/gpu-arch.html>
-- **Nsight Compute Profiling Guide** — Theoretical vs Achieved Occupancy, branch-efficiency
-  and warp-stall metrics referenced in Lab 3.
-  <https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html>
-- **ROCm Compute Profiler / `rocprofv3`** — the AMD equivalents used in Lab 3.
-  <https://rocm.docs.amd.com/projects/rocprofiler-compute/en/latest/> ·
-  <https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/>
-- Little (1961). *A Proof for the Queuing Formula L = λW* — the concurrency-latency-throughput
-  identity used in §2 and §5. <https://doi.org/10.1287/opre.9.3.383>
+  (retrieved 8 Aug 2026)
+- [**HIP programming model**](../../../docs/REFERENCES.md#hip-programming-model-amd) —
+  wavefronts, workgroups, and the SIMT mapping §2 derives the `EXEC` mask from.
+- [**AMD CDNA 3 architecture white paper**](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd)
+  — CU structure, SIMD units, 64-lane wavefronts, 64 KB LDS per CU: the AMD column of §3's
+  scheduling-unit table.
+- [**AMD GPU architecture specifications**](../../../docs/REFERENCES.md#amd-gpu-architecture-specifications-amd)
+  **& ISA guides** — authoritative per-part limits (waves per SIMD, VGPR budgets, LDS
+  granularity) and the `EXEC`-mask instructions (`s_cbranch_execz`).
+  <https://rocm.docs.amd.com/en/latest/conceptual/gpu-arch.html> (retrieved 8 Aug 2026)
+- [**Nsight Compute Profiling Guide**](../../../docs/REFERENCES.md#nsight-compute-profiling-guide-nvidia)
+  — Theoretical vs Achieved Occupancy, branch-efficiency and warp-stall metrics referenced in
+  Lab 3.
+- [**ROCm Compute Profiler**](../../../docs/REFERENCES.md#rocm-compute-and-systems-profilers-amd)
+  and [**rocprofiler-sdk / `rocprofv3`**](../../../docs/REFERENCES.md#rocprofiler-sdk-and-rocprofv3-amd)
+  — the AMD equivalents used in Lab 3.
+- Little (1961).
+  [*A Proof for the Queuing Formula L = λW*](../../../docs/REFERENCES.md#littles-law-little-1961)
+  — the concurrency-latency-throughput identity §2 uses to size the resident-warp count and §5
+  uses to read the occupancy sweep.
 - **rocPRIM** / **CUB** — production warp- and block-level primitives; read them after
-  Exercise 2. <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/> ·
-  <https://nvidia.github.io/cccl/cub/>
+  Exercise 2. CUB now ships inside NVIDIA's CCCL, which is why its old standalone docs URL
+  is gone. <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/> ·
+  <https://nvidia.github.io/cccl/unstable/cub/> (both retrieved 8 Aug 2026)
 
 ---
 

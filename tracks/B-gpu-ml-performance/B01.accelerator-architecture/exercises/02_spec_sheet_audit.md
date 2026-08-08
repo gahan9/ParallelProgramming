@@ -99,7 +99,7 @@ whether *your* kernel is fast?
 > **896 GB/s** peak aggregate."
 
 Source: [MI300X data sheet](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf) ·
-[MI300 Series cluster reference guide](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/other/instinct-mi300-series-cluster-reference-guide.pdf) (as of 29 Jul 2026).
+[MI300 Series cluster design reference](https://instinct.docs.amd.com/projects/cluster-documentation/latest/reference/cluster-design.html) (retrieved 8 Aug 2026).
 
 **Audit it.** You are sizing a tensor-parallel shard that does an all-reduce of a
 `[8192, 8192]` bf16 activation on every one of 80 layers. Which of these two numbers

@@ -2,11 +2,12 @@
 
 > Track B · Module 01 · Status: **DONE** · Est. 6 hours · Depth 2/5
 >
-> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/)
+> Prerequisites: [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)
 > (kernels, grid/block/thread, error checking, event timing) and ideally
-> [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/) (coalescing, the
+> [A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md) (coalescing, the
 > memory pyramid). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 >
 > **Every hardware figure in this module is cited to an AMD or NVIDIA document with a
 > retrieval date.** Where two official sources disagree, both are shown and the
@@ -18,9 +19,13 @@
 ## 1. TL;DR + Layman analogy
 
 **TL;DR.** A data-center GPU is not "a big pile of cores". It is a **factory floor**
-with a specific, knowable structure: hundreds of near-identical execution engines
-(AMD **CU**, NVIDIA **SM**), each holding a big register file and a software-managed
-scratchpad; a specialized **matrix engine** inside each one that does exactly one
+with a specific, knowable structure: hundreds of near-identical
+[execution engines](../../../docs/GLOSSARY.md#sm-nvidia-and-cu-amd)
+(AMD **CU**, NVIDIA **SM**), each
+holding a big register file and a software-managed
+[scratchpad](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd); a
+specialized **[matrix engine](../../../docs/GLOSSARY.md#tensor-core-nvidia-and-matrix-core-amd)**
+inside each one that does exactly one
 shape of small matrix multiply, absurdly fast; a deep cache hierarchy fed by HBM at
 terabytes per second; and — on modern parts — several **compute chiplets** in one
 package that are *not* uniformly close to memory. Every performance number you will
@@ -43,7 +48,8 @@ later measurement becomes explainable instead of magical.
 The analogy is *load-bearing*, meaning it predicts real behaviour:
 
 - Adding production lines does nothing if the warehouse cannot supply parts fast
-  enough. → **A memory-bound kernel does not get faster on a bigger GPU.**
+  enough. → **A [memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)
+  kernel does not get faster on a bigger GPU.**
 - The stamping machine is idle if you hand it the wrong part shape. → **Matrix Cores
   only fire for the exact MMA shapes the ISA defines; everything else runs on the
   ordinary vector ALUs, up to ~16× slower.**
@@ -52,7 +58,8 @@ The analogy is *load-bearing*, meaning it predicts real behaviour:
 
 **Where the analogy breaks.** Three places, and knowing them matters:
 
-1. **A factory worker can wait; a GPU lane cannot.** Lanes in a wavefront/warp execute
+1. **A factory worker can wait; a GPU lane cannot.** Lanes in a
+   [wavefront/warp](../../../docs/GLOSSARY.md#warp-nvidia-and-wavefront-amd) execute
    in lockstep — one instruction drives 64 (AMD) or 32 (NVIDIA) lanes. The GPU hides
    the warehouse trip not by letting a worker wait productively, but by **swapping in
    an entirely different team** (another resident wavefront) mid-trip. Latency hiding
@@ -64,7 +71,7 @@ The analogy is *load-bearing*, meaning it predicts real behaviour:
 3. **The stamping machine changes the *precision* of the part, not just the speed.**
    fp8 and fp4 matrix throughput comes from representing numbers with fewer bits.
    That is a numerical accuracy decision disguised as a performance decision — the
-   entire subject of B04.
+   entire subject of [B04](../B04.precision-and-quantization/README.md).
 
 ```mermaid
 %%{init: {
@@ -105,13 +112,14 @@ that decide your wall clock, and the indigo boxes are the fast resources everyon
 mistakenly assumes are the bottleneck.*
 
 **By the end of this module you can:** name what is physically inside a CU and an SM
-and map both onto the programming model from A01; explain why "this GPU does N
+and map both onto the programming model from
+[A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md); explain why "this GPU does N
 TFLOPs" is a meaningless sentence and say what five qualifiers make it meaningful;
 derive peak bandwidth and peak FLOP/s from a spec sheet in thirty seconds and catch
 the DDR-factor and sparsity traps; run two labs that print *your* machine's real
 architecture and measured peer bandwidth; and state the ratio between your achievable
 bandwidth and your achievable matrix throughput — which is the roofline ridge point
-you will formalize in B02.
+you will formalize in [B02](../B02.roofline-and-arithmetic-intensity/README.md).
 
 ---
 
@@ -125,10 +133,13 @@ designer must spend it. Every architectural feature you will meet is the answer 
 "what is the highest-value use of the next billion transistors?" — and for
 throughput computing the answers, in order, are:
 
-1. **More execution units**, because the workload is embarrassingly parallel (A01).
+1. **More execution units**, because the workload is embarrassingly parallel
+   ([A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)).
 2. **More register file**, because you cannot hide memory latency without many
-   resident wavefronts, and every resident wavefront needs its own registers.
-3. **More on-chip memory**, because off-chip bandwidth is the scarcest resource on the
+   resident wavefronts, and every resident wavefront needs its own
+   [registers](../../../docs/GLOSSARY.md#registers).
+3. **More on-chip memory**, because off-chip
+   [bandwidth](../../../docs/GLOSSARY.md#bandwidth) is the scarcest resource on the
    chip and every byte served from cache is a byte you did not pay HBM for.
 4. **Specialized matrix engines**, because *instruction issue itself* is expensive and
    a matrix instruction amortizes one issue over hundreds of MACs.
@@ -221,8 +232,11 @@ memory-bound on the new chip than on the old one, even though the new chip has m
 of everything. Each generation of lower precision buys compute without buying
 bandwidth, so the fraction of your workload that is bandwidth-limited *grows*.
 
-This single trend is the reason Track B exists, and it is why B02's roofline, B03's
-profiling, and A07's kernel fusion are the highest-leverage skills in the curriculum.
+This single trend is the reason Track B exists, and it is why
+[B02](../B02.roofline-and-arithmetic-intensity/README.md)'s roofline,
+[B03](../B03.profiling-and-bottleneck-analysis/README.md)'s profiling, and
+[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)'s kernel
+fusion are the highest-leverage skills in the curriculum.
 
 ---
 
@@ -338,9 +352,11 @@ All figures verified as of 29 Jul 2026 from
    Memory Accelerator. Kernels tuned for one philosophy do not automatically perform
    on the other.
 2. **The wavefront/warp difference (64 vs 32) is the most common portability bug** and
-   the reason A01 insists on block sizes that are multiples of 64.
+   the reason [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)
+   insists on block sizes that are multiples of 64.
 3. **The scale-up bandwidths are nearly identical (896 vs 900 GB/s), and both are
-   ~6× smaller than HBM bandwidth.** Hold that ratio: it is why B07's sharding
+   ~6× smaller than HBM bandwidth.** Hold that ratio: it is why
+   [B07](../B07.distributed-training-and-sharding/README.md)'s sharding
    strategies exist, and why "just add another GPU" is not a general answer.
 
 > [!NOTE]
@@ -369,9 +385,11 @@ element-to-lane mapping for every instruction.
 
 - **Accumulation is usually wider than input.** `f32_..._f16` means fp16 in, fp32
   accumulate. This is not a courtesy; summing thousands of fp16 products in fp16 loses
-  catastrophic precision. B04 makes this quantitative.
+  catastrophic precision. [B04](../B04.precision-and-quantization/README.md) makes
+  this quantitative.
 - **Shape choice is a tuning knob with no universal answer.** ROCm's guidance is that
-  for GEMM kernels on MI300X, `mfma_16x16` typically outperforms `mfma_32x32` even at
+  for [GEMM](../../../docs/GLOSSARY.md#gemm) kernels on MI300X, `mfma_16x16`
+  typically outperforms `mfma_32x32` even at
   large tile sizes.<sup>[[1]](#ref-rocm-workload)</sup> Benchmark; do not reason from
   first principles alone.
 
@@ -492,7 +510,9 @@ different convention, factor of two between them. Exercise 1 drills exactly this
 
 #### Cache lines and transaction granularity
 
-This is where architecture meets the coalescing lesson from A02.
+This is where architecture meets the
+[coalescing](../../../docs/GLOSSARY.md#coalescing) lesson from
+[A02 §2](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#2-first-principles).
 
 | | AMD CDNA 3 / CDNA 4 | NVIDIA (Volta and later) |
 |---|---|---|
@@ -524,12 +544,15 @@ These are different quantities and improving one can *worsen* the other.
 - **Bandwidth** is how many bytes/second flow when many requests are in flight. This
   is what the datasheet quotes and what a streaming kernel consumes.
 
-The bridge between them is **Little's Law**: `concurrency = bandwidth × latency`. To
+The bridge between them is
+**[Little's Law](../../../docs/REFERENCES.md#littles-law-little-1961)**:
+`concurrency = bandwidth × latency`. To
 sustain 5.3 TB/s at, say, 600 ns of load-to-use latency you need roughly
 `5.3e12 × 600e-9 ≈ 3.2 MB` of memory requests **in flight simultaneously**. That is
 the real, physical reason a GPU needs thousands of resident threads and why ROCm
 recommends a minimum of **1,024 workgroups** in a grid on
-MI300X.<sup>[[1]](#ref-rocm-workload)</sup> Occupancy is not a vanity metric; it is
+MI300X.<sup>[[1]](#ref-rocm-workload)</sup>
+[Occupancy](../../../docs/GLOSSARY.md#occupancy) is not a vanity metric; it is
 the mechanism by which bandwidth is reachable at all.
 
 The practical corollary: **caches on a GPU are bandwidth amplifiers first and latency
@@ -670,7 +693,7 @@ guide](#ref-mi300-cluster), [ROCm workload guide](#ref-rocm-workload),
 In-Depth](#ref-hopper-blog), [H100 product page](#ref-h100-page). Verified 29 Jul 2026.
 
 **Why interconnect bandwidth sets the ceiling for tensor parallelism** (the forward
-reference to [B07](../)):
+reference to [B07](../B07.distributed-training-and-sharding/README.md)):
 
 Tensor parallelism splits each weight matrix across `N` GPUs. Every layer therefore
 ends with a collective (all-reduce or all-gather) to recombine partial results. That
@@ -765,10 +788,11 @@ lookups:
    ceiling. A hand-written kernel will not beat a tuned library, so the library's
    number is your realistic roof.
 3. **What is the ratio between them?** `achievable_FLOPs / achievable_bytes_per_s` is
-   the **roofline ridge point** in FLOP/byte. Kernels below it are memory-bound;
+   the **[roofline](../../../docs/REFERENCES.md#roofline-williams-et-al-2009) ridge
+   point** in FLOP/byte. Kernels below it are memory-bound;
    above it, compute-bound. That single number tells you what kind of optimization
    will help before you write a line of code — and it is the first thing
-   [B02](../) builds.
+   [B02](../B02.roofline-and-arithmetic-intensity/README.md) builds.
 
 **One more habit: record the date.** Vendors revise datasheets. "MI300X memory
 bandwidth is 5.3 TB/s (AMD MI300X data sheet, retrieved 29 Jul 2026)" is a citation
@@ -779,7 +803,8 @@ someone can audit. "MI300X does 5.3 TB/s" is folklore in twelve months.
 ## 4. Hands-On Labs
 
 Both labs are **introspective**: they have no PASS/FAIL, because their output *is* the
-deliverable. You will feed those numbers into the written drills, and into B02's
+deliverable. You will feed those numbers into the written drills, and into
+[B02](../B02.roofline-and-arithmetic-intensity/README.md)'s
 roofline. Run them on the machine you actually plan to optimize on.
 
 ```bash
@@ -795,7 +820,7 @@ make run-cuda                           # run them
 There is no `triton/` directory in this module, deliberately: nothing here is a
 kernel-authoring exercise. This module is about *reading the machine*, and the runtime
 APIs that expose it are C/C++ (`hipGetDeviceProperties`, `cudaGetDeviceProperties`).
-Triton returns in A08 and B02.
+Triton returns in [A08](../../A-gpu-programming/A08.triton-foundations/README.md) and B02.
 
 The drills are self-contained too: [`exercises/`](exercises/) and
 [`solutions/`](solutions/) each have their own `Makefile`, so you can
@@ -983,8 +1008,10 @@ achieved bandwidth instead of the peak.** The ridge point moves *right* (a small
 denominator, same numerator), meaning even *more* of your workload is memory-bound
 than the datasheet arithmetic suggested.
 
-That is the honest picture, and it is the one B02 formalizes. Profiling commands
-(`rocprofv3`, `nsys`, `ncu`) are B03's subject; this module deliberately stops at what
+That is the honest picture, and it is the one
+[B02](../B02.roofline-and-arithmetic-intensity/README.md) formalizes. Profiling commands
+(`rocprofv3`, `nsys`, `ncu`) are
+[B03](../B03.profiling-and-bottleneck-analysis/README.md)'s subject; this module deliberately stops at what
 you can establish with the runtime API and a stopwatch, because a number you derived
 yourself is a number you will not misquote.
 
@@ -1086,11 +1113,13 @@ never on a device name string.**
 ### Tradeoffs to hold in mind
 
 - **Low precision buys throughput and costs accuracy** — and, because it does not buy
-  bandwidth, it makes the memory wall *relatively* taller. B04 quantifies the accuracy
+  bandwidth, it makes the memory wall *relatively* taller.
+  [B04](../B04.precision-and-quantization/README.md) quantifies the accuracy
   side.
 - **Matrix cores buy 8–16× and cost flexibility.** You must reshape your data to the
   ISA's fixed tiles and reason about lane-to-element mappings. Libraries
-  (hipBLASLt, CUTLASS, Composable Kernel) and Triton exist precisely to absorb this
+  (hipBLASLt, [CUTLASS](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia),
+  Composable Kernel) and Triton exist precisely to absorb this
   cost; hand-writing MFMA is worthwhile only for shapes the libraries handle badly.
 - **Chiplets buy yield and area and cost uniformity.** More silicon per package for
   less money, at the price of NUMA effects and clock variation inside one device.
@@ -1099,7 +1128,8 @@ never on a device name string.**
   because the CPU dies take the space.
 - **Big scratchpads (Hopper's 228 KiB, CDNA 4's 160 KiB) buy tile size and cost
   occupancy.** Every KiB a block reserves is a KiB unavailable to a co-resident block.
-  A03 has the occupancy math; the architectural point is that the *budget* differs by
+  [A03 §3](../../A-gpu-programming/A03.execution-model-and-occupancy/README.md#3-deep-dive)
+  has the occupancy math; the architectural point is that the *budget* differs by
   vendor and generation, so a tile size tuned on one part is not portable.
 - **When architecture knowledge does *not* help:** if your kernel is memory-bound and
   already coalesced at 85% of achievable bandwidth, no amount of architecture trivia
@@ -1129,25 +1159,42 @@ the axis vendors compete hardest on.
 between every participating GPU, so it stays *inside* a node (896–1075 GB/s Infinity
 Fabric, 900 GB/s NVLink). Pipeline and data parallelism tolerate the much slower
 inter-node network and therefore cross node boundaries. **The topology from Lab 2 is
-literally the input to that decision**, and it is what B07 formalizes.
+literally the input to that decision**, and it is what
+[B07](../B07.distributed-training-and-sharding/README.md) formalizes.
 
 **Kernel fusion decisions.** Knowing the ridge point (~250–300 FLOP/byte in fp16)
 tells you immediately that softmax, layernorm, GELU, dropout, residual adds and KV
 cache reads are all memory-bound, and therefore that fusing them into their
-neighbouring GEMM is the highest-leverage change available. FlashAttention is exactly
-this insight applied to attention; A07 is this insight applied by hand.
+neighbouring GEMM is the highest-leverage change available.
+[FlashAttention](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022) is exactly
+this insight applied to attention;
+[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) is this
+insight applied by hand.
 
 **Quantization roadmaps.** MI355X's native MXFP8/MXFP6/MXFP4 support and H100's FP8
 Transformer Engine are why fp8 and fp4 inference went from research to production. The
 architectural fact (each halving of the data type doubles matrix peak and halves
-memory traffic) is what makes quantization the single highest-ROI inference
-optimization. B04 covers the numerics; B06 covers the serving side.
+memory traffic) is what makes
+[quantization](../../../docs/GLOSSARY.md#quantization) the single highest-ROI inference
+optimization. [B04](../B04.precision-and-quantization/README.md) covers the numerics;
+[B06](../B06.inference-serving-optimizations/README.md) covers the serving side.
 
 **Partitioning for multi-tenancy.** MI300X's CPX/QPX/DPX modes and H100's MIG let a
 single device serve several small models with hardware isolation — the standard
 deployment for inference endpoints where one model would not use 304 CUs. Note that
 this changes what `hipGetDeviceCount()` returns, which is exactly why Pitfall 7 says
 never to hardcode.
+
+**Where to go next.**
+[B02](../B02.roofline-and-arithmetic-intensity/README.md) takes the two ceilings and
+the ridge point you just derived and turns them into a model that predicts, before you
+profile, which of them a given kernel will hit.
+[B03](../B03.profiling-and-bottleneck-analysis/README.md) replaces that prediction
+with counters, so the architecture in this module becomes something you can observe
+rather than assume.
+[B07](../B07.distributed-training-and-sharding/README.md) picks up the fabric
+arithmetic from §3.5 and decides how far a model can shard before the interconnect,
+not the GPU, is the design constraint.
 
 ---
 
@@ -1158,7 +1205,8 @@ Repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 
 ### AMD — architecture
 
-<a id="ref-cdna3-wp"></a>**[4] AMD CDNA 3 Architecture White Paper** — CU internals,
+<a id="ref-cdna3-wp"></a>**[4] AMD CDNA 3 Architecture White Paper**
+(also in [REFERENCES.md](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd)) — CU internals,
 Matrix Core per-clock rates and Table 1, LDS 64 KiB, L1 128 B lines, L2 4 MB /
 16 channels / up to 34.4 TB/s aggregate read, Infinity Cache 256 MB at 17.2 TB/s
 peak, HBM3 at 5.2 Gbps → 5.3 TB/s, MI300A CPU+GPU integration, 7 Infinity Fabric
@@ -1204,9 +1252,13 @@ the model-sizing methodology footnote.
 <https://www.amd.com/en/blogs/2025/amd-instinct-mi350-series-and-beyond-accelerating-the-future-of-ai-and-hpc.html>
 
 <a id="ref-mi300-cluster"></a>**AMD Instinct MI300 Series Cluster Reference
-Architecture Guide** — 128 GB/s bidirectional Infinity Fabric per GPU pair, 896 GB/s
+Architecture Guide**
+(also in [REFERENCES.md](../../../docs/REFERENCES.md#amd-instinct-cluster-design-reference-amd))
+— 128 GB/s bidirectional Infinity Fabric per GPU pair, 896 GB/s
 peak aggregate, 8-GPU mesh topology, node-level layout.
-<https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/other/instinct-mi300-series-cluster-reference-guide.pdf>
+<https://instinct.docs.amd.com/projects/cluster-documentation/latest/reference/cluster-design.html>
+(retrieved 8 Aug 2026; the standalone `instinct-mi300-series-cluster-reference-guide.pdf`
+this used to cite now 404s — AMD folded cluster guidance into the Instinct docs site)
 
 <a id="ref-hotchips-mi300x"></a>**[14] AMD at Hot Chips 2024 — MI300X Accelerator and
 Platform Architecture** — 4th Gen Infinity Fabric 896 GB/s, seven bidirectional links
@@ -1217,20 +1269,25 @@ at 128 GB/s, PCIe 5.0 at 128 GB/s, Infinity Cache "256 MB at 14.7 TB/s peak BW"
 
 ### AMD — ROCm documentation
 
-<a id="ref-rocm-specs"></a>**[7] ROCm — AMD GPU specifications** — the authoritative
+<a id="ref-rocm-specs"></a>**[7] ROCm — AMD GPU specifications**
+(also in [REFERENCES.md](../../../docs/REFERENCES.md#amd-gpu-architecture-specifications-amd))
+— the authoritative
 per-SKU table: CUs (304 MI300X, 256 MI350X/MI355X, 228 MI300A), wavefront size 64,
 LDS (64 KiB CDNA 3, 160 KiB CDNA 4), L2 per XCD, Infinity Cache 256 MB, VGPR file
 512 KiB, SGPR 12.5 KiB, L1 caches, VRAM per SKU.
 <https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html>
 
 <a id="ref-rocm-workload"></a>**[1] ROCm — MI300 Series / MI350 Series workload
-optimization** — the full CDNA 3 vs CDNA 4 comparison (XCDs, CUs per XCD 40/38 and
+optimization**
+(also in [REFERENCES.md](../../../docs/REFERENCES.md#rocm-workload-optimization-guide-amd))
+— the full CDNA 3 vs CDNA 4 comparison (XCDs, CUs per XCD 40/38 and
 36/32, clocks, LDS, L2, Infinity Cache, transistors, TDP), peak theoretical table by
 precision with dense and sparse columns, memory and I/O table (bandwidth, IF link
 speed, P2P aggregate), partitioning modes, the 3–10% XCD clock variation guidance,
 "use multiples of 8" workgroup guidance, the ≥1024-workgroup recommendation, and
 `mfma_16x16` vs `mfma_32x32` guidance.
-<https://rocmdocs.amd.com/en/develop/how-to/rocm-for-ai/inference-optimization/workload.html>
+<https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/optimization/workload-optimization.html>
+(retrieved 8 Aug 2026; AMD moved this page off `rocmdocs.amd.com`, which now 404s)
 
 <a id="ref-mi300a-overview"></a>**[16] AMD Instinct MI300A APU Overview (amdgpu
 docs)** — 6 XCDs × 38 CUs, 3 CPU chiplets / 24 cores, 8 × 16 GB HBM3 stacks, unified
@@ -1241,15 +1298,18 @@ address space and shared last-level cache, SPX and CPX partition modes.
 model** — the CU block diagram (4 SIMDs, SIMD pairs, 128 B/clock LDS bus) used in §3.1.
 <https://rocm.docs.amd.com/projects/rocprofiler-compute/en/develop/conceptual/cdna/cdna-performance-model.html>
 
-<a id="ref-mfma-calc"></a>**[3] AMD Matrix Instruction Calculator** — the MFMA/SMFMAC
+<a id="ref-mfma-calc"></a>**[3] AMD Matrix Instruction Calculator**
+(also in [REFERENCES.md](../../../docs/REFERENCES.md#amd-matrix-instruction-calculator-amd))
+— the MFMA/SMFMAC
 instruction menu per architecture (`v_mfma_f32_16x16x16f16`, `v_mfma_f32_32x32x8f16`,
 …), computational throughput, and element-to-lane register mappings.
 <https://github.com/ROCm/amd_matrix_instruction_calculator>
 
 ### NVIDIA
 
-<a id="ref-h100-wp"></a>**[2] NVIDIA H100 Tensor Core GPU Architecture White Paper** —
-144 SMs on a full GH100 vs 132 shipping on H100 SXM5 (114 on PCIe), 128 FP32 / 64 FP64
+<a id="ref-h100-wp"></a>**[2] NVIDIA H100 Tensor Core GPU Architecture White Paper**
+(also in [REFERENCES.md](../../../docs/REFERENCES.md#nvidia-hopper-architecture-whitepaper-nvidia))
+— 144 SMs on a full GH100 vs 132 shipping on H100 SXM5 (114 on PCIe), 128 FP32 / 64 FP64
 / 64 INT32 cores and 4 Tensor Cores per SM, 65,536 32-bit registers and 256 KiB
 register file per SM, 256 KiB combined L1+shared memory with shared configurable to
 228 KiB, 50 MB L2 with partitioned crossbar, 5120-bit HBM3 at 2619 MHz DDR, boost

@@ -2,21 +2,25 @@
 
 > Track A · Module 02 · Status: **DONE** · Est. 6 hours · Depth 2/5
 >
-> Prerequisites: [A01](../A01.foundations-and-programming-model/) (kernels, grid/block/thread,
-> error checking, event timing). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) · Triton (Python).
-> Setup: [../../../docs/SETUP.md](../../../docs/SETUP.md).
+> Prerequisites: [A01](../A01.foundations-and-programming-model/README.md) (kernels,
+> grid/block/thread, error checking, event timing). Backends: AMD (`hipcc`) · NVIDIA (`nvcc`) ·
+> Triton (Python). Setup: [SETUP.md](../../../docs/SETUP.md) ·
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
 ## 1. TL;DR + Layman analogy
 
-**TL;DR.** A GPU has a *pyramid* of memories — registers (per thread, fastest), shared
-memory/LDS (per block, on-chip), L1/L2 caches, and global HBM (huge, slow, off-chip). A01 showed
-vector add is memory-bound; this module shows **how to move memory well**. Two levers dominate:
-(1) **coalescing** — threads in a warp/wavefront should touch *consecutive* global addresses so the
-hardware fuses them into one wide transaction; (2) **shared memory** — stage data on-chip once, then
-reuse it. We prove both with a matrix transpose that goes from slow to near-peak with *zero* change
-to the arithmetic.
+**TL;DR.** A GPU has a *pyramid* of memories — [registers](../../../docs/GLOSSARY.md#registers)
+(per thread, fastest), [shared memory/LDS](../../../docs/GLOSSARY.md#shared-memory-nvidia-and-lds-amd)
+(per block, on-chip), [L1/L2 caches](../../../docs/GLOSSARY.md#l1-and-l2-cache), and
+[global HBM](../../../docs/GLOSSARY.md#global-memory) (huge, slow, off-chip).
+[A01 §5](../A01.foundations-and-programming-model/README.md#5-performance-analysis) showed vector
+add is memory-bound; this module shows **how to move memory well**. Two levers dominate:
+(1) **[coalescing](../../../docs/GLOSSARY.md#coalescing)** — threads in a warp/wavefront should
+touch *consecutive* global addresses so the hardware fuses them into one wide transaction;
+(2) **shared memory** — stage data on-chip once, then reuse it. We prove both with a matrix
+transpose that goes from slow to near-peak with *zero* change to the arithmetic.
 
 **Layman analogy.** Global memory is a **warehouse across town**; a memory transaction is a **truck**
 that always leaves full or half-empty regardless of how much you actually need. **Coalescing** is
@@ -28,7 +32,7 @@ everyone rearrange parts on the bench at hand-speed instead of driving downtown 
 **By the end of this module you can:** name every level of the GPU memory hierarchy and its rough
 latency/bandwidth; explain and *measure* coalesced vs strided access; use shared memory to convert a
 strided global pattern into a coalesced one (tiled transpose); and diagnose + fix shared-memory
-**bank conflicts**.
+**[bank conflicts](../../../docs/GLOSSARY.md#bank-conflict)**.
 
 ---
 
@@ -75,7 +79,10 @@ warp/wavefront of 32/64 threads next to that fact:
   → up to **32** transactions for the same 32 useful floats. 31/32 of the fetched bytes are wasted.
 
 That is the entire idea. Same instructions, same FLOPs; the *addresses* decide whether you get 1 or
-32 trips to the warehouse.
+32 trips to the warehouse. This transaction model is Harris's
+([*How to Access Global Memory Efficiently*](../../../docs/REFERENCES.md#how-to-access-global-memory-efficiently-in-cuda-cc-kernels-harris));
+the vendor rules it follows are in the
+[CUDA C++ Best Practices Guide](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia).
 
 ![Coalesced versus strided access: eight lanes into one cache line, or into eight](../../../assets/coalescing.svg)
 
@@ -94,6 +101,8 @@ always the same three steps:
 ```
 
 Transpose is the minimal example where this *changes the access pattern itself*, not just reuse.
+[A06](../A06.tiled-matrix-multiply/README.md) applies the same three steps to a real GEMM, where
+the payoff is reuse rather than reordering.
 
 ---
 
@@ -107,6 +116,11 @@ Transpose is the minimal example where this *changes the access pattern itself*,
 | Shared / scratchpad | Shared memory, up to 228 KB/SM | **LDS**, 64 KB/CU | block / workgroup | banked; software-managed |
 | L1 / L2 | L1 (~256 KB) + L2 (50 MB) | L1 + L2 + **Infinity Cache** | GPU | hardware-managed |
 | Global | HBM3 ~3.35 TB/s | HBM3 ~5.3 TB/s | GPU | the "warehouse" |
+
+Per-SKU numbers come from the
+[AMD GPU architecture specifications](../../../docs/REFERENCES.md#amd-gpu-architecture-specifications-amd);
+[B01 §3](../../B-gpu-ml-performance/B01.accelerator-architecture/README.md#3-deep-dive) derives
+them from the architecture rather than quoting them.
 
 ### Coalescing: the transaction picture
 
@@ -131,7 +145,8 @@ cost an extra transaction. Framework tensors are allocated aligned for exactly t
 
 ### Shared-memory bank conflicts
 
-Shared memory is split into **32 banks** (4-byte words interleaved). A warp can service 32 accesses
+Shared memory is split into **32 [banks](../../../docs/GLOSSARY.md#bank-conflict)** (4-byte words
+interleaved). A warp can service 32 accesses
 in one cycle **iff** they hit 32 distinct banks (or all read the same address → broadcast). If `k`
 lanes hit the same bank at different addresses, that is a **k-way conflict** → serialized into `k`
 cycles.
@@ -259,7 +274,13 @@ flowchart LR
 
 **Optimization delta to internalize:** ~**5× total** from naive → padded, with the matrix values
 never changing. Access pattern, not arithmetic, is the lever for memory-bound kernels — the concrete
-proof of A01 §5's claim.
+proof of
+[A01 §5](../A01.foundations-and-programming-model/README.md#5-performance-analysis)'s claim.
+[B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) turns
+"memory-bound" from a label into an
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) you can compute, and
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) shows how to
+prove the mechanism behind each rung of this ladder with counters rather than bandwidth alone.
 
 ---
 
@@ -294,8 +315,10 @@ slot another thread hasn't written yet. Silent, nondeterministic wrong answers. 
 ### Pitfall 2 — Shared memory kills occupancy
 
 Shared memory is a per-SM/CU budget. A `[32][33]` float tile is ~4.2 KB/block; ask for too much and
-fewer blocks stay resident, hurting latency hiding. Bigger tiles = more reuse but lower occupancy —
-measure, don't assume (A03 formalizes occupancy).
+fewer blocks stay resident, hurting latency hiding. Bigger tiles = more reuse but lower
+[occupancy](../../../docs/GLOSSARY.md#occupancy) — measure, don't assume
+([A03 §3](../A03.execution-model-and-occupancy/README.md#3-deep-dive) formalizes occupancy and
+gives you the arithmetic).
 
 ### Pitfall 3 — Bank conflicts hide behind "I used shared memory"
 
@@ -325,34 +348,48 @@ it, but it is a real (tiny) memory cost and a non-obvious line — comment it.
 
 ## 7. Real-World Use Cases
 
-- **Every tiled GEMM / convolution** (cuBLAS, rocBLAS, CUTLASS, MIOpen) is this shared-memory
-  staging pattern scaled up — A06 builds it. Transpose is the "hello world" of tiling.
-- **Attention kernels** (FlashAttention) tile Q/K/V through shared memory precisely to turn
-  bandwidth-bound global traffic into on-chip reuse — A07/A09.
+- **Every tiled GEMM / convolution** (cuBLAS, rocBLAS,
+  [CUTLASS](../../../docs/REFERENCES.md#cutlass-and-cute-nvidia), MIOpen) is this shared-memory
+  staging pattern scaled up — [A06](../A06.tiled-matrix-multiply/README.md) builds it. Transpose
+  is the "hello world" of [tiling](../../../docs/GLOSSARY.md#tiling).
+- **Attention kernels** ([FlashAttention](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022))
+  tile Q/K/V through shared memory precisely to turn bandwidth-bound global traffic into on-chip
+  reuse — [A07](../A07.softmax-and-fused-kernels/README.md) and
+  [A09](../A09.advanced-triton-flash-attention/README.md).
 - **Layout choices in frameworks** (NCHW vs NHWC, contiguous vs channels-last) are coalescing
   decisions: the "right" layout is the one that makes the hot kernel's inner stride 1.
-- **`torch.compile` / Triton autotuning** searches block/tile sizes that maximize coalesced traffic
-  and occupancy — the automated version of this lab's manual sweep.
+- **`torch.compile` / [Triton](../../../docs/GLOSSARY.md#triton) autotuning** searches block/tile
+  sizes that maximize coalesced traffic and occupancy — the automated version of this lab's manual
+  sweep, and the subject of [A08](../A08.triton-foundations/README.md).
+
+**Where to go next.** [A03](../A03.execution-model-and-occupancy/README.md) explains the occupancy
+budget that decided your tile size here.
+[A06](../A06.tiled-matrix-multiply/README.md) reuses this module's load-barrier-compute pattern on
+a kernel where the payoff is arithmetic reuse, not just reordering.
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) replaces "the
+bandwidth went up" with a counter that names the cause.
 
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Every source this module leans on is shared with other modules, so each is cited by anchor into
+the [master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live.
 
-- **CUDA C++ Best Practices Guide** — coalescing, shared memory, bank conflicts, alignment.
-  <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
-- Ruetsch & Micikevicius (2009). *Optimizing Matrix Transpose in CUDA* — the naive/tiled/padded
-  progression used in Lab 2.
-  <https://developer.download.nvidia.com/CUDA/training/StreamsAndConcurrencyWebinar.pdf>
-- Harris. *How to Access Global Memory Efficiently in CUDA C/C++* — the coalescing model.
-  <https://developer.nvidia.com/blog/how-access-global-memory-efficiently-cuda-c-kernels/>
-- **AMD CDNA / MI300 ISA & LDS** — 32-bank LDS, wavefront memory behavior.
-  <https://www.amd.com/en/technologies/cdna.html>
-- **HIP Programming Manual — shared memory / `__syncthreads`.**
-  <https://rocm.docs.amd.com/projects/HIP/en/latest/>
-- Williams, Waterman, Patterson (2009). *Roofline* — why bandwidth is the ceiling here.
-  <https://dl.acm.org/doi/10.1145/1498765.1498785>
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — the normative rules for coalescing, shared memory, bank conflicts and alignment. Read this
+  before arguing with the profiler.
+- [**Optimizing Matrix Transpose in CUDA** (Ruetsch and Micikevicius, 2009)](../../../docs/REFERENCES.md#optimizing-matrix-transpose-in-cuda-ruetsch-and-micikevicius-2009)
+  — the naive/tiled/padded progression Lab 2 reproduces, and the origin of the `+1` padding trick.
+- [**How to Access Global Memory Efficiently** (Harris)](../../../docs/REFERENCES.md#how-to-access-global-memory-efficiently-in-cuda-cc-kernels-harris)
+  — the transaction model §2 derives coalescing from.
+- [**AMD CDNA architecture**](../../../docs/REFERENCES.md#amd-cdna-architecture-amd) and the
+  [**GPU architecture specifications**](../../../docs/REFERENCES.md#amd-gpu-architecture-specifications-amd)
+  — LDS banking and per-SKU sizes for the §3 table.
+- [**HIP Programming Guide**](../../../docs/REFERENCES.md#hip-programming-guide-amd) — the AMD
+  spelling of shared memory and `__syncthreads()`.
+- [**Roofline** (Williams et al., 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — why bandwidth, not arithmetic, is the ceiling for every kernel in this module.
 
 ---
 
