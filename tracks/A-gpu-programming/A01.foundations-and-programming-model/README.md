@@ -869,7 +869,7 @@ and its retrieval date live.
 4. Explain to a non-programmer, in two sentences, why a GPU can be *slower* than a CPU for adding
    two 10-element arrays.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `ceil(1000/256) = 4` blocks → 1024 threads, so **24 threads have `idx >= N`**. Without

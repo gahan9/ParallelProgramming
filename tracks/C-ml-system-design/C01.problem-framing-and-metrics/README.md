@@ -1011,7 +1011,7 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
    system worse.
 10. Your team cannot get a FP/FN cost ratio out of the business. How do you proceed?
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **(a) What is the base rate?** At 0.5% prevalence, "always negative" is 99.5% accurate, so the

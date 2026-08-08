@@ -1024,7 +1024,7 @@ repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
    (c) cuTile? Why does the distinction matter to a team picking a stack?
 10. An AMD-only colleague asks what they lose by skipping this module. Answer in two sentences.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Most likely they are **not using tensor cores at all** — a tiled kernel whose inner loop is

@@ -985,7 +985,7 @@ standard numerical algorithms, not novel to this module. **Nothing in §3.8 is l
 8. Explain to a non-technical executive, in three sentences, why "the system is up and running fine"
    is not evidence that the model is working.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Service monitoring checks whether the *code* is behaving; the model's correctness is defined by a

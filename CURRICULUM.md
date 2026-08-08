@@ -54,44 +54,49 @@ flowchart TD
 
 ---
 
-## Track A — GPU Programming Languages
+## Module tables (the track syllabus)
 
-| ID | Module | Status | Est. hours | Depth |
-|----|--------|--------|-----------:|:-----:|
-| [A01](tracks/A-gpu-programming/A01.foundations-and-programming-model/) | Foundations & programming model | **DONE** | 6 | 1 |
-| [A02](tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/) | Memory hierarchy & coalescing | **DONE** | 6 | 2 |
-| [A03](tracks/A-gpu-programming/A03.execution-model-and-occupancy/) | Execution model: warps/wavefronts, occupancy, divergence | **DONE** | 7 | 2 |
-| [A04](tracks/A-gpu-programming/A04.parallel-reduction/) | Parallel reduction (optimization ladder) | **DONE** | 6 | 3 |
-| [A05](tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/) | Parallel scan / prefix sum (Blelloch) | **DONE** | 6 | 3 |
-| [A06](tracks/A-gpu-programming/A06.tiled-matrix-multiply/) | Tiled matmul (shared-memory tiling) | **DONE** | 8 | 3 |
-| [A07](tracks/A-gpu-programming/A07.softmax-and-fused-kernels/) | Softmax & fused kernels (online softmax) | **DONE** | 7 | 4 |
-| [A08](tracks/A-gpu-programming/A08.triton-foundations/) | Triton foundations | **DONE** | 6 | 3 |
-| [A09](tracks/A-gpu-programming/A09.advanced-triton-flash-attention/) | Advanced Triton (autotuning, FlashAttention-style) | **DONE** | 9 | 4 |
-| [A10](tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/) | CuTe / CUTLASS / cuTile (NVIDIA-only, optional) | **DONE** | 10 | 5 |
+Each track's table is collapsible — open by default here since this page's whole job is the
+syllabus, but click a header to fold away the tracks you are not currently using.
 
-## Track B — GPU Understanding & ML Performance
+???+ note "Track A — GPU Programming Languages (10 modules)"
 
-| ID | Module | Status | Est. hours | Depth |
-|----|--------|--------|-----------:|:-----:|
-| [B01](tracks/B-gpu-ml-performance/B01.accelerator-architecture/) | Accelerator architecture (CDNA vs Hopper) | **DONE** | 6 | 2 |
-| [B02](tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/) | Roofline model & arithmetic intensity | **DONE** | 5 | 2 |
-| [B03](tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/) | Profiling (`rocprofv3` / Nsight) | **DONE** | 6 | 3 |
-| [B04](tracks/B-gpu-ml-performance/B04.precision-and-quantization/) | Precision & numerics (fp32→fp8, quantization) | **DONE** | 6 | 3 |
-| [B05](tracks/B-gpu-ml-performance/B05.transformer-performance/) | Transformer architecture from a perf lens | **DONE** | 7 | 4 |
-| [B06](tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/) | Inference serving optimizations | **DONE** | 8 | 4 |
-| [B07](tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/) | Model sharding & distributed training | **DONE** | 8 | 4 |
+    | ID | Module | Status | Est. hours | Depth |
+    |----|--------|--------|-----------:|:-----:|
+    | [A01](tracks/A-gpu-programming/A01.foundations-and-programming-model/) | Foundations & programming model | **DONE** | 6 | 1 |
+    | [A02](tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/) | Memory hierarchy & coalescing | **DONE** | 6 | 2 |
+    | [A03](tracks/A-gpu-programming/A03.execution-model-and-occupancy/) | Execution model: warps/wavefronts, occupancy, divergence | **DONE** | 7 | 2 |
+    | [A04](tracks/A-gpu-programming/A04.parallel-reduction/) | Parallel reduction (optimization ladder) | **DONE** | 6 | 3 |
+    | [A05](tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/) | Parallel scan / prefix sum (Blelloch) | **DONE** | 6 | 3 |
+    | [A06](tracks/A-gpu-programming/A06.tiled-matrix-multiply/) | Tiled matmul (shared-memory tiling) | **DONE** | 8 | 3 |
+    | [A07](tracks/A-gpu-programming/A07.softmax-and-fused-kernels/) | Softmax & fused kernels (online softmax) | **DONE** | 7 | 4 |
+    | [A08](tracks/A-gpu-programming/A08.triton-foundations/) | Triton foundations | **DONE** | 6 | 3 |
+    | [A09](tracks/A-gpu-programming/A09.advanced-triton-flash-attention/) | Advanced Triton (autotuning, FlashAttention-style) | **DONE** | 9 | 4 |
+    | [A10](tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/) | CuTe / CUTLASS / cuTile (NVIDIA-only, optional) | **DONE** | 10 | 5 |
 
-## Track C — ML System Design
+???+ note "Track B — GPU Understanding & ML Performance (7 modules)"
 
-| ID | Module | Status | Est. hours | Depth |
-|----|--------|--------|-----------:|:-----:|
-| [C01](tracks/C-ml-system-design/C01.problem-framing-and-metrics/) | Problem framing, metrics & decomposition | **DONE** | 5 | 1 |
-| [C02](tracks/C-ml-system-design/C02.data-pipelines-and-features/) | Data pipelines & feature engineering | **DONE** | 6 | 2 |
-| [C03](tracks/C-ml-system-design/C03.training-systems/) | Training systems (distributed, fault tolerance) | **DONE** | 7 | 3 |
-| [C04](tracks/C-ml-system-design/C04.production-model-optimization/) | Production model optimization | **DONE** | 7 | 3 |
-| [C05](tracks/C-ml-system-design/C05.deployment-and-serving-architecture/) | Deployment & serving architecture | **DONE** | 6 | 3 |
-| [C06](tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/) | Monitoring, drift, feedback loops, ethics | **DONE** | 6 | 3 |
-| [C07](tracks/C-ml-system-design/C07.capstone-case-studies/) | Capstone case studies (LLM serving; recsys) | **DONE** | 10 | 4 |
+    | ID | Module | Status | Est. hours | Depth |
+    |----|--------|--------|-----------:|:-----:|
+    | [B01](tracks/B-gpu-ml-performance/B01.accelerator-architecture/) | Accelerator architecture (CDNA vs Hopper) | **DONE** | 6 | 2 |
+    | [B02](tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/) | Roofline model & arithmetic intensity | **DONE** | 5 | 2 |
+    | [B03](tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/) | Profiling (`rocprofv3` / Nsight) | **DONE** | 6 | 3 |
+    | [B04](tracks/B-gpu-ml-performance/B04.precision-and-quantization/) | Precision & numerics (fp32→fp8, quantization) | **DONE** | 6 | 3 |
+    | [B05](tracks/B-gpu-ml-performance/B05.transformer-performance/) | Transformer architecture from a perf lens | **DONE** | 7 | 4 |
+    | [B06](tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/) | Inference serving optimizations | **DONE** | 8 | 4 |
+    | [B07](tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/) | Model sharding & distributed training | **DONE** | 8 | 4 |
+
+???+ note "Track C — ML System Design (7 modules)"
+
+    | ID | Module | Status | Est. hours | Depth |
+    |----|--------|--------|-----------:|:-----:|
+    | [C01](tracks/C-ml-system-design/C01.problem-framing-and-metrics/) | Problem framing, metrics & decomposition | **DONE** | 5 | 1 |
+    | [C02](tracks/C-ml-system-design/C02.data-pipelines-and-features/) | Data pipelines & feature engineering | **DONE** | 6 | 2 |
+    | [C03](tracks/C-ml-system-design/C03.training-systems/) | Training systems (distributed, fault tolerance) | **DONE** | 7 | 3 |
+    | [C04](tracks/C-ml-system-design/C04.production-model-optimization/) | Production model optimization | **DONE** | 7 | 3 |
+    | [C05](tracks/C-ml-system-design/C05.deployment-and-serving-architecture/) | Deployment & serving architecture | **DONE** | 6 | 3 |
+    | [C06](tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/) | Monitoring, drift, feedback loops, ethics | **DONE** | 6 | 3 |
+    | [C07](tracks/C-ml-system-design/C07.capstone-case-studies/) | Capstone case studies (LLM serving; recsys) | **DONE** | 10 | 4 |
 
 ---
 
@@ -195,39 +200,45 @@ The role competencies map onto modules as follows, so you can target your prep:
 ## Progress tracker
 
 Update this table as modules are completed. It is the single source of truth for "what's done."
-
-| Date | Module | Change | Learner est. hours |
-|------|--------|--------|-------------------:|
-| 2026-07-18 | A01 | Gold-standard module built (README + cuda/hip/triton + exercises/solutions + Makefile) | 6 |
-| 2026-07-19 | A02 | Memory hierarchy & coalescing built (bandwidth + transpose labs, tiling, bank conflicts, exercises/solutions) | 6 |
-| 2026-07-29 | A03–A07 | Core GPU algorithm ladder: execution model, reduction, scan + compaction, tiled GEMM, softmax + fusion | 34 |
-| 2026-07-29 | A08–A10 | Triton foundations, FlashAttention-style fused attention, CuTe/CUTLASS/cuTile (NVIDIA-only) | 25 |
-| 2026-07-29 | B01–B07 | Full ML performance track: architecture, roofline, profiling, precision, transformer perf, serving, sharding | 46 |
-| 2026-07-29 | C01–C07 | Full ML system design track: framing, data, training, optimization, deployment, monitoring, capstones | 47 |
+Collapsed by default — this is history, not something you need open while picking a path.
 
 **Totals:** **24 of 24 modules DONE** · ~164 est. learner-hours authored.
 
-Hour counts are the sum of the per-module estimates in the tables above; they are deliberate
-over-estimates for a learner who does the labs and the drills rather than only reading.
+??? note "Progress tracker — full history (6 entries)"
+
+    | Date | Module | Change | Learner est. hours |
+    |------|--------|--------|-------------------:|
+    | 2026-07-18 | A01 | Gold-standard module built (README + cuda/hip/triton + exercises/solutions + Makefile) | 6 |
+    | 2026-07-19 | A02 | Memory hierarchy & coalescing built (bandwidth + transpose labs, tiling, bank conflicts, exercises/solutions) | 6 |
+    | 2026-07-29 | A03–A07 | Core GPU algorithm ladder: execution model, reduction, scan + compaction, tiled GEMM, softmax + fusion | 34 |
+    | 2026-07-29 | A08–A10 | Triton foundations, FlashAttention-style fused attention, CuTe/CUTLASS/cuTile (NVIDIA-only) | 25 |
+    | 2026-07-29 | B01–B07 | Full ML performance track: architecture, roofline, profiling, precision, transformer perf, serving, sharding | 46 |
+    | 2026-07-29 | C01–C07 | Full ML system design track: framing, data, training, optimization, deployment, monitoring, capstones | 47 |
+
+    Hour counts are the sum of the per-module estimates in the tables above; they are deliberate
+    over-estimates for a learner who does the labs and the drills rather than only reading.
 
 ---
 
 ## Build effort log (author-side)
 
 Tracks how much effort has gone into *authoring* the curriculum, per the tracking requirement.
+Also collapsed by default, for the same reason.
 
-| Date | Work | Notes |
-|------|------|-------|
-| 2026-07-18 | Scaffold + shared docs + Module A01 | Initial build: README, CURRICULUM, 4 shared docs, A01 complete, legacy folders migrated under Track A. |
-| 2026-07-18 | Brand + visuals | Parallel Spectrum theme, BRAND.md, agent skill, Mermaid diagrams across docs. |
-| 2026-07-19 | A01 depth pass | Added overflow-safe size-math reference callout + sample sandbox outputs for exercises. |
-| 2026-07-19 | A02 module | Built A02 (memory hierarchy, coalescing, tiled transpose, bank conflicts) with brand-themed diagrams + sample outputs. |
-| 2026-07-29 | Content studio | `content/`: storyboard template, brand overlay spec, and shot-by-shot long-form + Shorts packs for A01 and A02. |
-| 2026-07-29 | Canvas dashboard | Interactive study planner (goal-based paths, per-module completion, hours remaining) in the Cursor `canvases/` directory. |
-| 2026-07-29 | Modules A03–A10 | Track A completed: ~19,000 lines across 8 modules, dual-vendor labs + drills. |
-| 2026-07-29 | Modules B01–B07 | Track B completed: ~25,900 lines. Hardware figures web-verified with retrieval dates; all analytic tools stdlib-only. |
-| 2026-07-29 | Modules C01–C07 | Track C completed: ~24,900 lines. Every design claim anchored to a runnable stdlib tool. |
-| 2026-07-29 | Wire-up | Status tables, MkDocs nav for all 24 modules, track READMEs, canvas flags; repo-wide relative-link check (0 broken). |
+??? note "Build effort log — full history (10 entries)"
+
+    | Date | Work | Notes |
+    |------|------|-------|
+    | 2026-07-18 | Scaffold + shared docs + Module A01 | Initial build: README, CURRICULUM, 4 shared docs, A01 complete, legacy folders migrated under Track A. |
+    | 2026-07-18 | Brand + visuals | Parallel Spectrum theme, BRAND.md, agent skill, Mermaid diagrams across docs. |
+    | 2026-07-19 | A01 depth pass | Added overflow-safe size-math reference callout + sample sandbox outputs for exercises. |
+    | 2026-07-19 | A02 module | Built A02 (memory hierarchy, coalescing, tiled transpose, bank conflicts) with brand-themed diagrams + sample outputs. |
+    | 2026-07-29 | Content studio | `content/`: storyboard template, brand overlay spec, and shot-by-shot long-form + Shorts packs for A01 and A02. |
+    | 2026-07-29 | Canvas dashboard | Interactive study planner (goal-based paths, per-module completion, hours remaining) in the Cursor `canvases/` directory. |
+    | 2026-07-29 | Modules A03–A10 | Track A completed: ~19,000 lines across 8 modules, dual-vendor labs + drills. |
+    | 2026-07-29 | Modules B01–B07 | Track B completed: ~25,900 lines. Hardware figures web-verified with retrieval dates; all analytic tools stdlib-only. |
+    | 2026-07-29 | Modules C01–C07 | Track C completed: ~24,900 lines. Every design claim anchored to a runnable stdlib tool. |
+    | 2026-07-29 | Wire-up | Status tables, MkDocs nav for all 24 modules, track READMEs, canvas flags; repo-wide relative-link check (0 broken). |
 
 ### Verification standard applied throughout
 

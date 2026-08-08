@@ -939,7 +939,7 @@ date live. The implementation-specific material below keeps its own link.
 10. Name three things production `flash-attn` does that a 150-line Triton kernel does
     not, and pick the one that most limits *training* use.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Because it materializes the `(N, N)` score matrix in HBM and moves it four times,

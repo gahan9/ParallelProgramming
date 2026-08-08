@@ -11,3 +11,164 @@
   --md-primary-fg-color:        #0891B2;
   --md-accent-fg-color:         #818CF8;
 }
+
+/* ------------------------------------------------------------------------------------
+   Mermaid diagrams — a dark-mode-safe "diagram card"
+   ------------------------------------------------------------------------------------
+   Every diagram here is authored against a light canvas (docs/BRAND.md pins
+   primaryColor to #F8FAFC; classDef nodes use light fills with dark #0F172A text).
+   Those are literal colors baked into the rendered SVG - they do not know which page
+   palette they landed on. Mermaid's canvas itself is transparent between node boxes, so
+   on the slate (dark) scheme the near-black page showed through *around* each node,
+   making light boxes look like they were glowing rather than sitting on a surface
+   designed for them - the diagram equivalent of a white photograph with no matte.
+   Fixing 100+ hand-tuned diagrams' individual node colors is not worth the risk; giving
+   the whole diagram a matching light backdrop is a one-place fix that keeps every
+   existing diagram exactly as designed, in both themes. */
+.mermaid {
+  display: flow-root;
+  margin: 1.25em 0;
+  padding: 1rem 1.15rem .8rem;
+  background: #F8FAFC;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  overflow-x: auto;
+  /* Material rebinds Mermaid's label/edge colors to --md-mermaid-* variables that track
+     the *page* palette (e.g. --md-mermaid-label-fg-color resolves to a low-opacity light
+     gray in the slate scheme, tuned for dark node fills). Our diagrams are drawn for a
+     light canvas regardless of page theme - pin the variables Material's injected
+     Mermaid CSS reads so label and edge text stay the dark, legible colors this repo's
+     diagrams were authored against, in both themes. Unclassed nodes pick this up too via
+     Material's own ".node rect{fill:var(--md-mermaid-node-bg-color)}" rule; classDef'd
+     nodes (docs/BRAND.md) keep their own explicit fill/stroke/color regardless. */
+  --md-mermaid-font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  --md-mermaid-edge-color: #64748B;
+  --md-mermaid-node-bg-color: #F8FAFC;
+  --md-mermaid-node-fg-color: #0891B2;
+  --md-mermaid-label-bg-color: #F8FAFC;
+  --md-mermaid-label-fg-color: #0F172A;
+  /* Sequence diagrams (the host/device dance in A01, etc.) read these instead of the
+     flowchart variables above - same reasoning, same fix. */
+  --md-mermaid-sequence-actor-bg-color: #F8FAFC;
+  --md-mermaid-sequence-actor-fg-color: #0F172A;
+  --md-mermaid-sequence-actor-border-color: #0891B2;
+  --md-mermaid-sequence-actor-line-color: #94A3B8;
+  --md-mermaid-sequence-actorman-bg-color: #F8FAFC;
+  --md-mermaid-sequence-actorman-line-color: #0891B2;
+  --md-mermaid-sequence-box-bg-color: #F8FAFC;
+  --md-mermaid-sequence-box-fg-color: #64748B;
+  --md-mermaid-sequence-label-bg-color: #F8FAFC;
+  --md-mermaid-sequence-label-fg-color: #0F172A;
+  --md-mermaid-sequence-loop-bg-color: #F8FAFC;
+  --md-mermaid-sequence-loop-fg-color: #64748B;
+  --md-mermaid-sequence-loop-border-color: #0891B2;
+  --md-mermaid-sequence-message-fg-color: #64748B;
+  --md-mermaid-sequence-message-line-color: #64748B;
+  --md-mermaid-sequence-note-bg-color: #FEF3C7;
+  --md-mermaid-sequence-note-fg-color: #0F172A;
+  --md-mermaid-sequence-note-border-color: #F59E0B;
+  --md-mermaid-sequence-number-bg-color: #0891B2;
+  --md-mermaid-sequence-number-fg-color: #F8FAFC;
+}
+.mermaid svg {
+  max-width: 100%;
+}
+[data-md-color-scheme="slate"] .mermaid {
+  border-color: rgba(34, 184, 207, .32);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 24px -14px rgba(0, 0, 0, .55);
+}
+
+/* Bold text — pin emphasis to the brightest surface token in dark mode so it never
+   fades against the near-black background, independent of any Material default. */
+[data-md-color-scheme="slate"] .md-typeset strong,
+[data-md-color-scheme="slate"] .md-typeset b {
+  color: #F8FAFC;
+}
+
+/* Admonitions (including the GitHub-alert upgrades in gfm-alerts.js) already inherit
+   Material's theme-aware surface colors; just make sure bold text inside them keeps the
+   same guaranteed contrast as the rest of the dark theme. */
+[data-md-color-scheme="slate"] .md-typeset .admonition strong,
+[data-md-color-scheme="slate"] .md-typeset .admonition b {
+  color: inherit;
+  filter: brightness(1.35);
+}
+
+/* ------------------------------------------------------------------------------------
+   Panel toggles — hide the left nav ("track syllabus") and the right "On this page" TOC
+   ------------------------------------------------------------------------------------
+   A module page can carry 9 top-level sections and 30+ sub-headings; the TOC and the
+   full track tree are useful for orientation but not while actually reading. These
+   classes are driven by docs/javascripts/panel-toggle.js and persisted per-browser. */
+html.ppc-nav-hidden .md-sidebar--primary {
+  display: none;
+}
+html.ppc-toc-hidden .md-sidebar--secondary {
+  display: none;
+}
+
+.ppc-panel-toggles {
+  display: flex;
+  align-items: center;
+  gap: .1rem;
+  margin-inline-start: .2rem;
+}
+.ppc-panel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .38rem;
+  height: 2.4rem;
+  padding: 0 .6rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  font: 600 .68rem/1 Inter, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .02em;
+  opacity: .85;
+  transition: background-color .15s ease, opacity .15s ease;
+}
+.ppc-panel-btn:hover,
+.ppc-panel-btn:focus-visible {
+  background: rgba(255, 255, 255, .16);
+  opacity: 1;
+}
+.ppc-panel-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.ppc-panel-btn[aria-pressed="true"] {
+  opacity: .5;
+}
+.ppc-panel-btn svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.ppc-panel-btn__label {
+  display: none;
+}
+@media (min-width: 45em) {
+  .ppc-panel-btn__label {
+    display: inline;
+  }
+}
+/* Below this breakpoint Material already collapses both sidebars into the mobile
+   drawer / inline TOC, so the toggle has nothing to do - hide it rather than leave a
+   dead control on screen. */
+@media (max-width: 76.1875em) {
+  .ppc-panel-toggles {
+    display: none;
+  }
+}
+@media print {
+  .ppc-panel-toggles {
+    display: none !important;
+  }
+}

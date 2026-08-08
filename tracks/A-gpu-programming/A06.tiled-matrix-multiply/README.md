@@ -844,7 +844,7 @@ Sources only this module leans on keep their URL here.
 10. Why does a tiled GEMM produce a numerically *different* result from a naive one, and why is that
     not a correctness failure? What does it imply for reproducible training?
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Each thread does `2K` FLOPs and reads `2K` operands (`8K` bytes), so `I = 2K/8K = 0.25` — the `K`

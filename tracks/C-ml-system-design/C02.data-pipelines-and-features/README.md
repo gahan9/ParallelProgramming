@@ -1064,7 +1064,7 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
 10. Explain to a non-technical product manager why the model's reported accuracy went *down* after you
     "fixed" the evaluation.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **The features a model is trained on differ from the features it receives in production**, so the

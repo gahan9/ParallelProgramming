@@ -858,7 +858,7 @@ is version-dependent, the reference is the thing to re-check — not this README
    faster than cuBLAS." Give the two-sentence answer that reframes the goal correctly.
 8. Explain to a non-programmer, in two sentences, what Triton changed about GPU programming.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `BLOCK_SIZE` is a count of **elements one program handles** and is a compile-time constant

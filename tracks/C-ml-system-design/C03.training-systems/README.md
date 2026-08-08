@@ -827,7 +827,7 @@ Grounding for the claims above. Repo-wide list in
    what single number decides it?
 7. Explain to a non-engineer why adding more GPUs can make a training job *less* reliable.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `T* = sqrt(2 · 200 · 14400) ≈ 2,400 s ≈ 40 minutes`. Making the checkpoint 4× cheaper (50 s)

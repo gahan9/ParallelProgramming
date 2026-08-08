@@ -487,7 +487,7 @@ Full curriculum bibliography: [../../../docs/REFERENCES.md](../../../docs/REFERE
    [A02](../A02.memory-hierarchy-and-coalescing/README.md). Give three
    plausible causes and the check that distinguishes them.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Multiply numerator and denominator by `exp(-c)`; it cancels exactly, so any `c` gives the same

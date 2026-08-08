@@ -922,7 +922,7 @@ shared with the rest of the curriculum is cited by anchor into the
    same. Give the one-sentence explanation, and name the metric you should have been tracking
    instead.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Each output depends on the previous *value*, but not on the previous *computation*: because `⊕`

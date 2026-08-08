@@ -37,8 +37,15 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
+    # Tracks become a top-level tab strip instead of sitting in the always-visible left
+    # rail. This is the single biggest fix for "too nested": the sidebar for any page
+    # now shows only the current track's modules, not all 24 modules across 3 tracks.
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
+    - navigation.path
+    - navigation.prune
     - navigation.indexes
     - navigation.footer
     - search.suggest
@@ -54,14 +61,27 @@ extra_javascript:
   # Browser speechSynthesis read-aloud. No dependency and no CDN; the script removes
   # itself on browsers without speech support rather than leaving a dead button.
   - docs/javascripts/read-aloud.js
+  # Header buttons that hide/show the left nav rail and the right "On this page" TOC,
+  # remembered per-browser via localStorage. Pure UX affordance, no content changes.
+  - docs/javascripts/panel-toggle.js
+  # Upgrades bare GitHub-style `> [!NOTE]` blockquotes into real Material admonitions
+  # client-side, so the 13 modules already using that syntax render as styled, readable
+  # callouts (dark-mode included) instead of a raw literal "[!NOTE]" line.
+  - docs/javascripts/gfm-alerts.js
 
 markdown_extensions:
   - admonition
   - attr_list
   - md_in_html
   - tables
+  # GitHub and Python-Markdown slugify headings differently: Python-Markdown collapses
+  # a run of spaces into one hyphen, GitHub emits one hyphen per space. So a heading like
+  # "6. Challenges, Drawbacks & Tradeoffs" anchors as `...drawbacks--tradeoffs` on GitHub
+  # and `...drawbacks-tradeoffs` here, and any deep link works on exactly one of the two.
+  # pymdownx's slugify does not collapse, which makes the two surfaces agree.
   - toc:
       permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
   - pymdownx.details
   - pymdownx.highlight:
       anchor_linenums: true

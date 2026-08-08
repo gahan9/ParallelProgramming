@@ -1054,7 +1054,7 @@ estimates from stated assumptions and are not attributed to any of these sources
 10. Your recommender's engagement metrics are flat but catalogue coverage has fallen 30% over
     six months. What is happening, and which instrument would have caught it earlier?
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `kv_bytes_per_token = 2 × 80 × (8 × 128) × 2 B = 327,680 B` (320 KiB). An 8,192-token

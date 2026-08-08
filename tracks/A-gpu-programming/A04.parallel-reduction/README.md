@@ -957,7 +957,7 @@ last five are used only by this module, so they carry their citation in full.
 8. Explain to a non-programmer, in two sentences, why adding up a million numbers on 1000 workers
    is not 1000× faster than one worker.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `W/P = 16,777,215 / 100,000 ≈ 168` versus `D = 24` — the **work term dominates by ~7×**.

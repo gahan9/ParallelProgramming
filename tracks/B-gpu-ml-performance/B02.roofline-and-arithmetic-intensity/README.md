@@ -1017,7 +1017,7 @@ The rest are specific to this module and carry their full citation here.
 9. Explain to a non-programmer, in two sentences, why buying a GPU with twice the arithmetic
    throughput might not speed up their program at all.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `time >= F/P` (ALU limit) and `time >= M/B` (memory limit). With perfect overlap,

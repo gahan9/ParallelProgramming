@@ -18,17 +18,17 @@ flowchart LR
   class C01,C02,C03,C04,C05,C06,C07 trackC
 ```
 
-## Modules
+???+ note "Modules — Track C syllabus (7 modules)"
 
-| ID | Module | What you build | Status |
-|----|--------|----------------|--------|
-| [C01](C01.problem-framing-and-metrics/) | Problem framing, metrics & decomposition | Threshold-from-costs explorer, baseline checker | **DONE** |
-| [C02](C02.data-pipelines-and-features/) | Data pipelines & feature engineering | Schema validator, leakage detector, split demo | **DONE** |
-| [C03](C03.training-systems/) | Training systems (fault tolerance, cost) | Checkpoint planner, throughput/cost budget, HPO budget | **DONE** |
-| [C04](C04.production-model-optimization/) | Production model optimization | Cost model, cascade analyzer, cache simulator | **DONE** |
-| [C05](C05.deployment-and-serving-architecture/) | Deployment & serving architecture | A/B calculator, autoscaling sim, degradation planner | **DONE** |
-| [C06](C06.monitoring-drift-and-ethics/) | Monitoring, drift, feedback loops & ethics | Drift detector, feedback-loop sim, fairness metrics | **DONE** |
-| [C07](C07.capstone-case-studies/) | Capstone case studies | Two full designs + their sizing calculators | **DONE** |
+    | ID | Module | What you build | Status |
+    |----|--------|----------------|--------|
+    | [C01](C01.problem-framing-and-metrics/) | Problem framing, metrics & decomposition | Threshold-from-costs explorer, baseline checker | **DONE** |
+    | [C02](C02.data-pipelines-and-features/) | Data pipelines & feature engineering | Schema validator, leakage detector, split demo | **DONE** |
+    | [C03](C03.training-systems/) | Training systems (fault tolerance, cost) | Checkpoint planner, throughput/cost budget, HPO budget | **DONE** |
+    | [C04](C04.production-model-optimization/) | Production model optimization | Cost model, cascade analyzer, cache simulator | **DONE** |
+    | [C05](C05.deployment-and-serving-architecture/) | Deployment & serving architecture | A/B calculator, autoscaling sim, degradation planner | **DONE** |
+    | [C06](C06.monitoring-drift-and-ethics/) | Monitoring, drift, feedback loops & ethics | Drift detector, feedback-loop sim, fairness metrics | **DONE** |
+    | [C07](C07.capstone-case-studies/) | Capstone case studies | Two full designs + their sizing calculators | **DONE** |
 
 **Suggested order.** C01 → C07 in sequence: the track is deliberately built as one arc from framing a
 problem to running the deployed system. If you are short on time, C01 → C04 → C07 covers the highest

@@ -1118,7 +1118,7 @@ rational approximation is a widely-used published algorithm. Neither is novel to
    users on Monday morning is riskier than it sounds — without using the words "canary", "shadow" or
    "rollback".
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. The GPU utilization counter reports whether a kernel was resident during the sampling window, not

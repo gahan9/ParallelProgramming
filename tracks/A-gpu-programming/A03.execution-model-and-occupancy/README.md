@@ -900,7 +900,7 @@ The rest are specific to this module and keep their URL here.
 8. Explain to a non-programmer why a GPU can be *twice* as slow at the same amount of work
    just because of an `if` statement.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **140 cycles** (`100 + 40`). The whole warp walks both bodies; the 31 lanes that wanted `A`

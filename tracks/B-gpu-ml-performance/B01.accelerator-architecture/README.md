@@ -1414,7 +1414,7 @@ were not confirmed against a primary vendor source during authoring:
 10. What is the roofline ridge point, why is it different for fp32 vector and fp16
     matrix on the same chip, and which of the two should you use?
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **(a) Precision and engine are not matched.** 1.3 PF is MI300X fp16/bf16 *matrix*

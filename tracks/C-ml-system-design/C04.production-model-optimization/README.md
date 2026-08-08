@@ -732,7 +732,7 @@ Grounding for the claims above. Repo-wide list in
 7. Explain to a product manager why "the loss barely changed" is not evidence that a quantized model
    is safe to ship.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. *"Distillation is the most expensive and riskiest option on the ladder — a quarter of work, a full

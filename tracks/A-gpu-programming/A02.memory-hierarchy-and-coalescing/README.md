@@ -405,7 +405,7 @@ the [master bibliography](../../../docs/REFERENCES.md), where the URL and its re
 5. Your copy kernel hits 90% of peak but your transpose (naive) hits 15%. Both move the same bytes —
    explain the gap in one sentence.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. ~**50%**. Stride 2 means consecutive lanes are 8 bytes apart; a 128-byte line holds the data for
