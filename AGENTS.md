@@ -97,6 +97,9 @@ node --check <extracted script>
 # (XmlDocument.LoadXml + a scan for [^\x09\x0A\x0D\x20-\x7E])
 
 # Any file you wrote with typography: confirm it is really UTF-8 (see Traps #6)
+
+# After pushing, confirm the deploy actually went green. Pushing is not shipping
+$env:GITHUB_TOKEN = ""; gh run list --limit 1
 ```
 
 ---
@@ -220,5 +223,6 @@ Rough effort record, kept because the operator asks for usage tracking.
 | 2026-08-02 | Fixed the Pages deploy: enabled Pages (never switched on - the real cause of the 404), staged docs root, repaired `validation:`, turned on `--strict`. First successful publish |
 | 2026-08-04 | `assets/` infographic system (6 SVGs) + encoding repairs; `live/flashcards.html` (49 cited cards, three-box Leitner) and shared nav across the three live pages |
 | 2026-08-05 | Read-aloud across the docs site and the recall cards. Chose browser `speechSynthesis` over pre-generated audio for the same reason SVG beat GIF: no unreviewable binaries, nothing to regenerate on a content edit |
+| 2026-08-09 | Reconciled the two 2026-08-08 sessions and pushed both. The Pages deploy had been red for a day: splitting a half-finished tree into commits left `docs/REFERENCES.md`'s generated index describing citations that were not in the same commit, and `build_reference_index.py --check` failed the build exactly as designed - but nobody looked at the run. Landing the rest of the rollout fixed it |
 | 2026-08-08 | Docs-site UX pass in a parallel session: found that `md_in_html` had been silently publishing all 24 Section 9 answer blocks as raw Markdown (Traps #11); pinned the Mermaid dark-mode variables (Traps #12); added `navigation.tabs`/`prune`, the nav+TOC toggles and the GFM-alert upgrader. Its `??? note` collapsibles then broke the syllabus tables on GitHub, migrated to `<details markdown="1">` |
 | 2026-08-08 | Cross-referencing layer across all 24 modules (765 -> 1957 relative links). Built `check_links.py` and `build_reference_index.py` and put both in CI; rebuilt `docs/GLOSSARY.md` and `docs/REFERENCES.md` as anchored `###` entries; wrote the contract into `docs/MODULE_TEMPLATE.md`. Fixed the GitHub/MkDocs slug split (Traps #8) that had 14 deep links working on one surface only. Modules rolled out in four subagent waves; a second session was editing the same files concurrently, so agents were restricted to targeted string replacements - that worked, no lost edits |
