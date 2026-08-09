@@ -6,6 +6,7 @@
 > No GPU, no framework, no data required.
 > Backends: **none — this is a design module.** The only executables are standard-library
 > Python 3 tools in [`tools/`](tools/).
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -14,11 +15,13 @@
 **TL;DR.** Model architecture is usually the least leveraged variable in a production ML system; the
 **data pipeline is the system**. Two failure modes dominate everything else. **Label leakage** puts
 information into training that will not exist at prediction time, so your offline metric is a
-fiction. **Training/serving skew** computes features one way for training and another way at serving,
-so a model that was genuinely good becomes mediocre the moment it is deployed. Both are silent — they
-produce *better* offline numbers, not error messages. The defences are structural: point-in-time
-correct feature computation, one shared transformation definition for both paths, splits that match
-how the model will actually be used, and a validation gate that refuses to publish bad data.
+fiction. **[Training/serving skew](../../../docs/GLOSSARY.md#training-serving-skew)**
+([Sculley et al., 2015](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015))
+computes features one way for training and another way at serving, so a model that was genuinely good
+becomes mediocre the moment it is deployed. Both are silent — they produce *better* offline numbers,
+not error messages. The defences are structural: point-in-time correct feature computation, one
+shared transformation definition for both paths, splits that match how the model will actually be
+used, and a validation gate that refuses to publish bad data.
 
 **Layman analogy — the contaminated practice test.** You are studying for an exam. Your practice test
 accidentally has the answer key printed on the back of each page. You score 98%, you feel excellent,
@@ -29,9 +32,10 @@ question, and a model that reads it will report a spectacular AUC and fail in pr
 
 Two extensions of the same analogy carry the rest of the module. If your practice questions came from
 last year's syllabus and the course has since changed, you will also fail — that is **temporal
-drift**, and it is why you must test yourself on the *newest* material, not a random sample of all of
-it. And if you practised on a calculator you are not allowed to bring into the exam hall, you will
-fail even though nothing leaked and nothing drifted — that is **training/serving skew**.
+[drift](../../../docs/GLOSSARY.md#drift)**, and it is why you must test yourself on the *newest*
+material, not a random sample of all of it. And if you practised on a calculator you are not allowed
+to bring into the exam hall, you will fail even though nothing leaked and nothing drifted — that is
+**training/serving skew**.
 
 **Where the analogy breaks.** Three places, and each one is why this module needs tools rather than
 just advice:
@@ -39,7 +43,8 @@ just advice:
 1. **The exam tells you your real score. Production often does not.** You discover the leak because
    61% is unambiguous. Online metrics are noisy, delayed (a fraud label can arrive 60 days later), and
    confounded by a dozen concurrent changes, so a leaked model can survive for months while everyone
-   argues about whether the A/B test is underpowered.
+   argues about whether the [A/B test](../../../docs/GLOSSARY.md#ab-testing-and-canary) is
+   underpowered.
 2. **Real leakage is rarely a whole answer key.** It is usually a *partial* leak — a feature that is
    3% contaminated, or an aggregate computed over the full dataset before splitting. It lifts your
    metric by 0.04 AUC, which looks like a good week of work rather than a bug. The blatant
@@ -99,10 +104,10 @@ postmortem on "offline AUC 0.94, online flat."
 
 ### Data is the system
 
-Sculley et al.'s *Hidden Technical Debt in Machine Learning Systems* makes the point with a picture:
-the box labelled "ML code" is a small fraction of a real ML system, surrounded by configuration, data
-collection, feature extraction, verification, serving infrastructure, and monitoring. Everything in
-that surrounding area is data plumbing.
+[Sculley et al.'s *Hidden Technical Debt in Machine Learning Systems*](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+makes the point with a picture: the box labelled "ML code" is a small fraction of a real ML system,
+surrounded by configuration, data collection, feature extraction, verification, serving
+infrastructure, and monitoring. Everything in that surrounding area is data plumbing.
 
 The practical consequence is a claim about **leverage**. Given a fixed month of engineering effort on
 a mediocre production model, the ordered list of what usually moves the metric is:
@@ -114,8 +119,10 @@ a mediocre production model, the ordered list of what usually moves the metric i
 5. Change the model architecture.
 
 That ordering is a widely reported *pattern* among practitioners, not a measurement — but notice that
-four of the five items are data work, and that item 1 can *lower* your offline metric while improving
-the product. This module exists because item 1 and item 5 look identical on a dashboard.
+four of the five items are data work, the same data-dominated shape as the nine-stage ML workflow in
+[Amershi et al. (2019)](../../../docs/REFERENCES.md#software-engineering-for-machine-learning-amershi-et-al-2019),
+and that item 1 can *lower* your offline metric while improving the product. This module exists
+because item 1 and item 5 look identical on a dashboard.
 
 ### Derive training/serving skew from first principles
 
@@ -353,16 +360,18 @@ their descendants) exists to solve: one declared feature definition, materialize
 point-in-time correct retrieval for training and low-latency retrieval for serving.
 
 You do not need a feature-store product to get the benefit — you need the *property*. On a small team,
-one shared transformation library plus a feature log gets you most of the way. Adopt the product when
-the number of features or the number of consuming teams makes the discipline impossible to maintain by
-convention.
+one shared transformation library plus a feature log gets you most of the way — reusing code between
+the training and serving paths is an explicit rule in
+[Rules of Machine Learning](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google).
+Adopt the product when the number of features or the number of consuming teams makes the discipline
+impossible to maintain by convention.
 
 ### Data validation as a hard gate
 
 > A pipeline that silently writes garbage is worse than one that fails loudly.
 
 This is the same principle Track A applies to `HIP_CHECK` on every runtime call
-([A01 §6](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)), and for the same
+([A01 §6](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#6-challenges-drawbacks--tradeoffs)), and for the same
 reason: an unchecked failure surfaces far from its cause. A pipeline that publishes a column of nulls
 does not crash — it quietly degrades a model, and you discover it three weeks later in a metric review.
 
@@ -430,7 +439,7 @@ is why everyone uses them, and they are systematically biased:
 - **Feedback loops** — today's model shapes tomorrow's training data, so errors compound. The
   unbiased-learning-to-rank literature (Joachims et al.) attacks this with propensity weighting; the
   cheap practical defence is a small **randomized exploration** slice, which is a deliberate cost you
-  pay to keep your data honest. C06 develops this.
+  pay to keep your data honest. [C06](../C06.monitoring-drift-and-ethics/README.md) develops this.
 
 **Delayed labels.** A fraud chargeback may be confirmed 60 days after the transaction. Three
 consequences, all of which change the design:
@@ -442,7 +451,8 @@ consequences, all of which change the design:
    accounting for this teaches the model that recent transactions are safe — a real, self-inflicted
    bug. Either exclude the immature window or model the maturation explicitly.
 3. **You need a fast proxy metric** to operate day to day (alert volume, override rate, score
-   distribution) alongside the slow ground truth. Say which is which, as C01 §6 insists.
+   distribution) alongside the slow ground truth. Say which is which, as
+   [C01 §6](../C01.problem-framing-and-metrics/README.md#6-challenges-drawbacks--tradeoffs) insists.
 
 ### Splitting correctly
 
@@ -508,10 +518,10 @@ no recorded dependency cannot be changed safely by anyone.
 ## 4. Hands-On Labs
 
 **There is no `hip/` or `cuda/` directory in this module, and that is deliberate.** The subject is the
-data layer above any accelerator; a kernel would teach nothing about point-in-time correctness. The
-runnable artifacts are three standard-library Python tools plus three written design drills. Every
-tool runs on a stock Python 3 with **no `pip install`** and prints a clear message instead of a
-traceback on bad input.
+data layer above any accelerator; a [kernel](../../../docs/GLOSSARY.md#kernel) would teach nothing
+about point-in-time correctness. The runnable artifacts are three standard-library Python tools plus
+three written design drills. Every tool runs on a stock Python 3 with **no `pip install`** and prints
+a clear message instead of a traceback on bad input.
 
 ```bash
 make help              # list targets
@@ -710,11 +720,12 @@ interview.
 
 ## 5. Performance Analysis
 
-**Reframed for a design module.** There is no kernel to profile and no roofline to plot — this module
-ships no GPU code. The heading is kept because the discipline transfers exactly: state the metric,
-measure it, find the binding constraint, show a before/after delta. For a data pipeline the metrics are
-**data quality, freshness, cost per feature-value, and measurement honesty**. All arithmetic below is
-reproducible from stated assumptions or is real tool output; none of it is a benchmark measurement.
+**Reframed for a design module.** There is no kernel to profile and no
+[roofline](../../../docs/GLOSSARY.md#roofline-model) to plot — this module ships no GPU code. The
+heading is kept because the discipline transfers exactly: state the metric, measure it, find the
+binding constraint, show a before/after delta. For a data pipeline the metrics are **data quality,
+freshness, cost per feature-value, and measurement honesty**. All arithmetic below is reproducible
+from stated assumptions or is real tool output; none of it is a benchmark measurement.
 
 ### The binding constraint
 
@@ -809,7 +820,9 @@ belong in every design review:
 ### Data-quality metrics worth a dashboard
 
 Track these per pipeline run and alert on them. They are the metrics that make the failures in §3
-visible before a model consumes them:
+visible before a model consumes them, and
+[The ML Test Score](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017) scores exactly
+this kind of data and skew monitoring as a production-readiness test rather than a nicety:
 
 | Metric | Why | A sane starting alert |
 |---|---|---|
@@ -826,10 +839,11 @@ The last two are the ones teams skip and the ones that would have caught most of
 
 ### Measurement honesty: how many rows does a claim need?
 
-The same standard-error reasoning as C01 §5 applies to every number in this module. `split_demo`'s test
-sets hold about 1,800 rows, which puts the noise floor on an AUC *difference* at roughly ±0.04 — which
-is why `x_signal`'s 0.027 gap is reported as noise while `x_drifting`'s 0.177 is reported as an
-artifact. Two habits follow:
+The same standard-error reasoning as
+[C01 §5](../C01.problem-framing-and-metrics/README.md#5-performance-analysis) applies to every number
+in this module. `split_demo`'s test sets hold about 1,800 rows, which puts the noise floor on an AUC
+*difference* at roughly ±0.04 — which is why `x_signal`'s 0.027 gap is reported as noise while
+`x_drifting`'s 0.177 is reported as an artifact. Two habits follow:
 
 - **State the noise floor before interpreting a gap.** A 0.02 AUC "improvement" on a small evaluation
   set is not an improvement.
@@ -914,7 +928,8 @@ explicitly. This one is easy to reason about and almost universally missed on a 
 ### Pitfall 5 — Resampling the evaluation set
 
 Balancing is a *training* technique. A balanced test set answers a question about a population that
-does not exist, and it also silently destroys calibration, which breaks C01's cost-based thresholds.
+does not exist, and it also silently destroys calibration, which breaks
+[C01](../C01.problem-framing-and-metrics/README.md)'s cost-based thresholds.
 
 ### Pitfall 6 — Undeclared data dependencies
 
@@ -988,40 +1003,50 @@ detection, drift comparison against a reference — the direct ancestor of Lab 1
 **Great Expectations** for declarative data assertions, **Delta Lake** and **Apache Iceberg** for
 versioned, time-travelable tables, and **DVC** for content-addressed dataset versioning.
 
+**Where to go next.** [C03](../C03.training-systems/README.md) consumes what this module produces —
+it treats the input pipeline as the thing that decides whether a training run stays fed, and turns
+the reproducibility story here into bit-exact checkpoints and re-runnable experiments.
+[C06](../C06.monitoring-drift-and-ethics/README.md) takes the one-off audits of §3 and makes them
+continuous: skew rate, drift, and feedback loops become monitored quantities with thresholds instead
+of things you discover during an incident.
+[C07](../C07.capstone-case-studies/README.md) is where you argue these choices end to end on a real
+system, which is the form the interview actually takes.
+
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live;
+sources only this module uses keep their URL here.
 
-- **Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems*** (NeurIPS). The "ML
-  code is a small box" framing, undeclared/unused data dependencies, and pipeline jungles.
-  <https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
-- **Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score: A Rubric for ML Production
-  Readiness and Technical Debt Reduction*** (IEEE Big Data). The source for treating data validation,
-  skew detection, and feature-usage audits as *tests* with a score.
-  <https://doi.org/10.1109/BigData.2017.8258038>
+- [**Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems***](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  (NeurIPS) — the "ML code is a small box" framing §2 opens with, the naming of training/serving skew
+  in §1, and the undeclared and unused data dependencies behind Pitfall 6 and §5's cost argument.
+- [**Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score***](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+  (IEEE Big Data) — the source for treating the §3 validation gate, skew detection, and feature-usage
+  audits as *tests* with a score, and the rubric behind §5's dashboard metrics.
 - **Kaufman, Rosset, Perlich (2012). *Leakage in Data Mining: Formulation, Detection, and
   Avoidance*** (ACM TKDD). The formal treatment of leakage and of point-in-time correctness in §2–3.
   <https://dl.acm.org/doi/10.1145/2382577.2382579>
-- **Google — *Rules of Machine Learning***. Rules on keeping the first pipeline simple, testing the
-  infrastructure independently of the model, and reusing code between training and serving to avoid
-  skew.
-  <https://developers.google.com/machine-learning/guides/rules-of-ml>
-- **Amershi et al. (2019). *Software Engineering for Machine Learning: A Case Study*** (ICSE-SEIP).
-  Data management as the dominant engineering activity, and the practices teams converge on.
-  <https://www.microsoft.com/en-us/research/publication/software-engineering-for-machine-learning-a-case-study/>
+- [**Google — *Rules of Machine Learning***](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google)
+  — keep the first pipeline simple, test the infrastructure independently of the model, and reuse
+  code between training and serving; the last is the rule §3's shared-transformation argument rests
+  on.
+- [**Amershi et al. (2019). *Software Engineering for Machine Learning: A Case Study***](../../../docs/REFERENCES.md#software-engineering-for-machine-learning-amershi-et-al-2019)
+  (ICSE-SEIP) — data management as the dominant engineering activity, which is the evidence for this
+  module's claim in §2 that data work outranks modelling work.
 - **Polyzotis, Roy, Whang, Zinkevich (2017). *Data Management Challenges in Production Machine
   Learning*** (SIGMOD). Validation, versioning, and lineage as first-class data-management problems.
   <https://dl.acm.org/doi/10.1145/3035918.3054782>
 - **TensorFlow Data Validation (TFDV) / TFX** — schema inference, anomaly detection, and drift/skew
-  comparison against a reference. The model for Lab 1.
+  comparison against a reference. The model for Lab 1. (retrieved 8 Aug 2026)
   <https://www.tensorflow.org/tfx/guide/tfdv> · <https://www.tensorflow.org/tfx>
 - **Feast — feature store documentation.** One feature definition, offline and online stores,
-  point-in-time correct historical retrieval.
+  point-in-time correct historical retrieval. (retrieved 8 Aug 2026)
   <https://docs.feast.dev/>
 - **Uber — *Michelangelo: Uber's Machine Learning Platform*.** The engineering account of why a shared
-  feature pipeline exists, written from the skew problem.
+  feature pipeline exists, written from the skew problem. (retrieved 8 Aug 2026)
   <https://www.uber.com/blog/michelangelo-machine-learning-platform/>
 - **Joachims, Swaminathan, Schnabel (2017). *Unbiased Learning-to-Rank with Biased Feedback***
   (WSDM). Position bias in implicit feedback and propensity-weighted correction.
@@ -1037,11 +1062,11 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
   (JAIR). The canonical resampling reference for §3's imbalance discussion.
   <https://arxiv.org/abs/1106.1813>
 - **Delta Lake** and **DVC** — versioned, time-travelable tables and content-addressed dataset
-  versioning, the mechanisms behind §3's reproducibility table.
+  versioning, the mechanisms behind §3's reproducibility table. (retrieved 8 Aug 2026)
   <https://delta.io/> · <https://dvc.org/>
-- **Chip Huyen (2022). *Designing Machine Learning Systems*** (O'Reilly). Practitioner treatment of
-  data pipelines, feature engineering, and train/serve consistency.
-  <https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/>
+- [**Chip Huyen (2022). *Designing Machine Learning Systems***](../../../docs/REFERENCES.md#designing-machine-learning-systems-huyen-2022)
+  (O'Reilly) — the practitioner treatment of data pipelines, feature engineering, and train/serve
+  consistency; the closest single book to this module's scope.
 
 ---
 

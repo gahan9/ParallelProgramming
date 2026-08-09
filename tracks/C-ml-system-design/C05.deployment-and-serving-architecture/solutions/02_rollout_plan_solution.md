@@ -10,7 +10,7 @@ scaffolding around it.
 | Check | Automated? | Failure means |
 |---|---|---|
 | Model artefact loads and produces output on a fixed golden input set | yes | block |
-| Feature parity: the three new features compute identically in the training pipeline and the serving path, verified on 10 000 replayed requests | yes | block — this is the C02 skew check and it is the highest-risk item here |
+| Feature parity: the three new features compute identically in the training pipeline and the serving path, verified on 10 000 replayed requests | yes | block — this is the [C02](../../C02.data-pipelines-and-features/README.md) skew check and it is the highest-risk item here |
 | **The new feature-store table's backfill history** — six weeks of data, but is it *correct* for all six weeks, and is the coverage the same for all tenants/segments? | **manual** | block |
 | Null/missing rate for each new feature in serving, per segment, against training | yes | block if any segment exceeds the training-time rate materially |
 | Latency benchmark at production prompt-length distribution, p50/p99 | yes | block if p99 > 85 ms |

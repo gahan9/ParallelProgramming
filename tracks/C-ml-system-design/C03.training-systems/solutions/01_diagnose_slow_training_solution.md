@@ -16,7 +16,7 @@ discriminating first; anything requiring a code change or a restart last.
 | # | Check | Confirms | Eliminates |
 |---|---|---|---|
 | 1 | Is the **step counter** advancing at a steady rate? | the job is slow, not hung | a collective deadlock (§3.3) — must be ruled out before anything else, because it has a completely different fix |
-| 2 | **Utilization shape**, not mean. Is it sawtooth or flat? | sawtooth ⇒ input starvation | a kernel/step problem; a flat 61% would point at Track B instead |
+| 2 | **Utilization shape**, not mean. Is it sawtooth or flat? | sawtooth ⇒ input starvation | a kernel/step problem; a flat 61% would point at [Track B](../../../B-gpu-ml-performance/README.md) instead |
 | 3 | **Step-time breakdown**: time in data-wait vs forward/backward vs collective | which stage owns the 1.4 s | guesswork; this is the single most informative measurement and it is one profiler run |
 | 4 | **Per-rank** step-time distribution — is one rank consistently slowest? | a straggler | uniform slowness (which would mean a communication or global problem) |
 | 5 | **Host CPU per process**: are loader workers saturating cores, and how many workers are configured? | CPU-bound decode/augment | an I/O-bound loader, which needs a different fix |

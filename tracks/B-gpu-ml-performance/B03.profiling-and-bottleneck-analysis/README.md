@@ -21,10 +21,9 @@ numbers". It is a **decision procedure**: form a hypothesis from the
 kill it*. There are two levels and they are not interchangeable. **Timeline/system tracing**
 (`rocprofv3 --sys-trace`, `nsys profile`) answers *where does wall-clock go* across host API, copies,
 and [kernels](../../../docs/GLOSSARY.md#kernel) — always run this first, because it is how you
-discover that your kernel is 0.014% of the
-run. **Kernel counter profiling** (`rocprofv3 --pmc`, `ncu`) answers *what limits this one kernel* —
-run it only after the timeline proves the kernel matters. Everything else in this module is
-mechanics for those two sentences.
+discover that your kernel is 0.014% of the run. **Kernel counter profiling** (`rocprofv3 --pmc`,
+`ncu`) answers *what limits this one kernel* — run it only after the timeline proves the kernel
+matters. Everything else in this module is mechanics for those two sentences.
 
 **Layman analogy — the doctor who does not order every scan.** A patient says "I feel bad." A bad
 doctor orders every test in the catalogue, gets 400 numbers, and now has 400 things that are
@@ -68,15 +67,17 @@ and produces a wall of counters, from which a motivated engineer can justify any
 already held. The discipline that prevents this is falsifiability: **a hypothesis that no
 measurement could kill is not a hypothesis.**
 
-Where does the hypothesis come from? From B02's roofline. Arithmetic intensity is computable **from
+Where does the hypothesis come from? From
+[B02 §2](../B02.roofline-and-arithmetic-intensity/README.md#2-first-principles)'s roofline.
+[Arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) is computable **from
 the source code**, with no hardware:
 
 ```
 intensity = FLOPs performed / bytes moved to and from HBM
 ```
 
-Compare it to the machine's **ridge point** (peak FLOP/s ÷ peak bytes/s) and you have predicted the
-bound before you have run anything:
+Compare it to the machine's [**ridge point**](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+(peak FLOP/s ÷ peak bytes/s) and you have predicted the bound before you have run anything:
 
 | Kernel | Intensity | Predicted bound | What the profiler is now for |
 |---|---:|---|---|
@@ -107,7 +108,8 @@ So the first measurement must be a **timeline**, which timestamps everything (AP
 dispatches) and can therefore attribute wall clock across all four lines. Only once the timeline
 says "the kernel line is the big one" does a counter register become the right instrument.
 
-A01 already paid this lesson off with real data: in its `rocprofv3` run, `vector_add` took
+[A01 § 4](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#reading-the-rocprofv3-output)
+already paid this lesson off with real data: in its `rocprofv3` run, `vector_add` took
 **44,242 ns — 0.014% of captured time**, while `hipMemcpy` was 62.6% and `hipMalloc` 22.0%. An
 engineer who started with `ncu --set full` would have spent the day tuning 0.014% of the program.
 
@@ -243,7 +245,8 @@ much higher cost, and running it unconditionally is the defining mistake of amat
 
 ### `rocprofv3` in practice
 
-> **Verified against the ROCm 7.2.4 `rocprofv3` documentation**
+> **Verified against the ROCm 7.2.4
+> [`rocprofv3` documentation](../../../docs/REFERENCES.md#rocprofiler-sdk-and-rocprofv3-amd)**
 > ([Using rocprofv3](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/docs-7.2.4/how-to/using-rocprofv3.html)),
 > checked **29 July 2026**. Flag names in this tool have churned across releases — always confirm
 > against the docs for *your* installed version, and print it with `rocprofv3 --version`.
@@ -262,8 +265,9 @@ AMD's profiler tooling has been renamed more than once, and stale instructions a
 
 The Omniperf→`rocprof-compute` and Omnitrace→`rocprof-sys` renames landed in **ROCm 6.3.0**
 ([release notes](https://rocm.docs.amd.com/en/docs-6.3.0/about/release-notes.html)); `apt install
-omniperf` no longer resolves. `rocprof-compute` is the right tool when you want a *guided*,
-roofline-and-hierarchy analysis rather than raw counters.
+omniperf` no longer resolves.
+[`rocprof-compute`](../../../docs/REFERENCES.md#rocm-compute-and-systems-profilers-amd) is the right
+tool when you want a *guided*, roofline-and-hierarchy analysis rather than raw counters.
 
 #### The flags that matter
 
@@ -309,7 +313,8 @@ under-launched kernel from a *level-1* trace, with no counters at all.
 
 #### Reading the summary — the one column people misread
 
-A01 § 4 walks through a real summary in detail; the trap worth repeating here is **`PERCENT (INC)`
+[A01 § 4](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#reading-the-rocprofv3-output)
+walks through a real summary in detail; the trap worth repeating here is **`PERCENT (INC)`
 is inclusive**. A `hipMemcpy`'s duration *contains* the HSA calls and the device copy it triggers, so
 percentages across nested domains overlap and **do not sum to 100**. Read it as "which operations
 dominate", never as a pie chart. For a genuine, non-overlapping breakdown use the
@@ -323,7 +328,7 @@ dominate", never as a pie chart. For a genuine, non-overlapping breakdown use th
 > plus the [Nsight Compute Profiling Guide](https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html),
 > checked **29 July 2026**.
 
-**Level 1 — `nsys`, the timeline:**
+**Level 1 — [`nsys`](../../../docs/REFERENCES.md#nsight-systems-nvidia), the timeline:**
 
 | Flag | What it does |
 |---|---|
@@ -333,7 +338,7 @@ dominate", never as a pie chart. For a genuine, non-overlapping breakdown use th
 | `nsys stats <report>.nsys-rep` | Re-print summaries later without re-running |
 | `nsys stats -r cuda_gpu_kern_sum <report>` | One specific report; `--help-report` lists them all |
 
-**Level 2 — `ncu`, the kernel:**
+**Level 2 — [`ncu`](../../../docs/REFERENCES.md#nsight-compute-nvidia), the kernel:**
 
 | Flag | What it does |
 |---|---|
@@ -352,14 +357,16 @@ If no `--set`, `--section`, or `--metrics` is given, `ncu` collects the **`basic
 (`LaunchStats`, `Occupancy`, `SpeedOfLight`, `WorkloadDistribution`) — already enough for a
 first-pass verdict at a fraction of `--set full`'s cost.
 
-**The Speed-of-Light reading, in one line:** high Memory %, low Compute % → memory-bound. High
+**The Speed-of-Light reading, in one line:** high Memory %, low Compute % →
+[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound). High
 Compute %, low Memory % → compute-bound. **Both low → latency-bound**, which means neither pipe is
 saturated and the kernel is starved of parallelism or waiting on dependencies. That third case is
 the one people misdiagnose, and it is `kernel_delta` in this module's lab.
 
-> One caveat from the profiling guide worth knowing: SoL's "Memory Throughput" is the **maximum
-> across memory subsystems** (L1, L2, DRAM, shared), not DRAM alone. Open the Throughput Breakdown
-> before you conclude "we are DRAM-bound".
+> One caveat from the
+> [profiling guide](../../../docs/REFERENCES.md#nsight-compute-profiling-guide-nvidia) worth
+> knowing: SoL's "Memory Throughput" is the **maximum across memory subsystems** (L1, L2, DRAM,
+> shared), not DRAM alone. Open the Throughput Breakdown before you conclude "we are DRAM-bound".
 
 ### The command → tells you → do next table
 
@@ -400,7 +407,9 @@ the one people misdiagnose, and it is `kernel_delta` in this module's lab.
 ## 4. Hands-On Labs
 
 All commands run from this module directory. The build uses Track A's shared toolchain file, so
-`GPU_ARCH` / `SM_ARCH` work exactly as they do in A01/A02.
+`GPU_ARCH` / `SM_ARCH` work exactly as they do in
+[A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#4-hands-on-labs) /
+[A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs).
 
 ```bash
 make help                              # every target, with your detected ROCm path
@@ -461,10 +470,11 @@ make profile-kernel-hip KERNEL=kernel_beta GPU_ARCH=gfx942
 make profile-ncu        KERNEL=kernel_beta SM_ARCH=sm_90
 ```
 
-The AMD target collects `MeanOccupancyPerCU VALUUtilization MemUnitStalled L2CacheHit` — occupancy,
-divergence, memory pressure, and cache behaviour in one pass — restricted with
-`--kernel-include-regex` and `--kernel-iteration-range 4-8` so you profile steady state, not the
-three warmup dispatches. Override the set with `PMC='...'`; check availability with
+The AMD target collects `MeanOccupancyPerCU VALUUtilization MemUnitStalled L2CacheHit` —
+[occupancy](../../../docs/GLOSSARY.md#occupancy),
+[divergence](../../../docs/GLOSSARY.md#divergence), memory pressure, and cache behaviour in one
+pass — restricted with `--kernel-include-regex` and `--kernel-iteration-range 4-8` so you profile
+steady state, not the three warmup dispatches. Override the set with `PMC='...'`; check availability with
 `rocprofv3 --list-avail`.
 
 **What to observe:** `kernel_alpha` and `kernel_beta` have *identical* occupancy and *identical*
@@ -490,7 +500,8 @@ in this module.
 There is no `triton/` directory. Triton kernels are profiled with exactly the tools above (they
 compile to the same dispatches and appear in `kernel_trace.csv` under their generated names), so a
 Triton variant would add a language without adding a profiling lesson. The Triton-specific tooling —
-`TRITON_PRINT_AUTOTUNING`, the autotuner's own timings — belongs with the Triton module in A08.
+`TRITON_PRINT_AUTOTUNING`, the autotuner's own timings — belongs with the Triton module in
+[A08](../../A-gpu-programming/A08.triton-foundations/README.md).
 
 ---
 
@@ -519,8 +530,9 @@ kernel* is a memory problem.
 
 ### The worked example, from real data
 
-The numbers below are **real**, from A01 § 4's documented `rocprofv3` run of `vector_add` over
-16.7M floats (device-side, non-overlapping traces):
+The numbers below are **real**, from
+[A01 § 4](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#reading-the-rocprofv3-output)'s
+documented `rocprofv3` run of `vector_add` over 16.7M floats (device-side, non-overlapping traces):
 
 | Device activity | ns | Share of device activity |
 |---|---:|---:|
@@ -550,7 +562,8 @@ overlap the copies with compute, and best of all keep the data resident so most 
 
 ### The measured before/after: A02's ladder, re-read as counters
 
-A02 measured a ~5× total win on transpose (MI300X `gfx942`, ROCm 6.2, `n = 4096`) and *asserted* the
+[A02 § 5](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#5-performance-analysis)
+measured a ~5× total win on transpose (MI300X `gfx942`, ROCm 6.2, `n = 4096`) and *asserted* the
 mechanism. B03's job is to prove it:
 
 | Rung | A02's measured BW | The one thing that changed | The one counter that should move |
@@ -559,8 +572,10 @@ mechanism. B03's job is to prove it:
 | `transpose_tiled` | ~2600 GB/s | Strided access relocated from HBM into LDS | `MemUnitStalled` falls, `LDSBankConflict` **rises** |
 | `transpose_tiled_padded` | ~3400 GB/s | LDS row stride 32 → 33 words | `LDSBankConflict` falls to ~0 |
 
-Read the middle rung carefully: tiling *created* a bank-conflict problem in exchange for deleting a
-much larger coalescing problem. A profile that only looked at `LDSBankConflict` would call the
+Read the middle rung carefully: [tiling](../../../docs/GLOSSARY.md#tiling) *created* a
+[bank-conflict](../../../docs/GLOSSARY.md#bank-conflict) problem in exchange for deleting a much
+larger [coalescing](../../../docs/GLOSSARY.md#coalescing) problem. A profile that only looked at
+`LDSBankConflict` would call the
 tiled kernel a regression. Proving this ladder from counters is
 [`exercises/03_profile_your_transpose.md`](exercises/03_profile_your_transpose.md).
 
@@ -635,14 +650,18 @@ ncu --launch-skip 3 --launch-count 3 -k regex:'k' --section SpeedOfLight ./app
 `kernel<<<...>>>()` returns before the GPU has started. A `std::chrono` reading immediately after it
 times the *launch call*, typically a few microseconds, regardless of how long the kernel runs. Use
 GPU events (`hipEventRecord`/`cudaEventRecord`) around the region, or synchronize before stopping a
-host timer. A01 § 6 covers this; it reappears here because under a profiler it produces a
-particularly confusing symptom — the profiler's kernel duration and your program's printed time
-disagree by orders of magnitude, and the profiler is the one telling the truth.
+host timer.
+[A01 § 6](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#6-challenges-drawbacks--tradeoffs)
+covers this; it reappears here because under a profiler it produces a particularly confusing
+symptom — the profiler's kernel duration and your program's printed time disagree by orders of
+magnitude, and the profiler is the one telling the truth.
 
 ### Mistake 4 — Profiler overhead distorting small kernels
 
-Counter collection is not free. `ncu` **replays** a kernel launch once per pass to collect metric
-sets that cannot be gathered simultaneously; `rocprofv3 --pmc` serializes dispatches and can fail
+Counter collection is not free. `ncu`
+[**replays**](../../../docs/REFERENCES.md#nsight-compute-profiling-guide-nvidia) a kernel launch
+once per pass to collect metric sets that cannot be gathered simultaneously; `rocprofv3 --pmc`
+[serializes dispatches](../../../docs/REFERENCES.md#rocprofiler-sdk-and-rocprofv3-amd) and can fail
 outright if a counter set does not fit in one pass. For a 5 µs kernel, per-dispatch instrumentation
 can be a large fraction of the measurement.
 
@@ -711,20 +730,33 @@ calendar time, you have your answer before you start.
   construction all show up there and nowhere else.
 - **The 0.014% lesson at production scale.** The reason real training loops use pinned memory,
   `non_blocking=True` transfers, CUDA/HIP graphs, and persistent on-device activations is the same
-  arithmetic as A01's `vector_add` run: the kernels were never the problem.
+  arithmetic as
+  [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)'s `vector_add`
+  run: the kernels were never the problem.
 - **Inference serving.** Diagnosing a latency regression in vLLM / SGLang / TensorRT-LLM starts with
   a timeline: is the time in prefill kernels, decode kernels, KV-cache movement, scheduling, or
-  Python? Only then does anyone open `ncu`. B06 builds on this.
+  Python? Only then does anyone open `ncu`.
+  [B06](../B06.inference-serving-optimizations/README.md) builds on this.
 - **Kernel libraries.** rocBLAS, CUTLASS, MIOpen, and Triton autotuners all encode a version of this
   loop — measure, classify, change one thing, re-measure — at machine speed, over a search space of
   tile sizes. Autotuning is this module's workflow automated.
 - **Multi-GPU.** `rocprofv3 --rccl-trace` and `nsys`'s NCCL tracing move the timeline question up a
   level: is the time in compute, in the collective, or in ranks *waiting* at the barrier for a
   straggler? A single-rank profile systematically mismeasures `p` here — see
-  [`exercises/02_amdahl.md`](exercises/02_amdahl.md) question 14. B07 goes further.
+  [`exercises/02_amdahl.md`](exercises/02_amdahl.md) question 14.
+  [B07](../B07.distributed-training-and-sharding/README.md) goes further.
 - **Regression CI.** Teams gate merges on profiled metrics (`gpu__time_duration.sum`,
   `dram__bytes.sum`, kernel durations from `kernel_trace.csv`) parsed from profiler output — the
   automated descendant of [`tools/parse_rocprof.py`](tools/parse_rocprof.py).
+
+**Where to go next.** [B04](../B04.precision-and-quantization/README.md) is the first optimization
+you will run this procedure on end to end — lowering precision changes both bytes moved and the
+arithmetic, so only a counter profile can tell you which of the two actually bought the speedup.
+[B05](../B05.transformer-performance/README.md) applies the same loop to a whole transformer, where
+the limiter is different in prefill than in decode and a single verdict for "the model" is
+meaningless. [B06](../B06.inference-serving-optimizations/README.md) moves the timeline question up
+to a serving system, where batching and scheduling own a share of wall clock that no kernel counter
+can see.
 
 ---
 
@@ -736,11 +768,12 @@ you can tell when this page has gone stale. Full list in
 
 **AMD / ROCm**
 
-- **Using `rocprofv3`** — every flag in §3's AMD table (`--sys-trace`, `--kernel-trace`,
-  `--hip-trace`, `--summary`, `--summary-per-domain`, `--summary-groups`, `--stats`,
-  `--output-format`, `-d`, `--pmc`, `--kernel-include-regex`, `--kernel-iteration-range`,
-  `--truncate-kernels`, `--list-avail`) and the CSV schemas. *ROCm 7.2.4 docs, checked 2026-07-29.*
-  <https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/docs-7.2.4/how-to/using-rocprofv3.html>
+- [**Using `rocprofv3`**](../../../docs/REFERENCES.md#rocprofiler-sdk-and-rocprofv3-amd) — every
+  flag in §3's AMD table (`--sys-trace`, `--kernel-trace`, `--hip-trace`, `--summary`,
+  `--summary-per-domain`, `--summary-groups`, `--stats`, `--output-format`, `-d`, `--pmc`,
+  `--kernel-include-regex`, `--kernel-iteration-range`, `--truncate-kernels`, `--list-avail`), the
+  CSV schemas, and the dispatch-serialization behaviour behind §6's mistake 4. §3 links the
+  version-pinned page it was verified against. *ROCm 7.2.4 docs, checked 2026-07-29.*
 - **ROCprofiler-SDK counter collection services** — how derived metrics such as `GPU_UTIL` and
   `MeanOccupancyPerCU` are defined from raw counters. *Checked 2026-07-29.*
   <https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/api-reference/counter_collection_services.html>
@@ -751,34 +784,39 @@ you can tell when this page has gone stale. Full list in
 - **ROCm 6.3.0 release notes** — the Omniperf → **ROCm Compute Profiler** (`rocprof-compute`) and
   Omnitrace → **ROCm Systems Profiler** (`rocprof-sys-*`) renames. *Checked 2026-07-29.*
   <https://rocm.docs.amd.com/en/docs-6.3.0/about/release-notes.html>
-- **ROCm Compute Profiler documentation** — guided/roofline analysis mode.
-  <https://rocm.docs.amd.com/projects/rocprofiler-compute/en/latest/index.html>
+- [**ROCm Compute Profiler documentation**](../../../docs/REFERENCES.md#rocm-compute-and-systems-profilers-amd)
+  — guided/roofline analysis mode, and the tool §3 sends you to when raw counters have not
+  converged on an answer.
 
 **NVIDIA**
 
-- **Nsight Systems User Guide** — `nsys profile`, `--stats=true` (and its SQLite side effect),
-  `--trace`/`-t`, `nsys stats -r`. *Checked 2026-07-29.*
-  <https://docs.nvidia.com/nsight-systems/UserGuide/index.html>
-- **Nsight Compute CLI** — `--set`, `--section`, `--launch-skip`/`-s`, `--launch-count`/`-c`,
-  `--kernel-name`/`-k`, `--list-sets`, `--list-sections`, `--query-metrics`, and the `basic` default
-  set. *Checked 2026-07-29.* <https://docs.nvidia.com/nsight-compute/NsightComputeCli/>
-- **Nsight Compute Profiling Guide** — the section catalogue (SpeedOfLight, MemoryWorkloadAnalysis,
-  Occupancy, WarpStateStats, SchedulerStats, ComputeWorkloadAnalysis), metric-name suffix grammar,
-  and the caveat that SoL "Memory Throughput" is a maximum across subsystems. *Checked 2026-07-29.*
-  <https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html>
-- **CUDA C++ Best Practices Guide** — event-based timing, async launch semantics, overlapping
-  transfers with compute. <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html>
+- [**Nsight Systems User Guide**](../../../docs/REFERENCES.md#nsight-systems-nvidia) — `nsys
+  profile`, `--stats=true` (and its SQLite side effect), `--trace`/`-t`, `nsys stats -r`: the whole
+  of §3's level-1 NVIDIA path. *Checked 2026-07-29.*
+- [**Nsight Compute CLI**](../../../docs/REFERENCES.md#nsight-compute-nvidia) — `--set`,
+  `--section`, `--launch-skip`/`-s`, `--launch-count`/`-c`, `--kernel-name`/`-k`, `--list-sets`,
+  `--list-sections`, `--query-metrics`, and the `basic` default set: §3's level-2 NVIDIA table, and
+  the warmup-skipping flags §6's mistake 2 depends on. *Checked 2026-07-29.*
+- [**Nsight Compute Profiling Guide**](../../../docs/REFERENCES.md#nsight-compute-profiling-guide-nvidia)
+  — the section catalogue (SpeedOfLight, MemoryWorkloadAnalysis, Occupancy, WarpStateStats,
+  SchedulerStats, ComputeWorkloadAnalysis), metric-name suffix grammar, the caveat that SoL "Memory
+  Throughput" is a maximum across subsystems, and the replay behaviour behind §6's mistake 4.
+  *Checked 2026-07-29.*
+- [**CUDA C++ Best Practices Guide**](../../../docs/REFERENCES.md#cuda-c-best-practices-guide-nvidia)
+  — event-based timing, async launch semantics, overlapping transfers with compute: the fixes §6's
+  mistake 3 and §5's Amdahl verdict point at.
 
 **Foundational**
 
 - Amdahl, G. (1967). *Validity of the single processor approach to achieving large scale computing
   capabilities* — the ceiling behind §6's mistake 6.
   <https://dl.acm.org/doi/10.1145/1465482.1465560>
-- Williams, Waterman, Patterson (2009). *Roofline: An Insightful Visual Performance Model* — the
-  hypothesis-generating model this module tests. <https://dl.acm.org/doi/10.1145/1498765.1498785>
-- Ruetsch & Micikevicius (2009). *Optimizing Matrix Transpose in CUDA* — the ladder exercise 3
-  re-derives from counters, including the partition-camping fix.
-  <https://developer.download.nvidia.com/CUDA/training/StreamsAndConcurrencyWebinar.pdf>
+- [Williams, Waterman, Patterson (2009). *Roofline: An Insightful Visual Performance
+  Model*](../../../docs/REFERENCES.md#roofline-williams-et-al-2009) — the hypothesis-generating
+  model this module tests; §2's ridge-point prediction is its statement.
+- [Ruetsch & Micikevicius (2009). *Optimizing Matrix Transpose in
+  CUDA*](../../../docs/REFERENCES.md#optimizing-matrix-transpose-in-cuda-ruetsch-and-micikevicius-2009)
+  — the ladder exercise 3 re-derives from counters, including the partition-camping fix.
 
 **In this repository**
 
@@ -815,7 +853,7 @@ you can tell when this page has gone stale. Full list in
 10. In a 4-GPU run with a collective barrier, a kernel is 2% of one rank's profile. Why might the
     real `p` be far larger, and how would you measure it correctly?
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **(a)** The kernel is a small fraction of wall clock — the time is in host allocation, H2D/D2H

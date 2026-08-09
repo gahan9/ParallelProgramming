@@ -3,11 +3,12 @@
 > Track C · Module 03 · Status: **DONE** · Est. 7 hours · Depth 3/5
 >
 > Prerequisites: [C01 Problem framing](../C01.problem-framing-and-metrics/README.md) and
-> [C02 Data pipelines](../C02.data-pipelines-and-features/), plus
+> [C02 Data pipelines](../C02.data-pipelines-and-features/README.md), plus
 > [A01 Foundations](../../A-gpu-programming/A01.foundations-and-programming-model/README.md) for
 > host↔device literacy.
 > Backends: **none — this is a design module.** The only executables are standard-library Python 3
 > tools in [`tools/`](tools/). No GPU, no framework, no network required.
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -15,8 +16,9 @@
 
 **TL;DR.** A training run at scale is not a script — it is a **distributed system with a loss
 function attached**. Its uptime is decided by things that have nothing to do with modelling: whether
-the input pipeline can feed the GPUs, whether a checkpoint can be resumed *bit-exactly*, how quickly
-a dead rank is detected and replaced, and whether the experiment can be re-run six months later. The
+the input pipeline can feed the [GPUs](../../../docs/GLOSSARY.md#gpu), whether a checkpoint can be
+resumed *bit-exactly*, how quickly a dead rank is detected and replaced, and whether the experiment
+can be re-run six months later. The
 governing quantity is **goodput** — the fraction of the GPU-hours you paid for that turned into
 committed training progress — and almost every engineering decision in this module is a way of
 buying goodput back from data stalls, failures, and re-done work.
@@ -67,8 +69,11 @@ following section attacks one of the three loss terms. It also tells you where *
 effort — halving a term that is already 2% of the budget cannot buy more than 2%.
 
 Notice what is *not* in that list: making the step itself faster. That is real work, but it belongs
-to Track B (kernels, precision, parallelism strategy). This module assumes the step is as fast as it
-is going to be and asks why you are not getting all of it.
+to Track B ([kernels](../../../docs/GLOSSARY.md#kernel),
+[precision](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md),
+[parallelism strategy](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md)).
+This module assumes the step is as fast as it is going to be and asks why you are not getting all
+of it.
 
 ### Derive the checkpoint interval instead of guessing it
 
@@ -179,8 +184,8 @@ modelling bug — which is why "the model isn't learning" is so often the wrong 
 
 A training step consumes a batch. Producing that batch means: locate the samples, read bytes off
 storage or network, decode them (JPEG, audio, tokenizer), augment, collate into a tensor, and move
-it host→device. All of that runs on **CPU and network**, and none of it is what you bought the GPU
-for.
+it [host→device](../../../docs/GLOSSARY.md#pcie-and-host-device-transfer). All of that runs on
+**CPU and network**, and none of it is what you bought the GPU for.
 
 **The mechanism.** With prefetch, loading batch `i+1` overlaps compute of batch `i`, so
 
@@ -203,11 +208,11 @@ perfect. `tools/throughput_budget.py --no-overlap` prints both models side by si
 | Symptom | What it means |
 |---|---|
 | GPU utilization oscillates 0% → 100% → 0% (**sawtooth**) | classic starvation: compute finishes, then everyone waits for the next batch |
-| Step time high but *stable*; utilization pinned near 100% | not a data problem — go optimize the step (Track B) |
+| Step time high but *stable*; utilization pinned near 100% | not a data problem — go optimize the step ([Track B](../../B-gpu-ml-performance/README.md)) |
 | Step time **variance** high, occasional very slow steps | tail in the loader: a slow shard, a cold cache, a straggling worker, or an epoch-boundary shuffle |
 | Utilization drops only at epoch boundaries | the loader is being torn down and rebuilt; use persistent workers |
 | Utilization fine on one node, poor at scale | storage or network is the shared bottleneck, not the per-node loader |
-| Utilization fine, but communication-bound | not a data problem either — reshard or overlap; see [B07](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/) |
+| Utilization fine, but communication-bound | not a data problem either — reshard or overlap; see [B07](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md) |
 
 **Fixes, cheapest first** — and notice that most of them cost no accuracy at all:
 
@@ -217,7 +222,8 @@ perfect. `tools/throughput_budget.py --no-overlap` prints both models side by si
    step-time equation into a `max`.
 3. **Pinned (page-locked) host memory + non-blocking transfers.** Pinned memory lets the DMA engine
    copy without staging through pageable memory, and `non_blocking=True` lets that copy overlap with
-   compute on another stream. This is *exactly* the host↔device transfer cost measured in
+   compute on another [stream](../../../docs/GLOSSARY.md#stream). This is *exactly* the host↔device
+   transfer cost measured in
    [A01 Lab 4](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#lab-4-optional--profile-it),
    where the PCIe copies dwarfed the kernel — the same physics, one level up the stack.
 4. **Precompute what does not need to be fresh.** Resizing and tokenizing every epoch burns CPU to
@@ -237,7 +243,8 @@ perfect. `tools/throughput_budget.py --no-overlap` prints both models side by si
 > **The "it depends on X" pivot.** X is *where the bytes are and how big a sample is*. Small samples
 > from object storage → you are metadata- and latency-bound, so shard aggressively. Large samples
 > with heavy decode → you are CPU-bound, so precompute or add workers. If a single sample is bigger
-> than a batch of activations, you may be bandwidth-bound and no amount of workers will help.
+> than a batch of activations, you may be [bandwidth](../../../docs/GLOSSARY.md#bandwidth)-bound and
+> no amount of workers will help.
 
 ### 3.2 Checkpointing: what a bit-exact resume actually requires
 
@@ -289,7 +296,7 @@ during a **54-day** snapshot on **16,384 H100s** the run hit **466 job interrupt
 **419 were unexpected**; roughly **78%** traced to confirmed or suspected hardware issues, and GPU
 issues alone were **58.7%** of the unexpected total. Despite that, they sustained **>90% effective
 training time**, and significant manual intervention was needed only **three** times — the recovery
-was automated ([Llama 3 Herd of Models, §3.3.4](https://arxiv.org/abs/2407.21783)).
+was automated ([Llama 3 Herd of Models, §3.3.4](../../../docs/REFERENCES.md#the-llama-3-herd-of-models-grattafiori-et-al-2024)).
 
 Read those numbers as an engineering brief rather than trivia:
 
@@ -313,7 +320,8 @@ Read those numbers as an engineering brief rather than trivia:
   gradient accumulation, or accept that the run's hyperparameters drifted mid-flight. Say which one
   you chose.
 - **Straggler detection.** A synchronous step runs at the pace of the **slowest rank** — the
-  all-reduce is a barrier. One GPU thermally throttling to 70% slows the entire job to 70%, and
+  all-reduce is a [barrier](../../../docs/GLOSSARY.md#barrier). One GPU thermally throttling to 70%
+  slows the entire job to 70%, and
   average-utilization dashboards will look *fine* because every rank is busy waiting. Detect it with
   per-rank step-time distributions, not means: the signal is one rank consistently at the top of the
   distribution.
@@ -369,10 +377,12 @@ flowchart TD
 then shape (utilization pattern), then distribution (which rank) — never start by rereading the model
 code.*
 
-**Where the parallelism math lives.** How you shard the model across those GPUs — data, tensor,
-pipeline, and ZeRO-style optimizer-state sharding
-([Rajbhandari et al., ZeRO](https://arxiv.org/abs/1910.02054)) — is the subject of
-[**B07 Distributed training & sharding**](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/).
+**Where the parallelism math lives.** How you shard the model across those GPUs —
+[data, tensor, pipeline](../../../docs/GLOSSARY.md#data-tensor-pipeline-and-expert-parallelism)
+(the tensor axis is [Megatron-LM](../../../docs/REFERENCES.md#megatron-lm-shoeybi-et-al-2019)),
+and ZeRO-style optimizer-state sharding
+([Rajbhandari et al., ZeRO](../../../docs/REFERENCES.md#zero-rajbhandari-et-al-2020)) — is the subject of
+[**B07 Distributed training & sharding**](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#3-deep-dive).
 This module deliberately does not re-derive it. What matters *here* is only the consequence: the sharding
 strategy determines what a checkpoint contains, how many writers there are, and how big the blast
 radius of a single failed rank is.
@@ -393,8 +403,11 @@ here is the full bill:
   hardware-scheduled order. Forcing determinism disables those. PyTorch's
   [reproducibility notes](https://docs.pytorch.org/docs/stable/notes/randomness.html) document both
   the switches and the fact that some operations simply have no deterministic implementation.
-- Accept the **non-deterministic reduction order** problem in collectives and atomics. Floating-point
-  addition **is not associative**: `(a+b)+c ≠ a+(b+c)` in general. This is the exact point made in
+- Accept the **non-deterministic [reduction](../../../docs/GLOSSARY.md#reduction) order** problem in
+  collectives and atomics. Floating-point addition **is not associative**: `(a+b)+c ≠ a+(b+c)` in
+  general
+  ([Goldberg 1991](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)).
+  This is the exact point made in
   [A04 Parallel Reduction](../../A-gpu-programming/A04.parallel-reduction/README.md) — a tree
   reduction's result depends on the tree shape. An all-reduce across ranks, or a kernel using
   atomics, can legally combine partial sums in a different order on every run and produce a slightly
@@ -455,8 +468,8 @@ advantage evaporates back to random search.
 teams that ship from teams that burn budget:
 
 - **Small-scale proxy experiments.** Establish the trend on 1–10% of the compute, then extrapolate.
-  Scaling-law work ([Kaplan et al. 2020](https://arxiv.org/abs/2001.08361);
-  [Hoffmann et al., Chinchilla, 2022](https://arxiv.org/abs/2203.15556)) exists precisely because
+  Scaling-law work ([Kaplan et al. 2020](../../../docs/REFERENCES.md#scaling-laws-for-neural-language-models-kaplan-et-al-2020);
+  [Hoffmann et al., Chinchilla, 2022](../../../docs/REFERENCES.md#training-compute-optimal-large-language-models-hoffmann-et-al-2022)) exists precisely because
   the alternative — guessing at full scale — is unaffordable. The caveat that separates a careful
   engineer from a careless one: **extrapolation is only valid within the regime you fitted**, and
   effects that appear at scale (instabilities, data exhaustion) are invisible in the proxy.
@@ -476,7 +489,7 @@ teams that ship from teams that burn budget:
 |---|---|---|
 | Train loss | decreasing, noisy | flat from step 0 → LR far too low, frozen params, or the data is not what you think |
 | **Loss spike** | occasional, recovers within tens of steps | a persistent spike means a bad batch, LR too high, or an optimizer-state problem. If it appears exactly at a resume, your checkpoint is incomplete (§3.2) |
-| **NaN / Inf** | never | overflow, division by zero, or a bad reduction. In low precision it is usually **range**, not rounding — the precision hazards owned by [B04 Precision & quantization](../../B-gpu-ml-performance/B04.precision-and-quantization/) |
+| **NaN / Inf** | never | overflow, division by zero, or a bad reduction. In low precision it is usually **range**, not rounding — the precision hazards owned by [B04 Precision & quantization](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md#2-first-principles) |
 | Gradient norm | stable, slowly declining | sudden spike precedes a loss spike; a collapse to ~0 means dead units or a detached graph |
 | Learning rate | matches the intended schedule | if it does not, your scheduler state did not restore |
 | Throughput (samples or tokens/s) | flat | a step change means hardware degradation or a straggler; slow decay means a leak or growing sequence lengths |
@@ -577,22 +590,25 @@ tested is judgement under stated constraints, and that is what a design intervie
 
 ## 5. Performance Analysis
 
-**This section is reframed for a design track.** There is no kernel to profile and no roofline to
-place. The equivalent rigor at the system level is **goodput accounting**: decompose the wall-clock
+**This section is reframed for a design track.** There is no kernel to profile and no
+[roofline](../../../docs/GLOSSARY.md#roofline-model) to place. The equivalent rigor at the system
+level is **goodput accounting**: decompose the wall-clock
 and the dollars into buckets, attack the largest one, and re-measure. The discipline is identical to
-Track B — numbers, not adjectives — but the unit is GPU-hours and dollars instead of GB/s.
+[Track B](../../B-gpu-ml-performance/README.md) — numbers, not adjectives — but the unit is
+GPU-hours and dollars instead of GB/s.
 
 ### The system-level roofline: what caps this run?
 
 | Bucket | How you measure it in production | Typical fix |
 |---|---|---|
 | Useful compute | steps/s × step cost, or tokens/s | Track B (kernels, precision, parallelism) |
-| Starved | GPU utilization gap, data-wait time in the step trace | §3.1 input pipeline |
+| Starved | GPU utilization gap, data-wait time in the [step trace](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#3-deep-dive) | §3.1 input pipeline |
 | Checkpoint | blocking write time × checkpoints taken | shard + async (§3.2) |
 | Lost to failures | restarts × (steps re-done + restart time) | shorter interval, faster restart, node quarantine (§3.3) |
 
 Each row has a *ceiling on how much it can possibly help you* — its current share. Compute the shares
-first; that is the system-level equivalent of asking whether a kernel is memory- or compute-bound.
+first; that is the system-level equivalent of asking whether a kernel is
+[memory- or compute-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound).
 
 ```mermaid
 %%{init: {
@@ -725,7 +741,7 @@ than 32 full runs, even though each individual result is less precise.
 
 ## 7. Real-World Use Cases
 
-- **Frontier-scale pre-training.** The Llama 3 405B report ([§3.3.4](https://arxiv.org/abs/2407.21783))
+- **Frontier-scale pre-training.** The Llama 3 405B report ([§3.3.4](../../../docs/REFERENCES.md#the-llama-3-herd-of-models-grattafiori-et-al-2024))
   is the canonical public example of every mechanism in §3.3: automated failure handling on 16K GPUs,
   >90% effective training time, NCCL watchdog timeouts as their own failure category.
 - **PyTorch Distributed Checkpoint (DCP)** implements the sharded, resharding-capable, optionally
@@ -735,7 +751,8 @@ than 32 full runs, even though each individual result is less precise.
   fault-tolerant jobs — [docs](https://docs.pytorch.org/docs/stable/elastic/run.html).
 - **ZeRO / DeepSpeed and FSDP** shard optimizer state, gradients, and parameters; that sharding is
   what makes a sharded checkpoint natural in the first place
-  ([ZeRO](https://arxiv.org/abs/1910.02054), [FSDP](https://docs.pytorch.org/docs/stable/fsdp.html)).
+  ([ZeRO](../../../docs/REFERENCES.md#zero-rajbhandari-et-al-2020),
+  [FSDP](../../../docs/REFERENCES.md#pytorch-fsdp-pytorch)).
 - **Streaming data formats** — WebDataset, TFRecord, MosaicML Streaming — exist because of §3.1: they
   convert millions of small random reads into large sequential ones from object storage.
 - **Ray Tune / Optuna** implement ASHA and Bayesian search as production services, which is the
@@ -744,37 +761,56 @@ than 32 full runs, even though each individual result is less precise.
   §3.5 logging table; the important part is not which one, but that the config and code version are
   captured automatically rather than by discipline.
 
+**Where to go next.**
+[B07](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md) supplies the
+sharding arithmetic this module deliberately skipped, and it is the module that decides what a
+checkpoint actually contains and how many ranks can write it in parallel.
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md) is where the §3.1
+triage stops being a utilization graph and becomes a counter that names the cause.
+[C04](../C04.production-model-optimization/README.md) picks the model up where this module drops
+it — trained, and now expensive to serve.
+
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Repo-wide list in
-[../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live;
+the ones only this module uses keep their URL here.
 
 **Reliability and checkpointing**
-- Grattafiori et al. (2024). *The Llama 3 Herd of Models*, §3.3.4 — the 54-day / 466-interruption /
-  >90% effective-training-time figures quoted in §3.3. <https://arxiv.org/abs/2407.21783>
+- [Grattafiori et al. (2024). *The Llama 3 Herd of Models*](../../../docs/REFERENCES.md#the-llama-3-herd-of-models-grattafiori-et-al-2024),
+  §3.3.4 — the 54-day / 466-interruption / >90% effective-training-time figures quoted in §3.3, and
+  the failure taxonomy that makes the MTBF input to §2's formula an estimate rather than a guess.
 - Young, J. W. (1974). *A first order approximation to the optimum checkpoint interval.* CACM —
-  origin of `T* = sqrt(2·C·M)`. <https://doi.org/10.1145/361147.361115>
+  origin of `T* = sqrt(2·C·M)`, the result §2 derives and `checkpoint_planner.py` implements.
+  <https://doi.org/10.1145/361147.361115>
 - Daly, J. T. (2006). *A higher order estimate of the optimum checkpoint interval for restart dumps.*
   FGCS — the refinement, and the bounds on when the first-order form is valid.
   <https://doi.org/10.1016/j.future.2004.11.016>
-- **PyTorch Distributed Checkpoint** — sharded and asynchronous checkpointing, resharding on load.
-  <https://docs.pytorch.org/docs/stable/distributed.checkpoint.html>
-- **TorchElastic / `torchrun`** — restart, rendezvous, elastic world size.
-  <https://docs.pytorch.org/docs/stable/elastic/run.html>
+- **PyTorch Distributed Checkpoint** — sharded and asynchronous checkpointing, resharding on load:
+  the production implementation of the two cheap-write techniques in §3.2.
+  <https://docs.pytorch.org/docs/stable/distributed.checkpoint.html> (retrieved 8 Aug 2026)
+- **TorchElastic / `torchrun`** — restart, rendezvous, elastic world size; the machinery §3.3 assumes
+  is already in place before it discusses quarantine and restart caps.
+  <https://docs.pytorch.org/docs/stable/elastic/run.html> (retrieved 8 Aug 2026)
 
 **Scale and sharding**
-- Rajbhandari et al. (2020). *ZeRO: Memory Optimizations Toward Training Trillion Parameter Models.*
-  <https://arxiv.org/abs/1910.02054>
-- **PyTorch FSDP** — fully sharded data parallel. <https://docs.pytorch.org/docs/stable/fsdp.html>
+- [Rajbhandari et al. (2020). *ZeRO: Memory Optimizations Toward Training Trillion Parameter Models.*](../../../docs/REFERENCES.md#zero-rajbhandari-et-al-2020)
+  — the optimizer-state sharding §3.3 names, and the reason a checkpoint has many writers instead of
+  one.
+- [**PyTorch FSDP**](../../../docs/REFERENCES.md#pytorch-fsdp-pytorch) — fully sharded data parallel:
+  the framework-level form of the same idea, and why §3.2's sharded checkpoint is the natural one.
+- [Shoeybi et al. (2019). *Megatron-LM*](../../../docs/REFERENCES.md#megatron-lm-shoeybi-et-al-2019)
+  — the tensor-parallel axis of the taxonomy §3.3 defers to B07; it changes what each rank owns and
+  therefore what each rank must persist.
 
 **Reproducibility**
 - **PyTorch reproducibility notes** — seeding, deterministic algorithms, and the operations that have
-  no deterministic implementation. <https://docs.pytorch.org/docs/stable/notes/randomness.html>
-- Goldberg, D. (1991). *What Every Computer Scientist Should Know About Floating-Point Arithmetic* —
-  non-associativity, the root cause behind reduction-order variance.
-  <https://doi.org/10.1145/103162.103163>
+  no deterministic implementation: the itemised bill §3.4 asks you to price before promising
+  bit-exactness. <https://docs.pytorch.org/docs/stable/notes/randomness.html> (retrieved 8 Aug 2026)
+- [Goldberg, D. (1991). *What Every Computer Scientist Should Know About Floating-Point Arithmetic*](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)
+  — non-associativity, the root cause behind the reduction-order variance §3.4 tells you to accept.
 
 **Experiments and search**
 - Bergstra & Bengio (2012). *Random Search for Hyper-Parameter Optimization.* JMLR — why grid wastes
@@ -786,24 +822,24 @@ Grounding for the claims above. Repo-wide list in
   <https://arxiv.org/abs/1810.05934>
 - Snoek, Larochelle, Adams (2012). *Practical Bayesian Optimization of Machine Learning Algorithms.*
   <https://arxiv.org/abs/1206.2944>
-- Kaplan et al. (2020). *Scaling Laws for Neural Language Models.* <https://arxiv.org/abs/2001.08361>
-- Hoffmann et al. (2022). *Training Compute-Optimal Large Language Models* (Chinchilla).
-  <https://arxiv.org/abs/2203.15556>
+- [Kaplan et al. (2020). *Scaling Laws for Neural Language Models.*](../../../docs/REFERENCES.md#scaling-laws-for-neural-language-models-kaplan-et-al-2020)
+  — the justification for §3.6's small-scale proxy experiments.
+- [Hoffmann et al. (2022). *Training Compute-Optimal Large Language Models* (Chinchilla).](../../../docs/REFERENCES.md#training-compute-optimal-large-language-models-hoffmann-et-al-2022)
+  — the compute-optimal re-fit, and why §3.6 insists extrapolation is only valid inside the regime
+  you fitted.
 
 **Production ML practice**
-- Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score: A Rubric for ML Production
-  Readiness and Technical Debt Reduction.* IEEE Big Data — the reproducibility and monitoring tests
-  behind §3.4 and §3.7.
-  <https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/>
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* NeurIPS — configuration
-  debt and pipeline jungles, the framing behind §3.5.
-  <https://papers.nips.cc/paper_files/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
+- [Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score: A Rubric for ML Production
+  Readiness and Technical Debt Reduction.* IEEE Big Data](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+  — the reproducibility and monitoring tests behind §3.4 and §3.7.
+- [Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* NeurIPS](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  — configuration debt and pipeline jungles, the framing behind §3.5.
 
 **Data pipelines**
 - **WebDataset** — sharded tar format for streaming training data.
   <https://github.com/webdataset/webdataset>
 - **TFRecord** — TensorFlow's sequential record format.
-  <https://www.tensorflow.org/tutorials/load_data/tfrecord>
+  <https://www.tensorflow.org/tutorials/load_data/tfrecord> (retrieved 8 Aug 2026)
 - **MosaicML Streaming** — streaming datasets from object storage with resumable, deterministic
   sample ordering. <https://github.com/mosaicml/streaming>
 

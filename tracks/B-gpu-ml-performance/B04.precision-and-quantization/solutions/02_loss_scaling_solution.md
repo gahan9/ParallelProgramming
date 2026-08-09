@@ -179,8 +179,9 @@ Loss scaling multiplies the *loss*, so it only affects the backward pass. A forw
 activation that overflows fp16 overflows regardless of `S`. Fixes, in order of preference:
 
 1. **bf16** for that tensor — it has fp32's range, and this failure is a range failure.
-2. The **max-subtraction trick** in softmax (A07): subtract the row max before `exp()` so
-   every argument is `<= 0` and `exp() <= 1`. Lab 1 section 3 shows fp16 `exp()` escaping
+2. The **max-subtraction trick** in softmax
+   ([A07](../../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)): subtract the
+   row max before `exp()` so every argument is `<= 0` and `exp() <= 1`. Lab 1 section 3 shows fp16 `exp()` escaping
    the format at `x = 11.10`, which is an entirely ordinary logit.
 3. Keep the attention logits in fp32, and/or scale `QK^T` by `1/sqrt(d)` *before* the
    matmul accumulates rather than after.

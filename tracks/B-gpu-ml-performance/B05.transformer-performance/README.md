@@ -139,7 +139,10 @@ forward+backward  = 6 × params per token
 ```
 
 This is the `C ≈ 6ND` heuristic behind the scaling-law literature — `C` total FLOPs for `N`
-parameters and `D` training tokens (Kaplan et al. 2020; Hoffmann et al. 2022 use it to derive the
+parameters and `D` training tokens
+([Kaplan et al. 2020](../../../docs/REFERENCES.md#scaling-laws-for-neural-language-models-kaplan-et-al-2020);
+[Hoffmann et al. 2022](../../../docs/REFERENCES.md#training-compute-optimal-large-language-models-hoffmann-et-al-2022)
+use it to derive the
 compute-optimal token/parameter ratio). It is one of the most reused numbers in the field:
 
 ```
@@ -163,7 +166,9 @@ attention total: 4 N² d FLOPs per layer
 
 And unfused, `S` must be *materialized*: `h × N²` elements per layer, **`O(N²)` memory**. At
 `N = 8192`, `h = 32`, fp16, that is `32 × 8192² × 2 B = 4.3 GB` for one layer of one sequence — the
-number that made FlashAttention (Dao et al. 2022) necessary rather than merely nice.
+number that made [FlashAttention](../../../docs/GLOSSARY.md#attention-and-flashattention)
+([Dao et al. 2022](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)) necessary rather
+than merely nice.
 
 **When does attention overtake the FFN?** Set the two per-layer FLOP counts equal:
 
@@ -242,7 +247,8 @@ H100 SXM (3.35 TB/s) the same model ceilings at `3350 / 16.06 = 209 tokens/s`.
 
 Two lines of arithmetic, no code, no GPU — and a real single-stream deployment will land in the
 low hundreds of tokens/s. **Quantize the weights to int8** and the model halves to 8.03 GB, so the
-ceiling *doubles* to 660 tokens/s. That is the entire business case for quantization on the decode
+ceiling *doubles* to 660 tokens/s. That is the entire business case for
+[quantization](../../../docs/GLOSSARY.md#quantization) on the decode
 path, and it follows from one division.
 
 ---
@@ -298,7 +304,10 @@ changed is the token count per pass, and it moved the bottleneck from the matrix
 which inverts the entire optimization list, and inverts whether batching is your best lever or
 nearly useless.*
 
-The asymmetry in the last row is the practical payoff and the reason B06 exists:
+The opposite bottlenecks below — one arrangement of weights, two ceilings — are derived in full by
+[Pope et al. (2022)](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022),
+which is the source this section follows. The asymmetry in the last row is the practical payoff and
+the reason [B06](../B06.inference-serving-optimizations/README.md) exists:
 
 | | Prefill / training | Decode |
 |---|---|---|
@@ -383,11 +392,14 @@ elementwise traffic overtakes the weight read when
     tokens per pass  >  436,207,616 / 188,416  ≈  2,315 tokens
 ```
 
-**This is the whole argument for fusion, made numerically.** In *decode* (1–64 tokens per pass) the
+**This is the whole argument for [fusion](../../../docs/GLOSSARY.md#fusion), made numerically.** In
+*decode* (1–64 tokens per pass) the
 elementwise ops are ~0.04% of the traffic and fusing them is a rounding error — spend your effort on
 batching instead. In *training or prefill* with 4k–8k tokens per pass, that same unfused elementwise
 traffic **exceeds the entire weight read**, and fusing norms + activation + residual into their
-neighbouring GEMMs (A07's technique, applied at model scale) is one of the largest single wins
+neighbouring GEMMs
+([A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)'s technique, applied at
+model scale) is one of the largest single wins
 available. Note also the asymmetry inside the table: SwiGLU alone is 46% of the total, purely
 because it operates on the `d_ffn`-wide tensor rather than the `d`-wide one.
 
@@ -449,7 +461,8 @@ it grows with *both* the concurrency you want and the context length you adverti
 advertised context from 4k to 8k and you halve your maximum concurrency, without changing the model
 at all. Every serving system's hardest problem is KV-cache management, which is why vLLM's central
 contribution was **PagedAttention** — treating the cache as pageable blocks to eliminate the
-fragmentation waste that this simple division ignores (Kwon et al. 2023).
+fragmentation waste that this simple division ignores
+([Kwon et al. 2023](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)).
 
 Run `python tools/model_calculator.py --preset llama2-70b --gpu mi300x --batch 32` to reproduce all
 of the above, and change `--kv-dtype fp8` to see what cache quantization buys.
@@ -471,7 +484,9 @@ Two of these deserve care because they are commonly misread.
 
 **SwiGLU is not free.** It needs a *third* matrix (gate, up, down instead of up, down), so the FFN
 becomes `3·d·d_ffn` rather than `2·d·d_ffn`. Implementers compensate by shrinking `d_ffn` from `4d`
-to about `8d/3`, keeping the parameter count roughly constant. Llama-3-8B sets `d_ffn = 14336` with
+to about `8d/3`, keeping the parameter count roughly constant. Llama-3-8B
+([Grattafiori et al. 2024](../../../docs/REFERENCES.md#the-llama-3-herd-of-models-grattafiori-et-al-2024))
+sets `d_ffn = 14336` with
 `d = 4096` — a ratio of 3.5, so the FFN is `3 × 3.5 = 10.5 d²` against the textbook `8d²`. Its
 attention block, thanks to GQA, is only `2.5d²` instead of `4d²`. Net: **13.00 d² per layer**,
 almost exactly the textbook `12d²`. The two deviations nearly cancel — which is why the crude rule
@@ -489,7 +504,8 @@ MoE is a bet that you will serve at high enough batch to be compute-bound.
 
 ### 3.6 Where the hardware enters
 
-The regime boundary is a property of the *machine*, not the model. It is the roofline ridge point:
+The regime boundary is a property of the *machine*, not the model. It is the roofline ridge point
+of [Williams et al. (2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009):
 
 ```
 ridge point = peak FLOP/s / peak bandwidth   [FLOP/byte]
@@ -512,7 +528,9 @@ Three things follow, and they are the architecture-aware part of this module:
    climbing. Decode gets *relatively* worse on each generation unless you also batch harder.
 2. **Capacity is the concurrency budget.** MI300X's 192 GB versus H100's 80 GB is not a minor spec:
    from §3.4, a 70B fp16 model leaves 54 GB for KV on an MI300X and **does not fit at all** on an
-   80 GB H100 without sharding (B07). Capacity buys batch, and batch is decode throughput.
+   80 GB H100 without sharding
+   ([B07](../B07.distributed-training-and-sharding/README.md)). Capacity buys batch, and batch is
+   decode throughput.
 3. **Compare H100 and H200.** Identical compute, 43% more bandwidth. For prefill that is worth
    nearly nothing; for decode it is worth ~43% more tokens/s. Same silicon, and which number matters
    depends entirely on which regime you are serving.
@@ -522,7 +540,11 @@ Three things follow, and they are the architecture-aware part of this module:
 ## 4. Hands-On Labs
 
 This module is Python-first: it *analyzes* and *measures* transformers rather than writing kernels
-(the kernels themselves are A06/A07/A09). There is no `cuda/`, `hip/`, or `triton/` directory and
+(the kernels themselves are
+[A06](../../A-gpu-programming/A06.tiled-matrix-multiply/README.md) /
+[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) /
+[A09](../../A-gpu-programming/A09.advanced-triton-flash-attention/README.md)). There is no `cuda/`,
+`hip/`, or `triton/` directory and
 nothing to compile. `make` with no target prints the full list.
 
 ```bash
@@ -580,7 +602,8 @@ python bench/profile_layer.py --prefill-seq 4096 --batch 4 --dtype bfloat16
 
 It warms up before timing (the first call pays lazy init and GEMM heuristic selection — constants
 large enough to swamp the decode measurements, which are only tens of microseconds) and times with
-`torch.cuda.Event`, not a host clock, because kernel launches are asynchronous (A01 §6).
+`torch.cuda.Event`, not a host clock, because kernel launches are asynchronous
+([A01 §6](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#6-challenges-drawbacks--tradeoffs)).
 
 **What to observe:**
 
@@ -597,7 +620,9 @@ large enough to swamp the decode measurements, which are only tens of microsecon
   prediction of ~2315 tokens.
 
 The layer is deliberately **unfused** and does **not** call a flash-attention kernel — it is the
-naive baseline that A07 fuses and B06 optimizes. Numbers are per-sub-op; their sum approximates an
+naive baseline that A07 fuses and
+[B06](../B06.inference-serving-optimizations/README.md) optimizes. Numbers are per-sub-op; their
+sum approximates an
 unfused layer but is not identical to an end-to-end forward pass, which gets some inter-kernel
 overlap.
 
@@ -679,7 +704,8 @@ flowchart LR
 so "optimize the transformer" is meaningless until you say where on this line you are sitting. Note
 that the elementwise ops sit permanently on the left and **cannot be batched across the ridge**: no
 batch size raises their intensity, because they read and write proportionally to their own output.
-Fusion is the only lever that moves them, which is why it is A07's whole subject.*
+Fusion is the only lever that moves them, which is why it is
+[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)'s whole subject.*
 
 ### 5.2 Analytical results (derived — not measured)
 
@@ -738,9 +764,12 @@ evidence. Run `make profile` and `make scaling` on your hardware and expect thes
 | `batch_scaling`, knee location | batch in the hundreds | matches the ridge point |
 
 If your measured single-stream tokens/s is **far below** the calculator's ceiling, that gap is the
-finding — and it is what B03's profilers are for. The usual causes, in order of frequency: kernel
+finding — and it is what
+[B03](../B03.profiling-and-bottleneck-analysis/README.md)'s profilers are for. The usual causes, in
+order of frequency: kernel
 launch overhead dominating tiny decode kernels (fix: CUDA/HIP graphs), unfused elementwise ops, a
-Python-side bottleneck between steps, and memory layouts that fail to coalesce (A02).
+Python-side bottleneck between steps, and memory layouts that fail to coalesce
+([A02](../../A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md)).
 
 ---
 
@@ -833,12 +862,14 @@ while being far cheaper at high batch. Know which regime you are buying for.
 ### Tradeoffs worth holding in mind
 
 - **Batch size**: throughput ↑, per-user latency ↑, KV memory ↑ linearly. There is an optimum, it is
-  workload-specific, and it is the central tuning decision in B06.
+  workload-specific, and it is the central tuning decision in
+  [B06](../B06.inference-serving-optimizations/README.md).
 - **Context length**: capability ↑, KV cache ↑ linearly, attention FLOPs ↑ quadratically, maximum
   concurrency ↓. Advertising a 128k context is a serving cost decision disguised as a feature.
 - **Quantization**: bytes ↓ so decode throughput ↑ proportionally; accuracy ↓ by an amount that
   depends heavily on method and on *what* you quantized (weights, activations, or the KV cache are
-  three different decisions). B04 is the authority here.
+  three different decisions). [B04](../B04.precision-and-quantization/README.md) is the authority
+  here.
 - **GQA group size**: KV ÷ g and concurrency × g against a quality cost that grows with `g` — MQA
   (`g = h`) is the aggressive end and is measurably worse than GQA at moderate `g`.
 
@@ -852,16 +883,21 @@ while being far cheaper at high batch. Know which regime you are buying for.
   two sets your fleet size. This calculation, done in a meeting, routinely changes hardware
   decisions worth millions.
 - **Inference serving stacks.** vLLM, SGLang, and TensorRT-LLM are, architecturally, machines for
-  exploiting §3.1's asymmetry: continuous batching to keep the decode batch full, PagedAttention to
+  exploiting §3.1's asymmetry:
+  [continuous batching](../../../docs/GLOSSARY.md#continuous-batching) to keep the decode batch
+  full, PagedAttention to
   fit more sequences in the KV budget, and chunked prefill / prefill–decode disaggregation so that
-  compute-bound prefill does not stall bandwidth-bound decode. B06 builds this.
+  compute-bound prefill does not stall bandwidth-bound decode.
+  [B06](../B06.inference-serving-optimizations/README.md) builds this.
 - **Why FlashAttention exists.** §2.3's `O(N²)` materialized score matrix — 4.3 GB for a single
   layer at `N = 8192` — is not merely slow, it is unallocatable at long context. FlashAttention tiles
-  the computation so the score matrix never leaves on-chip memory (Dao et al. 2022). A07 builds the
+  the computation so the score matrix never leaves on-chip memory (Dao et al. 2022).
+  [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) builds the
   online-softmax core of it.
 - **Model design.** GQA, MQA, sliding-window and other sparse attention patterns, and MLA are
-  all §3.4's arithmetic driving an architecture decision. Ainslie et al. (2023) motivate GQA
-  explicitly in inference-cost terms, not quality terms.
+  all §3.4's arithmetic driving an architecture decision.
+  [Ainslie et al. (2023)](../../../docs/REFERENCES.md#multi-query-and-grouped-query-attention-ainslie-et-al-2023)
+  motivate GQA explicitly in inference-cost terms, not quality terms.
 - **Speculative decoding.** Reads directly off §2.4: if a decode step is bandwidth-bound, verifying
   `k` draft tokens costs almost the same as generating 1, because the weight read is the cost and it
   is shared. The speedup comes from raising tokens-per-weight-read, exactly like batching.
@@ -869,20 +905,32 @@ while being far cheaper at high batch. Know which regime you are buying for.
   became universal for serving: it is the only lever that improves decode throughput *without*
   increasing latency or memory pressure, unlike batching, which trades against both.
 
+**Where to go next.** [B06](../B06.inference-serving-optimizations/README.md) turns this module's
+decode arithmetic into a serving system — continuous batching, PagedAttention, and speculative
+decoding all exist to buy back the tokens-per-weight-read that §2.4 says you are missing.
+[B04](../B04.precision-and-quantization/README.md) supplies the other half of §2.5's halve-the-bytes
+lever: which formats survive the accuracy budget, and where fp8 differs between vendors.
+[B07](../B07.distributed-training-and-sharding/README.md) picks up where one GPU stops — the 70B
+model that does not fit in §3.6's capacity column, and the interconnect traffic that sharding adds.
+
 ---
 
 ## 8. Cited References
 
-Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live;
+sources only this module uses carry their URL here.
 
 **Architecture**
 
-- Vaswani et al. (2017). *Attention Is All You Need* — the original architecture; §2.1's shapes and
-  MHA. <https://arxiv.org/abs/1706.03762>
+- [**Attention Is All You Need** (Vaswani et al., 2017)](../../../docs/REFERENCES.md#attention-is-all-you-need-vaswani-et-al-2017)
+  — the original architecture, and the source of the tensor shapes §2.1 counts parameters from;
+  also the MHA baseline the KV-cache table in §3.4 measures GQA and MQA against.
 - Shazeer (2019). *Fast Transformer Decoding: One Write-Head is All You Need* — MQA, and the first
   clear statement that the KV cache is the decode bottleneck. <https://arxiv.org/abs/1911.02150>
-- Ainslie et al. (2023). *GQA: Training Generalized Multi-Query Transformer Models from Multi-Head
-  Checkpoints* — GQA and the `1/g` KV reduction in §3.4. <https://arxiv.org/abs/2305.13245>
+- [**Multi-query and grouped-query attention** (Ainslie et al., 2023)](../../../docs/REFERENCES.md#multi-query-and-grouped-query-attention-ainslie-et-al-2023)
+  — GQA and the `1/g` KV reduction §3.4 turns into a concurrency multiplier, and the argument in
+  §7 that GQA is an inference-cost decision rather than a quality one.
 - Shazeer (2020). *GLU Variants Improve Transformer* — SwiGLU and the third FFN matrix (§3.5).
   <https://arxiv.org/abs/2002.05202>
 - Zhang & Sennrich (2019). *Root Mean Square Layer Normalization* — RMSNorm.
@@ -898,24 +946,26 @@ Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
 
 **Performance and serving**
 
-- Pope et al. (2022). *Efficiently Scaling Transformer Inference* — the canonical treatment of the
-  prefill/decode split, arithmetic intensity of decode, and batching; the direct source for §3.1.
-  <https://arxiv.org/abs/2211.05102>
-- Dao et al. (2022). *FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness* —
-  why the `O(N²)` score matrix is the real problem. <https://arxiv.org/abs/2205.14135>
-- Kwon et al. (2023). *Efficient Memory Management for Large Language Model Serving with
-  PagedAttention* — vLLM; KV-cache fragmentation as the limit on concurrency (§3.4).
-  <https://arxiv.org/abs/2309.06180>
-- Williams, Waterman & Patterson (2009). *Roofline: An Insightful Visual Performance Model* — the
-  ridge point used throughout §2.4 and §5.1. <https://dl.acm.org/doi/10.1145/1498765.1498785>
+- [**Efficiently Scaling Transformer Inference** (Pope et al., 2022)](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)
+  — the canonical treatment of the prefill/decode split, the arithmetic intensity of decode, and
+  batching; the direct source for §3.1's two-regime table. Read it if you read only one paper here.
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — why §2.3's `O(N²)` materialized score matrix, not attention's FLOP count, is the real problem,
+  and the IO-aware tiling that removes it.
+- [**PagedAttention and vLLM** (Kwon et al., 2023)](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
+  — KV-cache fragmentation as the limit on concurrency, and why §3.4's simple division understates
+  the waste in a real serving stack.
+- [**Roofline** (Williams et al., 2009)](../../../docs/REFERENCES.md#roofline-williams-et-al-2009)
+  — the ridge point that decides which regime you are in, used throughout §2.4, §3.6 and §5.1.
 
 **Scaling laws — the `6N` heuristic**
 
-- Kaplan et al. (2020). *Scaling Laws for Neural Language Models* — source of the `C ≈ 6ND` estimate
-  in §2.2 (see its Table 1 / Appendix compute accounting). <https://arxiv.org/abs/2001.08361>
-- Hoffmann et al. (2022). *Training Compute-Optimal Large Language Models* (Chinchilla) — uses the
-  same `6ND` accounting to derive the compute-optimal token budget.
-  <https://arxiv.org/abs/2203.15556>
+- [**Scaling laws for neural language models** (Kaplan et al., 2020)](../../../docs/REFERENCES.md#scaling-laws-for-neural-language-models-kaplan-et-al-2020)
+  — source of the `C ≈ 6ND` estimate §2.2 derives from the forward/backward FLOP split (see its
+  Table 1 / Appendix compute accounting).
+- [**Training compute-optimal large language models** (Hoffmann et al., 2022)](../../../docs/REFERENCES.md#training-compute-optimal-large-language-models-hoffmann-et-al-2022)
+  — Chinchilla; uses the same `6ND` accounting to derive the compute-optimal token budget, which is
+  what makes §2.2's heuristic worth memorizing rather than looking up.
 
 **Model configurations quoted in this module**
 
@@ -927,17 +977,18 @@ the citation alongside each preset.
 - Touvron et al. (2023). *Llama 2: Open Foundation and Fine-Tuned Chat Models* — Llama-2-70B: 80
   layers, `d = 8192`, 64 heads, 8 KV heads (GQA), `d_ffn = 28672`, vocab 32000, 4k context (Table 1
   plus the reference implementation's `ModelArgs`). Used in §3.4. <https://arxiv.org/abs/2307.09288>
-- Grattafiori et al. / Llama Team (2024). *The Llama 3 Herd of Models* — Llama-3-8B: 32 layers,
-  `d = 4096`, 32 heads, 8 KV heads (GQA), `d_ffn = 14336`, vocab 128256, untied embeddings, 8k
-  context. Config values cross-checked against the published Llama 3 model card and
-  `config.json`. Used throughout §2.5, §3.3, §5.2. <https://arxiv.org/abs/2407.21783>
+- [**The Llama 3 herd of models** (Grattafiori et al., 2024)](../../../docs/REFERENCES.md#the-llama-3-herd-of-models-grattafiori-et-al-2024)
+  — Llama-3-8B: 32 layers, `d = 4096`, 32 heads, 8 KV heads (GQA), `d_ffn = 14336`, vocab 128256,
+  untied embeddings, 8k context. Config values cross-checked against the published Llama 3 model
+  card and `config.json`. This is the shape every worked example in §2.5, §3.3, §3.5 and §5.2 uses.
 
 **Hardware specifications**
 
 - AMD Instinct MI300X / MI355X product pages — HBM capacity, bandwidth, and dense matrix-core peaks
-  used in §3.6. <https://www.amd.com/en/products/accelerators/instinct.html>
+  used in §3.6. <https://www.amd.com/en/products/accelerators/instinct.html> (retrieved
+  8 Aug 2026)
 - NVIDIA H100 / H200 datasheets — same figures for the Hopper column.
-  <https://www.nvidia.com/en-us/data-center/h100/>
+  <https://www.nvidia.com/en-us/data-center/h100/> (retrieved 8 Aug 2026)
 
 ---
 
@@ -968,7 +1019,7 @@ the citation alongside each preset.
 10. Explain to a non-engineer, in three sentences, why generating text is slow but reading a long
     document is fast, on the same hardware.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. `(4 + 2m)d² = 12d² = 12 × 8192² = 12 × 67.1 M = 805 M parameters`. FLOPs per token `= 2 × params
@@ -1041,9 +1092,11 @@ arithmetic under time pressure on a whiteboard, which is exactly the interview f
   throughput degrades while prefill throughput per parameter improves.
 - Add a **tensor-parallel** flag: divide weight bytes and FLOPs by the TP degree, but add the
   all-reduce traffic (two per layer, `2 × B × N × d × bytes` each). Find the TP degree where
-  interconnect traffic starts dominating — then check your answer against B07.
+  interconnect traffic starts dominating — then check your answer against
+  [B07](../B07.distributed-training-and-sharding/README.md).
 - Use `bench/batch_scaling.py` to find your machine's empirical knee, and compare it to the ridge
-  point you compute from the datasheet. If they disagree by more than ~2×, profile (B03) and explain
+  point you compute from the datasheet. If they disagree by more than ~2×, profile
+  ([B03](../B03.profiling-and-bottleneck-analysis/README.md)) and explain
   the gap — the usual culprit is launch overhead, not bandwidth.
 - Reproduce §3.3's crossover experimentally: sweep `--prefill-seq` in `bench/profile_layer.py` and
   find the token count at which the elementwise category's share of time stops falling.

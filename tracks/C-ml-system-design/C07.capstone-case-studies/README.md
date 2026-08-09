@@ -2,12 +2,20 @@
 
 > Track C · Module 07 · Status: **DONE** · Est. 10 hours · Depth 4/5
 >
-> Prerequisites: **C01–C06** for the design vocabulary, **B05/B06** for transformer and serving
-> performance, **B02** for the roofline, **B04** for precision, **B07** for sharding. **A01**
-> once, for GPU literacy. You do not need to have written a kernel to work this module, but you
+> Prerequisites: [C01](../C01.problem-framing-and-metrics/README.md)–[C06](../C06.monitoring-drift-and-ethics/README.md)
+> for the design vocabulary,
+> [B05](../../B-gpu-ml-performance/B05.transformer-performance/README.md)/[B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md)
+> for transformer and serving performance,
+> [B02](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) for the
+> roofline, [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md) for
+> precision, [B07](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md) for
+> sharding. [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md) once,
+> for GPU literacy. You do not need to have written a kernel to work this module, but you
 > do need to know why a memory-bound kernel is memory-bound.
 >
 > Code: Python 3.9+ standard library only. No GPU required — see §4 for why.
+>
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -60,7 +68,8 @@ Every one of those maps onto a decision in this module:
 **Where the analogy breaks — and it breaks in three places that matter.** First, an emergency
 department's triage nurse does not get *better at triage because of who she admitted last
 week*; an ML system trains on its own outputs, so it has a **feedback loop** that a hospital
-does not (§3.2, and C06). Second, hospital capacity is roughly linear — two MRI machines do
+does not (§3.2, and [C06 §3](../C06.monitoring-drift-and-ethics/README.md#3-deep-dive)). Second,
+hospital capacity is roughly linear — two MRI machines do
 twice the scans — while GPU capacity is **non-linear and non-obvious**: batching more requests
 can raise throughput and destroy latency at the same time, and the crossover is a number you
 have to compute (§5.1). Third, a hospital's demand is exogenous; a recommender **creates its
@@ -249,8 +258,8 @@ flowchart LR
 ```
 
 Admission control sits *before* routing so that back-pressure is applied while we still know
-which tenant to shed; prefill and decode are separate pools so that one 32k prompt cannot stall
-two hundred people's token streams.
+which tenant to shed; [prefill and decode](../../../docs/GLOSSARY.md#prefill-and-decode) are
+separate pools so that one 32k prompt cannot stall two hundred people's token streams.
 
 #### The four numbers everything else hangs off
 
@@ -265,7 +274,8 @@ prefill, and 60% end-to-end efficiency against the roofline.
 70e9 params x 2 B = 140 GB
 ```
 
-**(2) KV-cache bytes per token.** This one formula decides the design:
+**(2) [KV-cache](../../../docs/GLOSSARY.md#kv-cache) bytes per token.** This one formula decides
+the design:
 
 ```
 d_kv               = kv_heads x head_dim = 8 x 128 = 1024
@@ -274,7 +284,9 @@ kv_bytes_per_token = 2 x layers x d_kv x dtype_bytes
                    = 327,680 B  =  320 KiB per token
 ```
 
-The leading `2` is K and V. Notice what grouped-query attention bought: with 64 KV heads this
+The leading `2` is K and V. Notice what
+[grouped-query attention](../../../docs/REFERENCES.md#multi-query-and-grouped-query-attention-ainslie-et-al-2023)
+bought: with 64 KV heads this
 would be **2.5 MiB per token** and nothing below would fit. GQA is a systems decision wearing a
 modelling costume — worth saying in an interview, because it shows you can see across the
 boundary.
@@ -296,8 +308,12 @@ capacity  = 1,165.6e9 / 327,680                            = 3,557,129 tokens
 reflexive answer ("we're KV-bound, quantize the cache") would be wrong. Latency binds first.
 
 **(4) Bandwidth-bound decode throughput.** Decode reads every weight and every cached K/V once
-per step and does almost no arithmetic per byte — the memory-bound corner of the roofline
-(B02), applied to the transformer (B05):
+per step and does almost no arithmetic per byte — the
+[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound) corner of
+the [roofline](../../../docs/GLOSSARY.md#roofline-model)
+([B02 §2](../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#2-first-principles)),
+applied to the transformer
+([B05 §3](../../B-gpu-ml-performance/B05.transformer-performance/README.md#3-deep-dive)):
 
 ```
 tokens/s ~= memory_bandwidth / bytes_read_per_token
@@ -388,7 +404,8 @@ And the constraint that ends the discussion about spanning nodes: substitute a 2
 scale-out NIC and 30 µs latency into the same formula and you get `881 MB / 25 GB/s = 35.2 ms`
 plus `160 × 30 µs = 4.8 ms` — roughly **40 ms of communication on a step whose compute is
 9 ms**. TPOT goes from 25 ms to ~84 ms. Scale *up* inside the coherent fabric; scale *out* with
-independent replicas (B07).
+independent replicas
+([B07 §3](../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#3-deep-dive)).
 
 #### 3.1.3 Serving mechanisms, each with the problem it solves
 
@@ -396,8 +413,8 @@ A mechanism named without its problem is cargo cult. Each of these earns its pla
 
 | Mechanism | Problem it solves | Quantified |
 |---|---|---|
-| **Continuous batching** ([Orca](https://www.usenix.org/conference/osdi22/presentation/yu)) | A 20-token answer batched with a 2,000-token answer waits for all 2,000 steps; freed slots idle | Schedules per *iteration*, not per request |
-| **Paged KV cache** ([vLLM](https://arxiv.org/abs/2309.06180)) | Reserving 32k of contiguous KV per request wastes 99% of it and fragments the pool | 108 sequences/node reserved vs **1,737** paged — a 16× capacity difference from an allocator |
+| **Continuous batching** ([Orca](../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022)) | A 20-token answer batched with a 2,000-token answer waits for all 2,000 steps; freed slots idle | Schedules per *iteration*, not per request |
+| **Paged KV cache** ([vLLM](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)) | Reserving 32k of contiguous KV per request wastes 99% of it and fragments the pool | 108 sequences/node reserved vs **1,737** paged — a 16× capacity difference from an allocator |
 | **Prefix caching** ([RadixAttention](https://arxiv.org/abs/2312.07104)) | 60% of input tokens repeat: shared system prompts, few-shot blocks, growing conversation history | Prefill demand 450,000 → **180,000 tokens/s** |
 | **Chunked prefill** ([Sarathi](https://arxiv.org/abs/2308.16369)) | A 32k prefill occupies the GPU for 1.8 s; every co-resident stream stalls for 1.8 s | Worst-case stall becomes one chunk, ~119 ms |
 | **Prefill/decode disaggregation** ([DistServe](https://arxiv.org/abs/2401.09670)) | Compute-bound and bandwidth-bound workloads want opposite shapes and different fleet sizes | 10.5 prefill vs 9.6 decode node-equivalents — sizes that cannot be tuned independently if colocated |
@@ -412,13 +429,17 @@ prefill-dominated.
 #### 3.1.4 The quantization decision, and its gate
 
 `--weight-dtype fp8 --kv-dtype fp8` predicts 3,557,129 → **7,541,504** tokens of KV capacity
-and 7,797 → **9,460** tok/s. Attractive. It ships only behind a gate (B04, C04):
+and 7,797 → **9,460** tok/s. Attractive. It ships only behind a gate
+([B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md),
+[C04](../C04.production-model-optimization/README.md)):
 
 1. Per-task accuracy within **0.5 points** of bf16, **per tenant-facing task** — not in
    aggregate, because aggregate hides the one task that broke.
-2. Perplexity delta on held-out *production* prompts, not WikiText. Quantization error
+2. Perplexity delta on held-out *production* prompts, not WikiText.
+   [Quantization](../../../docs/GLOSSARY.md#quantization) error
    concentrates in the tails, and the tail is somebody's use case.
-3. **Long context re-tested separately.** fp8 KV error accumulates along the sequence, so a 32k
+3. **Long context re-tested separately.** [fp8](../../../docs/GLOSSARY.md#fp8-and-the-fnuzocp-split)
+   KV error accumulates along the sequence, so a 32k
    conversation is the worst case and a 2k eval will never find it.
 4. One week of shadow traffic with automated output-divergence tracking.
 
@@ -622,7 +643,11 @@ Being able to say "no" here is the point. The reflexive "put it all on GPUs" ans
 ## 4. Hands-On Labs
 
 **There is no `cuda/`, `hip/`, or `triton/` directory in this module, and that is deliberate.**
-C07 synthesizes; the kernels it reasons about were built in A04, A06, A07 and profiled in B03.
+C07 synthesizes; the kernels it reasons about were built in
+[A04](../../A-gpu-programming/A04.parallel-reduction/README.md),
+[A06](../../A-gpu-programming/A06.tiled-matrix-multiply/README.md),
+[A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) and profiled in
+[B03](../../B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md).
 Adding a kernel here would dilute the one thing this module is for. What it ships instead is
 two calculators, because the skill being trained is *arithmetic under constraints*, and that
 skill needs a tool you can interrogate.
@@ -875,9 +900,9 @@ point-in-time-correct feature joins.
 call, a policy lookup, a logging write on the critical path. It is invisible at p50 and it owns
 p99. *Guard:* every hop gets a number, the numbers sum, and 15–20% stays in reserve.
 
-**Training/serving skew.** Features computed one way in the warehouse and another way in the
-serving path. *Guard:* log the served feature vector and train on it. Monitoring skew is the
-backstop; making it impossible is the plan.
+**[Training/serving skew](../../../docs/GLOSSARY.md#training-serving-skew).** Features computed
+one way in the warehouse and another way in the serving path. *Guard:* log the served feature
+vector and train on it. Monitoring skew is the backstop; making it impossible is the plan.
 
 **The KV thrash spiral** (LLM-specific). Admission over-commits → sequences get preempted →
 preempted sequences recompute their prefill → recompute consumes the capacity that would have
@@ -925,7 +950,7 @@ common architectural error in ML systems is building the 10× design at 1× scal
 spending the team's time operating complexity that no traffic justifies. The right move is to
 know the 10× design (so the 1× design does not paint you into a corner) and to build the 1×
 one. Sculley et al.'s
-[*Hidden Technical Debt*](https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html)
+[*Hidden Technical Debt*](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
 is about exactly this bill coming due.
 
 ---
@@ -934,9 +959,10 @@ is about exactly this bill coming due.
 
 **LLM serving.** The mechanisms in §3.1 are not hypothetical — they are what the open-source
 serving stacks implement, and reading their code is the fastest way to make this concrete.
-[vLLM](https://github.com/vllm-project/vllm) ships paged attention, continuous batching,
+[vLLM](../../../docs/REFERENCES.md#vllm-project) ships paged attention,
+[continuous batching](../../../docs/GLOSSARY.md#continuous-batching),
 chunked prefill, prefix caching, and prefill/decode disaggregation;
-[SGLang](https://github.com/sgl-project/sglang) ships RadixAttention prefix caching and a
+[SGLang](../../../docs/REFERENCES.md#sglang-project) ships RadixAttention prefix caching and a
 cache-aware scheduler; [TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM) and
 [Text Generation Inference](https://github.com/huggingface/text-generation-inference) cover
 similar ground. On AMD hardware the same designs run on ROCm through vLLM and SGLang, with the
@@ -951,7 +977,9 @@ the position-bias shallow tower, and [Yi et al.
 (2019)](https://doi.org/10.1145/3298689.3346996) for sampling-bias-corrected two-tower
 retrieval. [DLRM](https://github.com/facebookresearch/dlrm) is the reference open
 implementation of the embedding-heavy ranking model and is also an MLPerf training benchmark,
-which makes it a good target for the GPU work in Track A and B. ANN retrieval in practice means
+which makes it a good target for the GPU work in
+[Track A](../../A-gpu-programming/README.md) and [B](../../B-gpu-ml-performance/README.md). ANN
+retrieval in practice means
 [FAISS](https://github.com/facebookresearch/faiss),
 [ScaNN](https://github.com/google-research/google-research/tree/master/scann), or
 [hnswlib](https://github.com/nmslib/hnswlib).
@@ -967,36 +995,53 @@ gating an expensive pipeline. The latency-budget discipline is standard SRE prac
 guardrail-metric discipline comes from controlled experimentation (Kohavi et al.) rather than
 from ML.
 
+**Where to go next.** Not to another module — C07 is the last one, and what is left is to
+produce a document of your own. Take a fresh prompt from [`exercises/`](exercises/) under the
+clock from §2 and score the result with the rubric in §9.4; the gap it finds is worth more than
+further reading. Then aim the framework at a system you already operate: name the hop nobody has
+costed, derive its number, and see whether the budget you have been living with actually closes.
+When the arithmetic says a component needs work the design cannot fix, the
+[curriculum index](../../../CURRICULUM.md) and the [repository README](../../../README.md) say
+which module to go back to.
+
 ---
 
 ## 8. Cited References
 
 Every non-obvious claim above traces to one of these or to
 [`../../../docs/REFERENCES.md`](../../../docs/REFERENCES.md). Derived numbers are labelled as
-estimates from stated assumptions and are not attributed to any of these sources.
+estimates from stated assumptions and are not attributed to any of these sources. Sources shared
+with the rest of the curriculum are cited by anchor into that
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live;
+the ones specific to this module carry their URL here.
 
 ### LLM inference and serving
 
-- Pope et al. (2022). *Efficiently Scaling Transformer Inference.* — the partitioning and
-  latency/throughput analysis this module's §3.1 arithmetic follows.
-  <https://arxiv.org/abs/2211.05102>
-- Kwon et al. (2023). *Efficient Memory Management for LLM Serving with PagedAttention (vLLM).*
-  — paged KV cache. <https://arxiv.org/abs/2309.06180>
-- Yu et al. (2022). *Orca: A Distributed Serving System for Transformer-Based Generative
-  Models.* OSDI '22 — iteration-level (continuous) batching.
-  <https://www.usenix.org/conference/osdi22/presentation/yu>
+- Pope et al. (2022). [*Efficiently Scaling Transformer Inference.*](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)
+  — the partitioning and latency/throughput analysis this module's §3.1 arithmetic follows.
+- Kwon et al. (2023). [*Efficient Memory Management for LLM Serving with PagedAttention (vLLM).*](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
+  — paged KV cache: the source of the 16× capacity line in §3.1.3 and of §5.3's point that the
+  largest win in the design comes from an allocator.
+- Yu et al. (2022). [*Orca: A Distributed Serving System for Transformer-Based Generative
+  Models.*](../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022) OSDI '22 —
+  iteration-level (continuous) batching, the scheduling model the two caps in §3.1.1 sit on top
+  of.
 - Agrawal et al. (2023). *SARATHI: Efficient LLM Inference by Piggybacking Decodes with Chunked
   Prefills.* <https://arxiv.org/abs/2308.16369>
 - Zhong et al. (2024). *DistServe: Disaggregating Prefill and Decoding for Goodput-optimized
   LLM Serving.* <https://arxiv.org/abs/2401.09670>
 - Zheng et al. (2023). *SGLang: Efficient Execution of Structured Language Model Programs* —
   RadixAttention prefix caching. <https://arxiv.org/abs/2312.07104>
-- Ainslie et al. (2023). *GQA: Training Generalized Multi-Query Transformer Models from
-  Multi-Head Checkpoints.* <https://arxiv.org/abs/2305.13245>
-- Dao et al. (2022). *FlashAttention: Fast and Memory-Efficient Exact Attention with
-  IO-Awareness.* <https://arxiv.org/abs/2205.14135>
-- Micikevicius et al. (2022). *FP8 Formats for Deep Learning.*
-  <https://arxiv.org/abs/2209.05433>
+- Ainslie et al. (2023). [*GQA: Training Generalized Multi-Query Transformer Models from
+  Multi-Head Checkpoints.*](../../../docs/REFERENCES.md#multi-query-and-grouped-query-attention-ainslie-et-al-2023)
+  — the grouped-query attention that makes §3.1's KV cost 320 KiB per token instead of 2.5 MiB,
+  which is the assumption the whole sizing rests on.
+- Dao et al. (2022). [*FlashAttention: Fast and Memory-Efficient Exact Attention with
+  IO-Awareness.*](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022) — background for the
+  attention term in the prefill arithmetic; the kernel itself is built in
+  [A09](../../A-gpu-programming/A09.advanced-triton-flash-attention/README.md).
+- Micikevicius et al. (2022). [*FP8 Formats for Deep Learning.*](../../../docs/REFERENCES.md#fp8-formats-for-deep-learning-micikevicius-et-al-2022)
+  — the format definitions behind the fp8 option in §3.1.4 and the gate it ships behind.
 
 ### Recommendation systems
 
@@ -1016,16 +1061,17 @@ estimates from stated assumptions and are not attributed to any of these sources
 
 ### Production ML practice
 
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* NeurIPS — why the
-  model is the small part.
-  <https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
+- Sculley et al. (2015). [*Hidden Technical Debt in Machine Learning Systems.*](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  NeurIPS — why the model is the small part, and the bill that §6's "when *not* to build these
+  systems" is trying not to run up.
 - Kohavi, Tang, Xu (2020). *Trustworthy Online Controlled Experiments: A Practical Guide to A/B
   Testing.* Cambridge University Press — A/B methodology, guardrails, sample-ratio mismatch.
   <https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59>
-- Zinkevich, M. *Rules of Machine Learning: Best Practices for ML Engineering.* Google.
-  <https://developers.google.com/machine-learning/guides/rules-of-ml>
-- Breck et al. (2017). *The ML Test Score: A Rubric for ML Production Readiness.*
-  <https://research.google/pubs/pub46555/>
+- Zinkevich, M. [*Rules of Machine Learning: Best Practices for ML Engineering.*](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google)
+  Google — the practitioner's statement of §2's ordering: metrics and infrastructure before
+  models.
+- Breck et al. (2017). [*The ML Test Score: A Rubric for ML Production Readiness.*](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+  — a production-readiness rubric to read alongside the self-review rubric in §9.4.
 
 ---
 
@@ -1242,10 +1288,14 @@ and started at the architecture. Go back to minute zero.
 ### 9.5 Stretch
 
 - Take the LLM design and re-do it for an **MoE** model. The memory model changes completely:
-  bytes read per token depend on expert routing, an expert-parallel all-to-all replaces the TP
+  bytes read per token depend on expert routing, an
+  [expert-parallel](../../../docs/GLOSSARY.md#data-tensor-pipeline-and-expert-parallelism)
+  all-to-all replaces the TP
   all-reduce, and expert load imbalance becomes a first-class scheduling problem. Which of §5.1's
   five terms survive unchanged?
-- Extend `llm_sizing.py` to model **speculative decoding**: add a draft-model cost and an
+- Extend `llm_sizing.py` to model
+  **[speculative decoding](../../../docs/GLOSSARY.md#speculative-decoding)**: add a draft-model
+  cost and an
   acceptance rate, and find the batch size below which speculation wins. Explain why the answer
   depends on which roof you are on.
 - Extend `funnel_budget.py` to model **two retrieval sources** with separate quotas into the

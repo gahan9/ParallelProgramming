@@ -399,15 +399,64 @@ citation; CI runs `--check` and fails if it is stale.
 <!-- BEGIN GENERATED: reference-index -->
 | Source | Cited by |
 |---|---|
-| [CUDA C++ Best Practices Guide (NVIDIA)](#cuda-c-best-practices-guide-nvidia) | A02 |
-| [HIP Programming Guide (AMD)](#hip-programming-guide-amd) | A02 |
-| [AMD GPU architecture specifications (AMD)](#amd-gpu-architecture-specifications-amd) | A02 |
-| [Roofline (Williams et al., 2009)](#roofline-williams-et-al-2009) | A02 |
-| [AMD CDNA architecture (AMD)](#amd-cdna-architecture-amd) | A02 |
+| [CUDA C++ Programming Guide (NVIDIA)](#cuda-c-programming-guide-nvidia) | A01, A03, A04, A06, A07, A10, B04 |
+| [CUDA C++ Best Practices Guide (NVIDIA)](#cuda-c-best-practices-guide-nvidia) | A01, A02, A03, A04, A05, A06, A07, A10, B02, B03 |
+| [HIP Programming Guide (AMD)](#hip-programming-guide-amd) | A02, A03, A05, A06, A07 |
+| [HIP Programming Model (AMD)](#hip-programming-model-amd) | A01, A03, A04, A08 |
+| [AMD GPU architecture specifications (AMD)](#amd-gpu-architecture-specifications-amd) | A02, A03, B01 |
+| [Triton documentation and tutorials (Triton project)](#triton-documentation-and-tutorials-triton-project) | A01, A05, A06, A07, A08, A09 |
+| [Roofline (Williams et al., 2009)](#roofline-williams-et-al-2009) | A01, A02, A04, A05, A06, A08, A10, B01, B02, B03, B05 |
+| [Little's Law (Little, 1961)](#littles-law-little-1961) | A03, B01, C05 |
+| [NVIDIA Hopper Architecture Whitepaper (NVIDIA)](#nvidia-hopper-architecture-whitepaper-nvidia) | A10, B01 |
+| [AMD CDNA architecture (AMD)](#amd-cdna-architecture-amd) | A01, A02 |
+| [AMD CDNA 3 whitepaper (AMD)](#amd-cdna-3-whitepaper-amd) | A03, A06, B01, B04 |
+| [AMD Instinct cluster design reference (AMD)](#amd-instinct-cluster-design-reference-amd) | B01, B07 |
+| [Optimizing Parallel Reduction in CUDA (Harris)](#optimizing-parallel-reduction-in-cuda-harris) | A04 |
 | [How to Access Global Memory Efficiently in CUDA C/C++ Kernels (Harris)](#how-to-access-global-memory-efficiently-in-cuda-cc-kernels-harris) | A02 |
-| [Optimizing Matrix Transpose in CUDA (Ruetsch and Micikevicius, 2009)](#optimizing-matrix-transpose-in-cuda-ruetsch-and-micikevicius-2009) | A02 |
-| [CUTLASS and CuTe (NVIDIA)](#cutlass-and-cute-nvidia) | A02 |
-| [FlashAttention (Dao et al., 2022)](#flashattention-dao-et-al-2022) | A02 |
+| [Parallel Prefix Sum with CUDA (Harris, Sengupta and Owens)](#parallel-prefix-sum-with-cuda-harris-sengupta-and-owens) | A05 |
+| [Optimizing Matrix Transpose in CUDA (Ruetsch and Micikevicius, 2009)](#optimizing-matrix-transpose-in-cuda-ruetsch-and-micikevicius-2009) | A02, B03 |
+| [CUTLASS and CuTe (NVIDIA)](#cutlass-and-cute-nvidia) | A02, A03, A06, A10, B01 |
+| [AMD matrix instruction calculator (AMD)](#amd-matrix-instruction-calculator-amd) | A06, A10, B01 |
+| [Attention Is All You Need (Vaswani et al., 2017)](#attention-is-all-you-need-vaswani-et-al-2017) | A09, B05, B06 |
+| [FlashAttention (Dao et al., 2022)](#flashattention-dao-et-al-2022) | A02, A03, A04, A05, A06, A07, A08, A09, B01, B02, B05, B06, C07 |
+| [FlashAttention-2 (Dao, 2023)](#flashattention-2-dao-2023) | A07, A09 |
+| [Online normalizer calculation for softmax (Milakov and Gimelshein, 2018)](#online-normalizer-calculation-for-softmax-milakov-and-gimelshein-2018) | A07, A09, B02 |
+| [PagedAttention and vLLM (Kwon et al., 2023)](#pagedattention-and-vllm-kwon-et-al-2023) | A09, B05, B06, B07, C07 |
+| [Speculative decoding (Leviathan et al., 2023)](#speculative-decoding-leviathan-et-al-2023) | B06, C04, C07 |
+| [Efficiently Scaling Transformer Inference (Pope et al., 2022)](#efficiently-scaling-transformer-inference-pope-et-al-2022) | B05, B06, B07, C07 |
+| [Multi-query and grouped-query attention (Ainslie et al., 2023)](#multi-query-and-grouped-query-attention-ainslie-et-al-2023) | B05, C07 |
+| [Orca: continuous batching (Yu et al., 2022)](#orca-continuous-batching-yu-et-al-2022) | B06, C07 |
+| [Scaling laws for neural language models (Kaplan et al., 2020)](#scaling-laws-for-neural-language-models-kaplan-et-al-2020) | B05, C03 |
+| [Training compute-optimal large language models (Hoffmann et al., 2022)](#training-compute-optimal-large-language-models-hoffmann-et-al-2022) | B05, C03 |
+| [The Llama 3 herd of models (Grattafiori et al., 2024)](#the-llama-3-herd-of-models-grattafiori-et-al-2024) | B05, B07, C03 |
+| [vLLM (project)](#vllm-project) | B06, C05, C07 |
+| [SGLang (project)](#sglang-project) | B06, C05, C07 |
+| [Megatron-LM (Shoeybi et al., 2019)](#megatron-lm-shoeybi-et-al-2019) | B07, C03 |
+| [ZeRO (Rajbhandari et al., 2020)](#zero-rajbhandari-et-al-2020) | B07, C03 |
+| [GPipe (Huang et al., 2019)](#gpipe-huang-et-al-2019) | B07 |
+| [PyTorch FSDP (PyTorch)](#pytorch-fsdp-pytorch) | B07, C03 |
+| [RCCL (AMD)](#rccl-amd) | A04, B07 |
+| [NCCL (NVIDIA)](#nccl-nvidia) | A04, B07 |
+| [Mixed Precision Training (Micikevicius et al., 2017)](#mixed-precision-training-micikevicius-et-al-2017) | B04, B07 |
+| [FP8 Formats for Deep Learning (Micikevicius et al., 2022)](#fp8-formats-for-deep-learning-micikevicius-et-al-2022) | B04, C07 |
+| [OCP 8-bit Floating Point Specification (OFP8)](#ocp-8-bit-floating-point-specification-ofp8) | B04 |
+| [LLM.int8() (Dettmers et al., 2022)](#llmint8-dettmers-et-al-2022) | B04, C04 |
+| [GPTQ (Frantar et al., 2022)](#gptq-frantar-et-al-2022) | B04, C04 |
+| [AWQ (Lin et al., 2023)](#awq-lin-et-al-2023) | B04, C04 |
+| [Distilling the Knowledge in a Neural Network (Hinton et al., 2015)](#distilling-the-knowledge-in-a-neural-network-hinton-et-al-2015) | C04 |
+| [What Every Computer Scientist Should Know About Floating-Point Arithmetic (Goldberg, 1991)](#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991) | A04, A07, B04, C03 |
+| [Hidden Technical Debt in Machine Learning Systems (Sculley et al., 2015)](#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015) | C01, C02, C03, C04, C05, C06, C07 |
+| [Designing Machine Learning Systems (Huyen, 2022)](#designing-machine-learning-systems-huyen-2022) | C01, C02 |
+| [Rules of Machine Learning (Zinkevich, Google)](#rules-of-machine-learning-zinkevich-google) | C01, C02, C05, C06, C07 |
+| [The ML Test Score (Breck et al., 2017)](#the-ml-test-score-breck-et-al-2017) | C01, C02, C03, C04, C05, C06, C07 |
+| [Software Engineering for Machine Learning (Amershi et al., 2019)](#software-engineering-for-machine-learning-amershi-et-al-2019) | C01, C02, C05, C06 |
+| [Dataset Shift in Machine Learning (2009)](#dataset-shift-in-machine-learning-2009) | C06 |
+| [rocprofiler-sdk and rocprofv3 (AMD)](#rocprofiler-sdk-and-rocprofv3-amd) | A03, B03 |
+| [Nsight Systems (NVIDIA)](#nsight-systems-nvidia) | B03 |
+| [Nsight Compute (NVIDIA)](#nsight-compute-nvidia) | A10, B02, B03 |
+| [Nsight Compute Profiling Guide (NVIDIA)](#nsight-compute-profiling-guide-nvidia) | A03, B02, B03 |
+| [ROCm compute and systems profilers (AMD)](#rocm-compute-and-systems-profilers-amd) | A03, B02, B03 |
+| [ROCm workload optimization guide (AMD)](#rocm-workload-optimization-guide-amd) | B01 |
 
-**Not yet cited from any module (53):** CUDA C++ Programming Guide (NVIDIA); HIP Programming Model (AMD); ROCm documentation portal (AMD); Triton documentation and tutorials (Triton project); Little's Law (Little, 1961); NVIDIA Hopper Architecture Whitepaper (NVIDIA); AMD CDNA 3 whitepaper (AMD); AMD Instinct cluster design reference (AMD); Optimizing Parallel Reduction in CUDA (Harris); Parallel Prefix Sum with CUDA (Harris, Sengupta and Owens); AMD matrix instruction calculator (AMD); Attention Is All You Need (Vaswani et al., 2017); FlashAttention-2 (Dao, 2023); Online normalizer calculation for softmax (Milakov and Gimelshein, 2018); PagedAttention and vLLM (Kwon et al., 2023); Speculative decoding (Leviathan et al., 2023); Efficiently Scaling Transformer Inference (Pope et al., 2022); Multi-query and grouped-query attention (Ainslie et al., 2023); Orca: continuous batching (Yu et al., 2022); Scaling laws for neural language models (Kaplan et al., 2020); Training compute-optimal large language models (Hoffmann et al., 2022); The Llama 3 herd of models (Grattafiori et al., 2024); vLLM (project); SGLang (project); Megatron-LM (Shoeybi et al., 2019); ZeRO (Rajbhandari et al., 2020); GPipe (Huang et al., 2019); PyTorch FSDP (PyTorch); RCCL (AMD); NCCL (NVIDIA); Mixed Precision Training (Micikevicius et al., 2017); FP8 Formats for Deep Learning (Micikevicius et al., 2022); OCP 8-bit Floating Point Specification (OFP8); LLM.int8() (Dettmers et al., 2022); GPTQ (Frantar et al., 2022); AWQ (Lin et al., 2023); Distilling the Knowledge in a Neural Network (Hinton et al., 2015); What Every Computer Scientist Should Know About Floating-Point Arithmetic (Goldberg, 1991); Hidden Technical Debt in Machine Learning Systems (Sculley et al., 2015); Designing Machine Learning Systems (Huyen, 2022); Rules of Machine Learning (Zinkevich, Google); The ML Test Score (Breck et al., 2017); Software Engineering for Machine Learning (Amershi et al., 2019); Dataset Shift in Machine Learning (2009); rocprofiler-sdk and rocprofv3 (AMD); Nsight Systems (NVIDIA); Nsight Compute (NVIDIA); Nsight Compute Profiling Guide (NVIDIA); ROCm compute and systems profilers (AMD); ROCm workload optimization guide (AMD); Google C++ Style Guide; Conventional Comments; Clean Code (Martin, 2008). These are here as background reading, not as support for a claim.
+**Not yet cited from any module (4):** ROCm documentation portal (AMD); Google C++ Style Guide; Conventional Comments; Clean Code (Martin, 2008). These are here as background reading, not as support for a claim.
 <!-- END GENERATED: reference-index -->

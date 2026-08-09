@@ -51,7 +51,12 @@ FENCE = re.compile(r"^(?P<f>```|~~~).*?^(?P=f)\s*$", re.S | re.M)
 INLINE_CODE = re.compile(r"`[^`\n]*`")
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 
-MD_LINK = re.compile(r"!?\[(?P<text>(?:[^\]\[]|\[[^\]]*\])*)\]\((?P<href><[^>]+>|[^)\s]+)(?:\s+[\"'][^\"']*[\"'])?\)")
+# The destination stops at the first *unescaped* ")". A backslash escape keeps the
+# paren inside the URL, as the Hot Chips deck's `...ASmith\(MI300X\).pdf` needs.
+MD_LINK = re.compile(
+    r"!?\[(?P<text>(?:[^\]\[]|\[[^\]]*\])*)\]"
+    r"\((?P<href><[^>]+>|(?:\\.|[^)\s\\])+)(?:\s+[\"'][^\"']*[\"'])?\)"
+)
 HTML_HREF = re.compile(r"<a\b[^>]*\bhref=[\"'](?P<href>[^\"']+)[\"']", re.I)
 HTML_SRC = re.compile(r"<img\b[^>]*\bsrc=[\"'](?P<href>[^\"']+)[\"']", re.I)
 REF_DEF = re.compile(r"^\s{0,3}\[(?P<label>[^\]]+)\]:\s*(?P<href>\S+)", re.M)
@@ -225,6 +230,16 @@ def check_local(paths: Iterable[Path]) -> tuple[list[Problem], int]:
     return problems, checked
 
 
+# A plain scripted User-Agent gets 403s from hosts that serve the page fine to a browser
+# (uber.com/blog was one). Ask the way a browser asks, so a 403 means bot protection.
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+BOT_WALL = frozenset({403, 429})
+
+
 def check_external(paths: Iterable[Path], timeout: float) -> tuple[list[Problem], int]:
     """HTTP-check each distinct external URL once. Opt-in: hosts go down for their own reasons."""
     import urllib.error
@@ -243,28 +258,51 @@ def check_external(paths: Iterable[Path], timeout: float) -> tuple[list[Problem]
             seen.setdefault(match.group(1), []).append((source, body.count("\n", 0, match.start()) + 1))
 
     problems: list[Problem] = []
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; ParallelProgramming-link-check/1.0)"}
+    blocked: list[str] = []
     for url in sorted(seen):
-        status = ""
+        status, code = "", 0
         for method in ("HEAD", "GET"):
-            request = urllib.request.Request(url, method=method, headers=headers)
+            request = urllib.request.Request(url, method=method, headers=BROWSER_HEADERS)
             try:
                 with urllib.request.urlopen(request, timeout=timeout) as response:
                     status = "" if response.status < 400 else f"HTTP {response.status}"
                 break
             except urllib.error.HTTPError as exc:
-                status = f"HTTP {exc.code}"
-                if exc.code in {403, 405, 501} and method == "HEAD":
+                status, code = f"HTTP {exc.code}", exc.code
+                # A redirect urllib declines to follow still answers the only question
+                # asked here: the resource exists and the server named its new home.
+                # tensorflow.org bounces browser agents around a locale loop; that is
+                # not a dead citation.
+                if 300 <= exc.code < 400:
+                    status = ""
+                    break
+                if exc.code in {403, 405, 429, 501} and method == "HEAD":
                     continue  # some hosts refuse HEAD; retry as GET
                 break
             except Exception as exc:  # noqa: BLE001 - any transport failure is a finding
                 status = f"{type(exc).__name__}: {exc}"
                 break
+        # Publishers behind bot protection (ACM, doi.org, MIT Press) answer a scripted
+        # request with 403/429 however the request is dressed. That says nothing about
+        # whether the citation is good, so report it separately instead of failing the
+        # run - a checker that reports 22 false alarms is a checker nobody reads.
+        if status and code in BOT_WALL:
+            blocked.append(f"{url} - {status}")
+            status = ""
+            verdict = "wall"
+        else:
+            verdict = "ok  " if not status else "FAIL"
         if status:
             source, line = seen[url][0]
             extra = f" (+{len(seen[url]) - 1} more)" if len(seen[url]) > 1 else ""
             problems.append(Problem(source, line, url, f"unreachable{extra} - {status}"))
-        print(f"  {'ok  ' if not status else 'FAIL'} {url}", file=sys.stderr)
+        print(f"  {verdict} {url}", file=sys.stderr)
+
+    if blocked:
+        print(f"\n{len(blocked)} URL(s) behind bot protection - not checkable, not "
+              f"presumed broken:", file=sys.stderr)
+        for entry in blocked:
+            print(f"  {entry}", file=sys.stderr)
 
     return problems, len(seen)
 

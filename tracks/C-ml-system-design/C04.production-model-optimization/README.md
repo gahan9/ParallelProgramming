@@ -5,10 +5,11 @@
 > Prerequisites: [C03 Training systems](../C03.training-systems/README.md), and
 > [C01 Problem framing](../C01.problem-framing-and-metrics/README.md) for the metric discipline this
 > module's quality gate depends on. Cross-references
-> [B04 Precision & quantization](../../B-gpu-ml-performance/B04.precision-and-quantization/) and
-> [B06 Inference serving optimizations](../../B-gpu-ml-performance/B06.inference-serving-optimizations/).
+> [B04 Precision & quantization](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md) and
+> [B06 Inference serving optimizations](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md).
 > Backends: **none — this is a design module.** The only executables are standard-library Python 3
 > tools in [`tools/`](tools/). No GPU, no framework, no network required.
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -17,12 +18,12 @@
 **TL;DR.** You have a trained model that is too slow or too expensive to ship. There is an ordering
 to the fixes, and it is **cheapest-and-least-risky first**: don't call the model at all (caching,
 cascades, early exit) → serve it better (batching, runtime, graph capture) → shrink the numbers
-(quantization) → shrink the model (distillation, pruning, architecture change). Engineers habitually
-invert this ordering, because the bottom rung is the interesting research problem and the top rung is
-plumbing. Every rung below the second changes the model's outputs, which means **every one of them
-must pass a task-level evaluation before it ships** — and "the loss looked fine" is not that
-evaluation. The unit of decision throughout is **cost per 1,000 requests**, compared against the
-engineering weeks it takes to get there.
+([quantization](../../../docs/GLOSSARY.md#quantization)) → shrink the model (distillation, pruning,
+architecture change). Engineers habitually invert this ordering, because the bottom rung is the
+interesting research problem and the top rung is plumbing. Every rung below the second changes the
+model's outputs, which means **every one of them must pass a task-level evaluation before it
+ships** — and "the loss looked fine" is not that evaluation. The unit of decision throughout is
+**cost per 1,000 requests**, compared against the engineering weeks it takes to get there.
 
 **Layman analogy — cutting a household energy bill.** You turn off the lights in rooms nobody is in.
 Then you fix the door that doesn't seal. Then you swap the bulbs for LEDs. *Only then* do you consider
@@ -46,8 +47,9 @@ and only then decide whether the wall is worth it.
 
 **By the end of this module you can:** order the optimization ladder for a *specific* situation and
 justify the ordering; explain why compression ratio is not speedup; design a quality gate with slices,
-thresholds, canary, and rollback trigger; compute expected cost and quality for a cascade; and build
-the business case — including the case where the correct answer is "don't do it."
+thresholds, [canary](../../../docs/GLOSSARY.md#ab-testing-and-canary), and rollback trigger; compute
+expected cost and quality for a cascade; and build the business case — including the case where the
+correct answer is "don't do it."
 
 ---
 
@@ -173,8 +175,8 @@ rate, and a genuinely different risk class: a false hit returns a plausible but 
 nothing in your latency or cost metrics will tell you. It needs the same quality gate as a model
 change (§3.7). Related and lower-risk: **prefix caching** in LLM serving, where the shared prefix of
 many requests is computed once — that is a *serving* mechanism owned by
-[B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/), and it is exact rather than
-approximate.
+[B06 §3](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md#3-deep-dive), and
+it is exact rather than approximate.
 
 **Precomputation.** If the input space is small and known — the top 10,000 products, the standard
 report queries — compute offline and serve from a table. Latency becomes a database read. The cost is
@@ -189,9 +191,11 @@ possible optimization and the one most often overlooked, because it feels like i
 The distinguishing property of this rung: **the weights do not change, so the outputs do not change,
 so there is no quality risk.** That makes it the highest-value-per-unit-risk work in the module.
 
-- **Batching.** GPU inference at batch size 1 leaves most of the hardware idle. Continuous /
-  in-flight batching keeps the device fed. The mechanics, the latency-throughput tradeoff, and KV
-  cache paging belong to [B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/) —
+- **Batching.** GPU inference at batch size 1 leaves most of the hardware idle.
+  [Continuous](../../../docs/GLOSSARY.md#continuous-batching) / in-flight batching keeps the device
+  fed. The mechanics, the latency-throughput tradeoff, and
+  [KV cache](../../../docs/GLOSSARY.md#kv-cache) paging belong to
+  [B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md) —
   this module only cares that batching is a throughput multiplier you can *measure* and feed into
   `tools/cost_model.py`.
 - **A better runtime.** Optimized kernels, fused attention, better memory layout. Same idea: measure
@@ -211,9 +215,13 @@ Quantization reduces the precision of weights, activations, and (for LLMs) the K
 memory footprint, memory bandwidth, and — **if the hardware has fast paths for the target format** —
 compute time.
 
-**The numerics belong to [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/):** formats,
-scaling, outlier handling, calibration, and the algorithms (LLM.int8(), GPTQ, AWQ). This module owns
-three decisions that sit *above* the numerics:
+**The numerics belong to
+[B04 §3](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md#3-deep-dive):** formats,
+scaling, outlier handling, calibration, and the algorithms
+([LLM.int8()](../../../docs/REFERENCES.md#llmint8-dettmers-et-al-2022),
+[GPTQ](../../../docs/REFERENCES.md#gptq-frantar-et-al-2022),
+[AWQ](../../../docs/REFERENCES.md#awq-lin-et-al-2023)). This module owns three decisions that sit
+*above* the numerics:
 
 1. **What to quantize, in order of risk.** Weights only is the safest and gives the memory win.
    Weights + activations gives more compute benefit and more risk. KV-cache quantization is often the
@@ -228,16 +236,17 @@ three decisions that sit *above* the numerics:
    this is a place where AMD and NVIDIA support genuinely differ by generation, and where a number
    from a blog post about someone else's GPU will mislead you.
 
-> **The "it depends on X" pivot.** X is *what is scarce*. Memory-bound serving (large model, small
-> batch, long context) → quantization helps a lot, because you are moving fewer bytes.
-> Compute-bound serving (large batch, short context) → it helps only if the hardware has a fast path
-> for the target format. Say which regime you are in before quoting an expected win.
+> **The "it depends on X" pivot.** X is *what is scarce*.
+> [Memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound) serving
+> (large model, small batch, long context) → quantization helps a lot, because you are moving fewer
+> bytes. Compute-bound serving (large batch, short context) → it helps only if the hardware has a
+> fast path for the target format. Say which regime you are in before quoting an expected win.
 
 ### 3.4 Rung 4a — Distillation
 
 Train a small **student** to reproduce a large **teacher's** behaviour, using the teacher's *soft*
 output distribution rather than only the hard labels
-([Hinton, Vinyals, Dean 2015](https://arxiv.org/abs/1503.02531)).
+([Hinton, Vinyals, Dean 2015](../../../docs/REFERENCES.md#distilling-the-knowledge-in-a-neural-network-hinton-et-al-2015)).
 
 **Why soft targets carry more information.** A hard label says "this is a 7". The teacher's full
 distribution says "this is a 7, and it is somewhat 1-like, and not at all 8-like." That relative
@@ -254,8 +263,11 @@ is a dataset you already own.
 
 The costs, which must appear in your proposal: a training pipeline, teacher inference over the
 distillation set (not free), a full task evaluation, and a **new model to maintain, monitor, and
-re-distil every time the teacher changes.** That last one is the recurring cost teams forget, and it
-is what makes distillation a poor fit for a fast-moving base model.
+re-distil every time the teacher changes.** That last one is the recurring cost teams forget — it is
+the ongoing maintenance burden of
+[Sculley et al. 2015](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+rather than a one-off project cost, and it is what makes distillation a poor fit for a fast-moving
+base model.
 
 ### 3.5 Rung 4b — Pruning and sparsity, and why compression ≠ speedup
 
@@ -336,7 +348,7 @@ A gate has five parts, and missing any one of them makes it decorative:
 uniform — it concentrates where activations have unusual dynamic range, which often means unusual
 inputs, which often means an under-represented group of users. A −0.2 aggregate is a *pass* on a
 dashboard and a serious regression for the people it lands on. This is the point of the ML Test Score
-rubric ([Breck et al. 2017](https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/)),
+rubric ([Breck et al. 2017](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)),
 and it is the question a good interviewer will ask.
 
 **The rollout.** Offline eval is necessary and not sufficient — it cannot see production traffic
@@ -487,9 +499,10 @@ in [`solutions/`](solutions/).
 ## 5. Performance Analysis
 
 **This section is reframed for a design track.** There is no kernel to profile. The system-level
-equivalent of the roofline question ("compute-bound or memory-bound?") is: **which term of the cost
-identity binds, and what is the ceiling on fixing it?** The discipline is unchanged — measure, find
-the binding constraint, compute the ceiling before doing the work — only the units differ.
+equivalent of the [roofline](../../../docs/GLOSSARY.md#roofline-model) question ("compute-bound or
+memory-bound?") is: **which term of the cost identity binds, and what is the ceiling on fixing it?**
+The discipline is unchanged — measure, find the binding constraint, compute the ceiling before doing
+the work — only the units differ.
 
 ### The binding-constraint table
 
@@ -497,13 +510,14 @@ the binding constraint, compute the ceiling before doing the work — only the u
 |---|---|---|---|
 | Requests that need not reach the model | high repeat rate in the request log | the repeat rate itself | §3.1 caching, cascades |
 | Fleet utilization | servers below ~60% busy | the idle fraction | §3.2 right-sizing (a config change) |
-| Throughput per GPU | utilization high, batch sizes small | measured batching/runtime multiplier | §3.2, and [B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/) |
-| Memory bandwidth / model size | large model, small batch, long context | the byte reduction from quantization | §3.3, and [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/) |
+| Throughput per GPU | utilization high, batch sizes small | measured batching/runtime multiplier | §3.2, and [B06 §5](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md#5-performance-analysis) |
+| Memory bandwidth / model size | large model, small batch, long context | the byte reduction from quantization | §3.3, and [B04 §5](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md#5-performance-analysis) |
 | Model capacity you do not need | small model matches on most traffic | the gap between the two models | §3.4 distillation, §3.6 cascade |
 
 **Compute the ceiling first.** If 30% of your cost is idle capacity from over-provisioning, no model
 optimization can beat 30%, and the config change is a day's work. This is the same instinct as
-checking arithmetic intensity before optimising a kernel: know the bound before you do the work.
+checking [arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) before optimising a
+kernel: know the bound before you do the work.
 
 ### Worked example: cost per 1,000 requests (analytic model)
 
@@ -626,7 +640,7 @@ other.*
 |---|---|---|
 | Exact-match cache | large win on skewed traffic, no quality risk | staleness, key-design and tenancy hazards, cold start |
 | Semantic cache | higher hit rate | false hits — a real quality risk, invisible to cost metrics |
-| Larger batches | throughput | latency, especially p99 (see B06) |
+| Larger batches | throughput | latency, especially p99 (see [B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md)) |
 | Quantization | memory, bandwidth, sometimes compute | quality risk concentrated in unusual inputs; hardware-dependent benefit |
 | Unstructured pruning | model size on disk | usually **no** latency win on GPUs |
 | Structured / 2:4 sparsity | real latency win | a larger accuracy cost for the same nominal sparsity; hardware- and operator-dependent |
@@ -646,34 +660,49 @@ other.*
 - **DistilBERT** ([Sanh et al. 2019](https://arxiv.org/abs/1910.01108)) is the canonical published
   distillation result and the standard reference when proposing a student model.
 - **Post-training quantization for LLM serving** — LLM.int8()
-  ([Dettmers et al. 2022](https://arxiv.org/abs/2208.07339)), GPTQ
-  ([Frantar et al. 2022](https://arxiv.org/abs/2210.17323)), AWQ
-  ([Lin et al. 2023](https://arxiv.org/abs/2306.00978)). The numerics are
-  [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/)'s; the decision to adopt one is
-  this module's.
+  ([Dettmers et al. 2022](../../../docs/REFERENCES.md#llmint8-dettmers-et-al-2022)), GPTQ
+  ([Frantar et al. 2022](../../../docs/REFERENCES.md#gptq-frantar-et-al-2022)), AWQ
+  ([Lin et al. 2023](../../../docs/REFERENCES.md#awq-lin-et-al-2023)). The numerics are
+  [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md)'s; the decision to adopt
+  one is this module's.
 - **2:4 structured sparsity** on NVIDIA Ampere and later — the industrial example of "only patterns
   the hardware exploits reduce latency"
   ([NVIDIA developer blog](https://developer.nvidia.com/blog/accelerating-inference-with-sparsity-using-ampere-and-tensorrt/)).
 - **Cascades and routing** — the pattern predates deep learning (Viola–Jones detectors used a
   cascade of cheap classifiers) and has returned for LLM serving as model routing;
   [FrugalGPT](https://arxiv.org/abs/2305.05176) is a published treatment of the cost/quality tradeoff.
-- **Speculative decoding** ([Leviathan et al. 2023](https://arxiv.org/abs/2211.17192)) is the
-  cascade idea moved inside the decode loop: a small draft model proposes, the large model verifies.
-  It is *exactness-preserving*, which makes it unusual — a rung-4-shaped mechanism with rung-2 risk.
+- **[Speculative decoding](../../../docs/GLOSSARY.md#speculative-decoding)**
+  ([Leviathan et al. 2023](../../../docs/REFERENCES.md#speculative-decoding-leviathan-et-al-2023)) is
+  the cascade idea moved inside the decode loop: a small draft model proposes, the large model
+  verifies. It is *exactness-preserving*, which makes it unusual — a rung-4-shaped mechanism with
+  rung-2 risk.
 - **Quality gates in practice** — the ML Test Score rubric
-  ([Breck et al. 2017](https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/))
+  ([Breck et al. 2017](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017))
   formalises the slice, staleness, and rollback tests in §3.7.
+
+**Where to go next.**
+[C05](../C05.deployment-and-serving-architecture/README.md) picks up where the quality gate leaves
+off: the shadow, canary and rollback machinery this module *specifies* has to be built into a serving
+architecture, and that is C05's subject.
+[C06](../C06.monitoring-drift-and-ethics/README.md) is the answer to §3.6's warning that a cascade
+tuned in March is a different system by September — cache hit rate and escalation rate are drifting
+quantities, and drift is what C06 teaches you to watch.
+[B04 §3](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md#3-deep-dive) supplies
+the one rung this module deliberately does not explain: the numerics that decide whether a
+quantization scheme survives your gate.
 
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Repo-wide list in
-[../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live;
+sources only this module uses keep their full citation here.
 
 **Distillation**
-- Hinton, Vinyals, Dean (2015). *Distilling the Knowledge in a Neural Network* — soft targets and
-  temperature; the origin of §3.4. <https://arxiv.org/abs/1503.02531>
+- [**Distilling the Knowledge in a Neural Network** (Hinton, Vinyals, Dean, 2015)](../../../docs/REFERENCES.md#distilling-the-knowledge-in-a-neural-network-hinton-et-al-2015)
+  — soft targets and temperature; the origin of §3.4, and the argument for why a student trained on
+  the teacher's distribution beats one trained on the hard labels alone.
 - Sanh, Debut, Chaumond, Wolf (2019). *DistilBERT, a distilled version of BERT.*
   <https://arxiv.org/abs/1910.01108>
 
@@ -684,30 +713,35 @@ Grounding for the claims above. Repo-wide list in
 - Gale, Elsen, Hooker (2019). *The State of Sparsity in Deep Neural Networks* — a careful account of
   what sparsity does and does not deliver. <https://arxiv.org/abs/1902.09574>
 - **NVIDIA — Accelerating Inference with Sparsity Using Ampere and TensorRT** — 2:4 structured
-  sparsity, the hardware-supported pattern.
+  sparsity, the hardware-supported pattern. (retrieved 8 Aug 2026)
   <https://developer.nvidia.com/blog/accelerating-inference-with-sparsity-using-ampere-and-tensorrt/>
 
-**Quantization** (cross-reference to [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/))
-- Dettmers, Lewis, Belkada, Zettlemoyer (2022). *LLM.int8().* <https://arxiv.org/abs/2208.07339>
-- Frantar, Ashkboos, Hoefler, Alistarh (2022). *GPTQ.* <https://arxiv.org/abs/2210.17323>
-- Lin et al. (2023). *AWQ: Activation-aware Weight Quantization.* <https://arxiv.org/abs/2306.00978>
+**Quantization** (cross-reference to [B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md))
+- [**LLM.int8()** (Dettmers, Lewis, Belkada, Zettlemoyer, 2022)](../../../docs/REFERENCES.md#llmint8-dettmers-et-al-2022)
+  — the outlier-aware int8 scheme behind §3.3's "what to quantize, in order of risk" decision.
+- [**GPTQ** (Frantar, Ashkboos, Hoefler, Alistarh, 2022)](../../../docs/REFERENCES.md#gptq-frantar-et-al-2022)
+  — the post-training route §3.3 tells you to start with before escalating to QAT.
+- [**AWQ** (Lin et al., 2023)](../../../docs/REFERENCES.md#awq-lin-et-al-2023)
+  — the other post-training option §3.3's second decision weighs.
 
-**Caching, cascades, routing** (cross-reference to [B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/))
-- **vLLM — Automatic Prefix Caching.**
+**Caching, cascades, routing** (cross-reference to [B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md))
+- **vLLM — Automatic Prefix Caching** — the production form of §3.1's rung-1 argument, inside the
+  serving engine. (retrieved 8 Aug 2026)
   <https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html>
 - Zheng et al. (2023). *SGLang / RadixAttention — Efficiently Programming Large Language Models.*
   <https://arxiv.org/abs/2312.07104>
 - Chen, Zaharia, Zou (2023). *FrugalGPT: How to Use Large Language Models While Reducing Cost and
   Improving Performance.* <https://arxiv.org/abs/2305.05176>
-- Leviathan, Kalman, Matias (2023). *Fast Inference from Transformers via Speculative Decoding.*
-  <https://arxiv.org/abs/2211.17192>
+- [**Fast Inference from Transformers via Speculative Decoding** (Leviathan, Kalman, Matias, 2023)](../../../docs/REFERENCES.md#speculative-decoding-leviathan-et-al-2023)
+  — the exactness-preserving cascade of §7: rung-4 shape at rung-2 risk.
 
 **Quality gates and production practice**
-- Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score: A Rubric for ML Production
-  Readiness and Technical Debt Reduction.* IEEE Big Data.
-  <https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/>
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* NeurIPS.
-  <https://papers.nips.cc/paper_files/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
+- [**The ML Test Score** (Breck, Cai, Nielsen, Salib, Sculley, 2017)](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+  — IEEE Big Data. The rubric §3.7's five-part gate is built from, including the slice and rollback
+  tests.
+- [**Hidden Technical Debt in Machine Learning Systems** (Sculley et al., 2015)](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  — NeurIPS. Why an optimization that adds a second model adds permanent maintenance cost, not a
+  one-off project cost.
 - Ribeiro, Wu, Guestrin, Singh (2020). *Beyond Accuracy: Behavioral Testing of NLP Models with
   CheckList* — behavioural, slice-like testing beyond an aggregate score.
   <https://arxiv.org/abs/2005.04118>

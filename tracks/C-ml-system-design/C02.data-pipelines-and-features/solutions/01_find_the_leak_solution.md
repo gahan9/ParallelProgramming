@@ -77,7 +77,8 @@ Three reasons, and none of them requires knowing the "right" number:
 **What to expect instead:** do not quote an absolute figure — you have no basis for one. State the
 comparison instead: the honest number should be benchmarked against **the current production model and
 the existing rules baseline on the same honest split**, and against the prevalence-relative PR-AUC
-(C01 §3), because at a ~0.15% base rate ROC-AUC will look flattering regardless. "Materially lower, and
+([C01 §3](../../C01.problem-framing-and-metrics/README.md#3-deep-dive)), because at a ~0.15% base rate
+ROC-AUC will look flattering regardless. "Materially lower, and
 we will report it next to the incumbent and the trivial baseline" is the defensible answer.
 
 ---

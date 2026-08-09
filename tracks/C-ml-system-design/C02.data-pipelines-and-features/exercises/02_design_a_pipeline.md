@@ -193,7 +193,8 @@ retrain on a feedback loop where your own ETA influenced whether the order was p
 (your answer)
 ```
 
-**4d.** Name the offline metric, and name one guardrail (C01's vocabulary) that would catch the model
+**4d.** Name the offline metric, and name one guardrail
+([C01](../../C01.problem-framing-and-metrics/README.md)'s vocabulary) that would catch the model
 gaming it.
 
 ```

@@ -4,8 +4,9 @@
 >
 > Prerequisites: none. No GPU, no framework, no data required.
 > Backends: **none — this is a design module.** The only executables are standard-library
-> Python 3 tools in [`tools/`](tools/). See [../../../docs/SETUP.md](../../../docs/SETUP.md) if you
-> want the GPU tracks instead.
+> Python 3 tools in [`tools/`](tools/). See [SETUP.md](../../../docs/SETUP.md) if you want the GPU
+> tracks instead.
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -124,7 +125,12 @@ fixes it. (Uplift/incrementality modelling is out of scope here; recognizing the
 ### Is ML even the right tool?
 
 Assume ML is wrong until it earns its place. It costs a data pipeline, training infrastructure,
-monitoring, on-call, and permanent complexity. Google's *Rules of Machine Learning* opens with the
+monitoring, on-call, and permanent complexity — the standing bill that
+[*Hidden Technical Debt in Machine Learning Systems*](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+itemizes and that the nine-stage workflow in
+[*Software Engineering for Machine Learning*](../../../docs/REFERENCES.md#software-engineering-for-machine-learning-amershi-et-al-2019)
+lays out stage by stage. Google's
+[*Rules of Machine Learning*](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google) opens with the
 same instruction — Rule #1 is *don't be afraid to launch a product without machine learning* — and
 the reason is that a heuristic gives you the pipeline, the logging, and the metric while you learn
 whether the problem is even real.
@@ -187,7 +193,10 @@ Two disciplines follow directly:
 ### Requirements as testable statements
 
 Framing is not finished until the non-functional requirements are written as statements a test could
-check. Every one of these is a **design requirement**, not an afterthought:
+check — the same move
+[*The ML Test Score*](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017) makes when it
+turns production readiness into a rubric of individually checkable tests. Every one of these is a
+**design requirement**, not an afterthought:
 
 | Requirement | Bad form | Testable form |
 |---|---|---|
@@ -210,7 +219,10 @@ sound senior.
 ### The metric hierarchy
 
 There is no such thing as "the metric." There are three layers, and each is a **proxy** for the one
-above it. ML projects die in the gaps between layers.
+above it. ML projects die in the gaps between layers — the gap between a business objective and the
+model metric standing in for it is the framing failure
+[*Designing Machine Learning Systems*](../../../docs/REFERENCES.md#designing-machine-learning-systems-huyen-2022)
+returns to throughout.
 
 ```mermaid
 %%{init: {
@@ -462,8 +474,9 @@ you happened to rank first scores 1.0.
 Two production caveats. **Implicit feedback is biased**: clicks are contaminated by position bias
 (higher slots get clicked because they are higher), so a metric computed on logged clicks rewards
 reproducing your current ranker. And **offline ranking metrics ignore the ranker's effect on the
-data** — you only observe feedback for items you showed. This is the on-ramp to C02's discussion of
-biased labels and C06's feedback loops.
+data** — you only observe feedback for items you showed. This is the on-ramp to
+[C02](../C02.data-pipelines-and-features/README.md)'s discussion of biased labels and
+[C06](../C06.monitoring-drift-and-ethics/README.md)'s feedback loops.
 
 ### Regression metrics
 
@@ -651,7 +664,7 @@ the model is not earning its keep at these costs.
 
 ### Lab 5 — Break the tools on purpose
 
-Failing loudly is a repo-wide principle ([A01 §6](../../A-gpu-programming/A01.foundations-and-programming-model/README.md)),
+Failing loudly is a repo-wide principle ([A01 §6](../../A-gpu-programming/A01.foundations-and-programming-model/README.md#6-challenges-drawbacks--tradeoffs)),
 and it applies to design tooling too. Confirm each of these prints one clear line and exits with
 status 2 — never a traceback:
 
@@ -677,7 +690,8 @@ skill is a whiteboard, not an editor.
 
 ## 5. Performance Analysis
 
-**Reframed for a design module.** There is no kernel to profile and no roofline to plot here — this
+**Reframed for a design module.** There is no kernel to profile and no
+[roofline](../../../docs/GLOSSARY.md#roofline-model) to plot here — this
 module ships no GPU code. The heading is kept because the *discipline* transfers exactly: state the
 metric, compute it, identify the binding constraint, and show a before/after delta. For a decision
 system the quantities are **cost per prediction, alert volume against review capacity, latency
@@ -686,12 +700,14 @@ assumptions; none of it is a benchmark measurement.
 
 ### The binding constraint is the roofline analogue
 
-In Track A you ask "compute-bound or memory-bound?" Here you ask **"which layer of the metric
+In [Track A](../../A-gpu-programming/README.md) you ask
+"[compute-bound or memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)?"
+Here you ask **"which layer of the metric
 hierarchy is the bottleneck?"**, because that determines where effort pays:
 
 | Binding constraint | Symptom | Where effort pays |
 |---|---|---|
-| Ranking quality | Precision at required recall is too low at *every* threshold | Better features/data (C02), better model |
+| Ranking quality | Precision at required recall is too low at *every* threshold | Better features/data ([C02](../C02.data-pipelines-and-features/README.md)), better model |
 | Threshold choice | The curve is fine; the operating point is wrong | Free: re-threshold from costs (Lab 4) |
 | Review capacity | Alerts exceed what humans can process | Precision@k, tiered triage, automate the easy head |
 | Label delay | Cannot evaluate fast enough to iterate | Proxy labels, shorter horizon, more holdout |
@@ -795,7 +811,9 @@ the system is worth running only when:   V x prevalence x recall  >  c + review_
 ```
 
 At low prevalence the `1/prevalence` factor is brutal: rare events mean many predictions per catch,
-so `c` must be tiny. This is precisely why C04 (production optimization) and B06 (inference serving)
+so `c` must be tiny. This is precisely why [C04](../C04.production-model-optimization/README.md)
+(production optimization) and
+[B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md) (inference serving)
 exist as modules — and why "we'll use a large model for everything" fails on arithmetic long before
 it fails on quality.
 
@@ -878,7 +896,8 @@ reliability curve; fit temperature scaling if it is off; re-check after any resa
 
 An offline metric requiring labels you will only have 60 days later cannot drive a live dashboard.
 You need a **fast proxy** you can compute today (alert volume, override rate, score distribution
-shift) *plus* the slow ground truth. State which is which; C06 builds this out.
+shift) *plus* the slow ground truth. State which is which;
+[C06](../C06.monitoring-drift-and-ethics/README.md) builds this out.
 
 ### Pitfall 7 — Framing the task next to the one that matters
 
@@ -895,7 +914,8 @@ metric will be beautiful and the product will not move.
   metrics resists gaming and paralyzes decisions. The standard resolution: **one target, a small set
   of guardrails, everything else is diagnostic.**
 - **Offline speed vs online truth.** Offline metrics are cheap, instant, and only a rumour. Online
-  A/B is authoritative, slow, and expensive. Iterate offline; *decide* online; measure the
+  [A/B](../../../docs/GLOSSARY.md#ab-testing-and-canary) is authoritative, slow, and expensive.
+  Iterate offline; *decide* online; measure the
   correlation between them so you know how much your offline number is worth.
 - **Simple metric vs faithful metric.** A composite "quality score" can encode the real objective
   and nobody will trust or debug it. Prefer a simple metric plus explicit guardrails over a weighted
@@ -913,7 +933,8 @@ metric will be beautiful and the product will not move.
 
 - **Fraud and abuse detection** is the canonical rare-positive, asymmetric-cost problem: PR-AUC over
   ROC-AUC, cost-derived thresholds, precision@capacity because a human queue reviews the alerts, and
-  delayed labels (a chargeback can arrive months later — C02 §"labels in practice"). The threshold is
+  delayed labels (a chargeback can arrive months later —
+  [C02](../C02.data-pipelines-and-features/README.md) §"labels in practice"). The threshold is
   almost always capacity-bound in practice, exactly as in §5.
 - **Search and recommendation** live on ranking metrics (recall@k for candidate generation, NDCG or
   precision@k for the ranked surface) and are the textbook home of Goodhart's law: engagement targets
@@ -934,24 +955,41 @@ Tooling that embodies this module's ideas: **scikit-learn's `sklearn.metrics`** 
 curves, average precision, Brier score, calibration curves, and `CalibratedClassifierCV`),
 **TensorFlow Model Analysis** for sliced metric evaluation, **Fairlearn** for group-wise metric
 disparities, and any experimentation platform that enforces guardrail metrics on a launch decision.
-The framing discipline itself is documented most directly in Google's *Rules of Machine Learning*.
+The framing discipline itself is documented most directly in Google's
+[*Rules of Machine Learning*](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google).
+
+**Where to go next.** [C02](../C02.data-pipelines-and-features/README.md) asks where the features and
+labels behind a framed task actually come from — the position bias and label delay named above become
+pipeline problems there, and the training systems of
+[C03](../C03.training-systems/README.md) inherit whatever that pipeline produces.
+[C05](../C05.deployment-and-serving-architecture/README.md) is where the latency, cost, and
+failure-behaviour requirements you wrote in §2 stop being sentences and become an architecture with a
+rollout plan. [C07](../C07.capstone-case-studies/README.md) runs the whole sequence end to end on
+case studies, every one of which opens with the framing exercise from this module.
 
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live;
+module-specific sources carry their own URL here.
 
-- **Google — *Rules of Machine Learning: Best Practices for ML Engineering*.** Rule #1 (launch
-  without ML), heuristics-first, and the metric-before-model discipline in §2.
-  <https://developers.google.com/machine-learning/guides/rules-of-ml>
-- **Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems*** (NeurIPS). Source
-  for the "the model is a small box in a large system" framing and for treating undeclared metric and
-  data dependencies as debt.
-  <https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
-- **Chip Huyen (2022). *Designing Machine Learning Systems*** (O'Reilly). Practitioner treatment of
-  framing, the business/ML metric gap, and requirements as design inputs.
-  <https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/>
+- [**Google — *Rules of Machine Learning: Best Practices for ML Engineering***](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google)
+  — Rule #1 (launch without ML), heuristics-first, and the metric-before-model discipline §2 argues
+  from.
+- [**Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems***](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  — the standing cost §2 weighs ML against: the "model is a small box in a large system" framing, and
+  undeclared metric and data dependencies treated as debt.
+- [**Amershi et al. (2019). *Software Engineering for Machine Learning***](../../../docs/REFERENCES.md#software-engineering-for-machine-learning-amershi-et-al-2019)
+  — the nine-stage workflow that shows how much engineering sits either side of the model, which is
+  why §2 makes ML earn its place.
+- [**Breck et al. (2017). *The ML Test Score***](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+  — production readiness as a rubric of individually checkable tests; the model for §2's "requirements
+  as testable statements", including the per-slice checks §3 demands.
+- [**Chip Huyen (2022). *Designing Machine Learning Systems***](../../../docs/REFERENCES.md#designing-machine-learning-systems-huyen-2022)
+  — practitioner treatment of framing, the business/ML metric gap that §3's hierarchy makes explicit,
+  and requirements as design inputs.
 - **Guo, Pleiss, Sun, Weinberger (2017). *On Calibration of Modern Neural Networks*** (ICML).
   Modern networks are over-confident; temperature scaling largely fixes it. Basis for §3 calibration.
   <https://arxiv.org/abs/1706.04599>
@@ -981,10 +1019,10 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
 - **Barocas, Hardt, Narayanan. *Fairness and Machine Learning*.** Why aggregate metrics conceal
   group-level harm — the argument behind mandatory slicing.
   <https://fairmlbook.org/>
-- **TensorFlow Model Analysis** — sliced metric evaluation as a release gate.
+- **TensorFlow Model Analysis** — sliced metric evaluation as a release gate (retrieved 8 Aug 2026).
   <https://www.tensorflow.org/tfx/guide/tfma>
 - **scikit-learn — metrics and probability calibration** (`average_precision_score`,
-  `precision_recall_curve`, `CalibratedClassifierCV`, `brier_score_loss`).
+  `precision_recall_curve`, `CalibratedClassifierCV`, `brier_score_loss`) (retrieved 8 Aug 2026).
   <https://scikit-learn.org/stable/modules/model_evaluation.html> ·
   <https://scikit-learn.org/stable/modules/calibration.html>
 
@@ -1040,10 +1078,12 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
    gamed.
 5. **(a) The proxy link is broken** — PR-AUC gains sit in a score region no decision uses (e.g. the
    improvement is below the threshold you actually run at). *Check:* recompute precision/recall **at
-   the deployed threshold**, and precision@k at your real capacity. **(b) Training/serving skew or
+   the deployed threshold**, and precision@k at your real capacity.
+   **(b) [Training/serving skew](../../../docs/GLOSSARY.md#training-serving-skew) or
    leakage** — the offline gain does not exist in production because serving features differ from
    training features, or a leaky feature inflated the offline number. *Check:* score the same
-   requests offline and online and compare distributions; audit feature timestamps (C02). **(c) The
+   requests offline and online and compare distributions; audit feature timestamps
+   ([C02](../C02.data-pipelines-and-features/README.md)). **(c) The
    online metric is underpowered or the change was too small to detect** — the A/B test cannot
    resolve the delta. *Check:* the standard-error / minimum-detectable-effect calculation from §5
    before declaring "no effect." A fourth candidate worth naming: the *action* did not change (the
@@ -1063,7 +1103,8 @@ Grounding for the claims above. Full list in [../../../docs/REFERENCES.md](../..
    populations with *different* prevalence and want a summary that is not confounded by base rate
    (PR-AUC is not comparable across different base rates without the lift-over-prevalence
    adjustment). ROC-AUC is also a reasonable *diagnostic* for "did ranking quality change?" when
-   prevalence is drifting — which is exactly the "model got worse vs population got rarer"
+   prevalence is [drifting](../../../docs/GLOSSARY.md#drift) — which is exactly the "model got worse
+   vs population got rarer"
    discrimination from Lab 3.
 9. "Every extra fraud case we catch means flagging more legitimate customers too, and each of those
    is a blocked payment and a support call. Past a point we lose more in annoyed customers and

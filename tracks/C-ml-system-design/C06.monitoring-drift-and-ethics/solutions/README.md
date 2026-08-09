@@ -25,8 +25,8 @@ Reference answers with the reasoning. Attempt [`../exercises/`](../exercises/) f
 
 1. Alert on symptoms, dashboard on clues, and stay inside the on-call budget.
 2. Every alert has a runbook with concrete first steps.
-3. Diagnose the drift *type* before choosing a fix; five of the seven branches in §6 end in "do not
-   retrain".
+3. Diagnose the drift *type* before choosing a fix; five of the seven branches in
+   [§6](../README.md#6-challenges-drawbacks--tradeoffs) end in "do not retrain".
 4. State what you cannot know. With delayed labels, that is most of it.
 5. A fairness intervention is presented with its cost and with who is affected.
 6. Where the constraint is legal, the answer is "involve counsel", not a guess.

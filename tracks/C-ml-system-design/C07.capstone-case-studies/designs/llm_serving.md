@@ -6,10 +6,21 @@
 > Read this the way you would read a real design doc under review. Every number is
 > **derived from a labelled assumption**, and every choice states the alternative it beat.
 > Where the theory lives elsewhere in the curriculum, this doc references the module rather
-> than re-deriving it: **B05** (transformer performance), **B06** (inference serving),
-> **B07** (sharding), **B04** (precision), **B02** (roofline), **A07** (fused softmax /
-> attention kernels), **C04** (production optimization), **C05** (deployment),
-> **C06** (monitoring).
+> than re-deriving it:
+> [B05](../../../B-gpu-ml-performance/B05.transformer-performance/README.md) (transformer
+> performance),
+> [B06](../../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md) (inference
+> serving),
+> [B07](../../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md) (sharding),
+> [B04](../../../B-gpu-ml-performance/B04.precision-and-quantization/README.md) (precision),
+> [B02](../../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) (roofline),
+> [A07](../../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) (fused softmax /
+> attention kernels), [C04](../../C04.production-model-optimization/README.md) (production
+> optimization), [C05](../../C05.deployment-and-serving-architecture/README.md) (deployment),
+> [C06](../../C06.monitoring-drift-and-ethics/README.md) (monitoring).
+>
+> Terms: [GLOSSARY.md](../../../../docs/GLOSSARY.md) ·
+> Sources: [REFERENCES.md](../../../../docs/REFERENCES.md).
 
 ---
 
@@ -75,7 +86,8 @@ an upstream dependency with its own budget), and the model catalogue's evaluatio
 
 ## 2. Metrics
 
-Following the business → product → offline chain from **C01**:
+Following the business → product → offline chain from
+[C01 §3](../../C01.problem-framing-and-metrics/README.md#3-deep-dive):
 
 | Layer | Metric | Notes |
 |---|---|---|
@@ -127,7 +139,8 @@ flowchart LR
 ```
 
 The load-bearing structure: **admission control sits before routing**, so back-pressure is
-applied at a point where we still know which tenant to shed; and **prefill and decode are
+applied at a point where we still know which tenant to shed; and
+**[prefill and decode](../../../../docs/GLOSSARY.md#prefill-and-decode) are
 separate pools**, so a 32k prompt cannot stall 200 people's token streams.
 
 ---
@@ -184,8 +197,12 @@ reflexive answer ("we're KV-capacity bound, quantize the cache") would be wrong 
 ### 4.4 Decode throughput, bandwidth-bound
 
 Decode reads every weight and every cached K/V once per step and does almost no arithmetic per
-byte — the memory-bound regime from **B02**, applied to the transformer in **B05**. Per replica
-per step:
+byte — the
+[memory-bound](../../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound) regime
+from [B02 §2](../../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#2-first-principles),
+applied to the transformer in
+[B05 §3](../../../B-gpu-ml-performance/B05.transformer-performance/README.md#3-deep-dive). Per
+replica per step:
 
 ```
 bytes_read_per_step = weight_bytes/TP + batch x context x kv_per_token/TP
@@ -312,7 +329,9 @@ because it can then run the larger batches that amortize its higher per-GPU weig
 same formula: `881 MB / 25 GB/s = 35.2 ms` plus `160 x 30 µs = 4.8 ms`, so ~40 ms of
 communication on a step whose compute is 9 ms. TPOT goes from 25 ms to roughly 84 ms — a 3.4×
 regression, SLO blown. Scale *out* with independent replicas behind the router; scale *up*
-only inside the coherent fabric. This is **B07**'s rule, arrived at numerically.
+only inside the coherent fabric. This is
+[B07 §6](../../../B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#6-challenges-drawbacks--tradeoffs)'s
+rule, arrived at numerically.
 
 Pipeline parallelism is deliberately not used: it adds bubbles that hurt the latency-sensitive
 decode phase, and we do not need it for capacity since the model fits in one node.
@@ -330,16 +349,17 @@ named problem is cargo cult.
 finishes. A 20-token answer sharing a batch with a 2,000-token answer waits for all 2,000
 steps, and the freed slots sit idle. **Fix:** schedule at the granularity of one decode
 iteration; requests join and leave the running batch between steps
-([Orca, OSDI '22](https://www.usenix.org/conference/osdi22/presentation/yu)). This is the
-single highest-leverage serving change and it is why it comes first.
+([Orca, OSDI '22](../../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022)). This is
+the single highest-leverage serving change and it is why it comes first.
 
 ### Paged KV cache
 
-**Problem it solves:** reserving `max_context` of contiguous KV per request wastes most of it
+**Problem it solves:** reserving `max_context` of contiguous
+[KV](../../../../docs/GLOSSARY.md#kv-cache) per request wastes most of it
 — a request that generates 250 tokens of a 32k budget uses 0.8% of its reservation, and the
 allocator fragments. **Fix:** allocate KV in fixed-size blocks with a page table per sequence
-([PagedAttention / vLLM](https://arxiv.org/abs/2309.06180)). Concretely: our reserved-cache
-alternative would fit `1,165.6 GB / 10.7 GB = 108` sequences per node against the 1,737 that
+([PagedAttention / vLLM](../../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)).
+Concretely: our reserved-cache alternative would fit `1,165.6 GB / 10.7 GB = 108` sequences per node against the 1,737 that
 paging gives at the actual average context — a **16× capacity difference** from a memory
 allocator.
 
@@ -382,8 +402,11 @@ would not be worth paying.
 
 ### Quantization
 
-**Decision: launch bf16, ship fp8 weights + fp8 KV behind a quality gate.** (See **B04** for
-the numerics and **C04** for the production-optimization workflow.)
+**Decision: launch bf16, ship [fp8](../../../../docs/GLOSSARY.md#fp8-and-the-fnuzocp-split) weights
++ fp8 KV behind a quality gate.** (See
+[B04](../../../B-gpu-ml-performance/B04.precision-and-quantization/README.md) for
+the numerics and [C04](../../C04.production-model-optimization/README.md) for the
+production-optimization workflow.)
 
 Modelled effect (`llm_sizing.py --weight-dtype fp8 --kv-dtype fp8`):
 
@@ -408,7 +431,8 @@ whole point of **B02**.
 1. Per-task accuracy on the internal eval suite within **0.5 points** of bf16, per tenant-facing
    task, not just in aggregate.
 2. Perplexity delta on a held-out sample of *production* prompt distributions — not WikiText.
-   Quantization error concentrates in the tails, and the tail is somebody's use case.
+   [Quantization](../../../../docs/GLOSSARY.md#quantization) error concentrates in the tails, and
+   the tail is somebody's use case.
 3. Long-context specifically re-tested: fp8 KV error accumulates over the sequence, so a 32k
    conversation is the worst case, and a 2k eval will not find it.
 4. Shadow traffic for one week with automated output-divergence tracking against bf16.
@@ -418,7 +442,8 @@ they keep the KV cache in bf16 and still halve the weight read.
 
 ### Speculative decoding — considered and deferred
 
-A draft model can cut TPOT when the batch is small and the GPU is bandwidth-starved. At our
+A [draft model](../../../../docs/REFERENCES.md#speculative-decoding-leviathan-et-al-2023) can cut
+TPOT when the batch is small and the GPU is bandwidth-starved. At our
 operating batch of 192 the GPU is already saturated, so speculation adds verification compute
 without reducing the bottleneck, and its acceptance rate is workload-dependent. Revisit for a
 low-latency premium tier where batches are deliberately small.
@@ -607,13 +632,22 @@ Specific failure modes to design against:
 
 ## 12. References
 
-- Pope et al. (2022). *Efficiently Scaling Transformer Inference.* <https://arxiv.org/abs/2211.05102>
-- Kwon et al. (2023). *Efficient Memory Management for LLM Serving with PagedAttention (vLLM).* <https://arxiv.org/abs/2309.06180>
-- Yu et al. (2022). *Orca: A Distributed Serving System for Transformer-Based Generative Models.* OSDI '22. <https://www.usenix.org/conference/osdi22/presentation/yu>
+- Pope et al. (2022). [*Efficiently Scaling Transformer Inference.*](../../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)
+  — the cost model §4 follows.
+- Kwon et al. (2023). [*Efficient Memory Management for LLM Serving with PagedAttention (vLLM).*](../../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
+  — the paged KV cache in §6, and the 16× capacity difference it buys.
+- Yu et al. (2022). [*Orca: A Distributed Serving System for Transformer-Based Generative Models.*](../../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022)
+  OSDI '22 — iteration-level batching, the scheduler §6 assumes.
 - Agrawal et al. (2023). *SARATHI: Efficient LLM Inference by Piggybacking Decodes with Chunked Prefills.* <https://arxiv.org/abs/2308.16369>
 - Zhong et al. (2024). *DistServe: Disaggregating Prefill and Decoding for Goodput-optimized LLM Serving.* <https://arxiv.org/abs/2401.09670>
 - Zheng et al. (2023). *SGLang: Efficient Execution of Structured Language Model Programs* (RadixAttention). <https://arxiv.org/abs/2312.07104>
-- Ainslie et al. (2023). *GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints.* <https://arxiv.org/abs/2305.13245>
-- Dao et al. (2022). *FlashAttention.* <https://arxiv.org/abs/2205.14135>
-- Micikevicius et al. (2022). *FP8 Formats for Deep Learning.* <https://arxiv.org/abs/2209.05433>
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* <https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
+- Ainslie et al. (2023). [*GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints.*](../../../../docs/REFERENCES.md#multi-query-and-grouped-query-attention-ainslie-et-al-2023)
+  — the 8-KV-head shape in A1, and why §4.2 lands at 320 KiB per token.
+- Dao et al. (2022). [*FlashAttention.*](../../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — background for the attention term in §4.6's prefill cost.
+- Micikevicius et al. (2022). [*FP8 Formats for Deep Learning.*](../../../../docs/REFERENCES.md#fp8-formats-for-deep-learning-micikevicius-et-al-2022)
+  — the formats the quantization decision in §6 is choosing between.
+- Leviathan et al. (2023). [*Fast Inference from Transformers via Speculative Decoding.*](../../../../docs/REFERENCES.md#speculative-decoding-leviathan-et-al-2023)
+  — the mechanism §6 considers and defers.
+- Sculley et al. (2015). [*Hidden Technical Debt in Machine Learning Systems.*](../../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  — the operational bill §11's omissions are weighing.

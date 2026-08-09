@@ -20,8 +20,8 @@ raises tokens/s and raises every individual user's latency. So you do not "optim
 "optimize throughput" — you fix an SLO and maximize **goodput**, the rate of requests served *within*
 that SLO. The three levers that matter most, in order:
 **[continuous batching](../../../docs/GLOSSARY.md#continuous-batching)** (admit and evict at
-every decode step, so the batch never idles), **paged
-[KV cache](../../../docs/GLOSSARY.md#kv-cache)** (stop reserving memory for a context
+every decode step, so the batch never idles),
+**paged [KV cache](../../../docs/GLOSSARY.md#kv-cache)** (stop reserving memory for a context
 length nobody reaches), and **prefix caching** (stop re-computing the same system prompt thousands of
 times a day). **[Speculative decoding](../../../docs/GLOSSARY.md#speculative-decoding)** is a fourth,
 narrower lever: it buys latency at low concurrency, and stops paying at high concurrency.
@@ -127,15 +127,14 @@ A generative request has two phases with *opposite* performance characters. (Thi
 here is the compressed derivation, because nothing in this module makes sense without it.)
 
 **[Prefill](../../../docs/GLOSSARY.md#prefill-and-decode)** processes the whole prompt at once. All
-`P` prompt tokens go through the model in parallel,
-so the matrix multiplies are tall: for each weight matrix you load it once and do `P` rows of work.
+`P` prompt tokens go through the model in parallel, so the matrix multiplies are tall: for each
+weight matrix you load it once and do `P` rows of work.
 [Arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) is high → **prefill is
 compute-bound**. It produces exactly one token (the first).
 
 **Decode** generates one token per step per sequence. For a single sequence, each weight matrix is
 loaded from HBM to multiply against a *single* row. You move gigabytes of weights to do megaflops of
-work → **decode is
-[memory-bandwidth-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**,
+work → **decode is [memory-bandwidth-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)**,
 and it is *catastrophically* so at batch 1.
 
 That asymmetry is the source of everything that follows:
@@ -226,7 +225,7 @@ until the batch retires), and — worse — **no new request can be admitted**, 
 batch that is mostly idle. The queue grows while the GPU computes on padding. Orca named this precisely:
 "requests that have finished earlier than other requests in a batch cannot return to the client, while
 newly arrived requests have to wait until the current batch completely finishes"
-([Yu et al., OSDI '22](https://www.usenix.org/conference/osdi22/presentation/yu)).
+([Yu et al., OSDI '22](../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022)).
 
 The fix follows immediately from the diagnosis: **make the scheduling unit the iteration, not the
 request.**
@@ -242,10 +241,12 @@ request.**
 and (b) admits waiting requests into the free slots. The batch composition changes every few
 milliseconds, and the batch stays full whenever there is work.
 
-Orca calls this **iteration-level scheduling**, and pairs it with **selective batching**: most
+[Orca](../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022) calls this
+**iteration-level scheduling**, and pairs it with **selective batching**: most
 operations (the big GEMMs, layer norms, activations) batch cleanly across sequences because they are
-per-token, but **attention** cannot — each sequence has a different context length and its own KV
-cache — so attention is handled per sequence (today: by a batched attention kernel that takes per-
+per-token, but **[attention](../../../docs/GLOSSARY.md#attention-and-flashattention)** cannot — each
+sequence has a different context length and its own KV cache — so attention is handled per sequence
+(today: by a batched attention kernel that takes per-
 sequence lengths and block tables). Understanding *why* attention is the awkward one is the difference
 between reciting "continuous batching" and understanding it.
 
@@ -307,7 +308,7 @@ the maximum context, because you do not know how long the output will be:
   of free bytes and still fail an allocation.
 
 The vLLM paper characterises existing systems as wasting **60–80%** of KV memory this way
-([Kwon et al., 2023](https://arxiv.org/abs/2309.06180)).
+([Kwon et al., 2023](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)).
 
 **The fix is 1960s operating-systems design.** This analogy is not decorative — it is precisely the
 same mechanism:
@@ -386,8 +387,8 @@ paging converts an unbounded, product-driven reservation waste into a waste you 
 for. The vLLM paper reports **2–4× higher throughput at the same latency level** versus
 FasterTransformer and Orca, with the gain larger for longer sequences, larger models, and more complex
 decoding algorithms — because larger batches become possible once the memory is not being wasted
-([Kwon et al., 2023](https://arxiv.org/abs/2309.06180); their measurements on their hardware and
-workloads).
+([Kwon et al., 2023](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023); their
+measurements on their hardware and workloads).
 
 **Beam search and parallel sampling get it for free.** `n` samples from one prompt share the prompt's
 blocks with a reference count and only copy a block when they actually diverge — copy-on-write, exactly
@@ -411,7 +412,8 @@ Three places this happens constantly in real products:
 3. **Multi-turn conversation.** Turn `n+1`'s prompt is turn `n`'s prompt plus the exchange. The entire
    conversation so far is a cache hit.
 
-SGLang's **RadixAttention** generalises this: keep the KV cache of finished requests in a **radix tree**
+[SGLang](../../../docs/REFERENCES.md#sglang-project)'s **RadixAttention** generalises this: keep the
+KV cache of finished requests in a **radix tree**
 keyed by token prefix, with LRU eviction and a *cache-aware* scheduler that sorts incoming requests by
 matched prefix length to raise the hit rate. SGLang reports up to **6.4× higher throughput** versus the
 state-of-the-art systems it compares against on prefix-heavy workloads such as few-shot learning,
@@ -441,7 +443,9 @@ it, and it inherits the analysis's expiry condition (see below).
 
 **It is lossless.** With the correct verification/rejection-sampling scheme the output distribution is
 *identical* to sampling from the target model. Leviathan et al. demonstrate 2–3× acceleration on T5-XXL
-"with identical outputs" ([arXiv:2211.17192](https://arxiv.org/abs/2211.17192)); Chen et al. published
+"with identical outputs"
+([Leviathan et al., 2023](../../../docs/REFERENCES.md#speculative-decoding-leviathan-et-al-2023));
+Chen et al. published
 the equivalent scheme concurrently ([arXiv:2302.01318](https://arxiv.org/abs/2302.01318)). This
 matters politically as much as technically: you are not asking anyone to accept a quality regression.
 
@@ -491,18 +495,19 @@ Two structural facts fall straight out (sweep them in [`sim/speculative_model.py
 
 | Lever | What it buys | What it costs | Link |
 |---|---|---|---|
-| **Weight quantization** (fp8/fp4/int4) | Weights are the largest HBM consumer; halving them can more than double the KV pool. Also raises decode throughput, which is weight-bandwidth-bound. | Accuracy risk; needs task-level eval, not just perplexity. | B04 |
+| **Weight quantization** (fp8/fp4/int4) | Weights are the largest HBM consumer; halving them can more than double the KV pool. Also raises decode throughput, which is weight-bandwidth-bound. | Accuracy risk; needs task-level eval, not just perplexity. | [B04](../B04.precision-and-quantization/README.md) |
 | **KV-cache quantization** (fp8/int4) | Linear concurrency gain: fp8 KV doubles it. | Feeds straight into the attention softmax; long-context retrieval degrades first. | B04 |
-| **HIP/CUDA graphs** | Decode launches dozens of tiny kernels per step; capturing the step as a graph replays it with one launch. Real win when launch overhead is a large share of a small step — i.e. at small batch, where latency matters most. | Static shapes: you capture per batch-size bucket and pad, or fall back to eager for odd shapes. Harder to profile. | [A01](../../A-gpu-programming/A01.foundations-and-programming-model/) |
-| **Tensor parallelism** | **Latency.** Splits every layer across GPUs, so one step is faster. Also shards weights *and* KV heads, raising capacity. | An all-reduce **inside every layer** — needs a fast intra-node fabric (Infinity Fabric / NVLink). Stops shrinking KV once TP exceeds `kv_heads`. | B07 |
+| **HIP/CUDA graphs** | Decode launches dozens of tiny kernels per step; capturing the step as a graph replays it with one launch. Real win when launch overhead is a large share of a small step — i.e. at small batch, where latency matters most. | Static shapes: you capture per batch-size bucket and pad, or fall back to eager for odd shapes. Harder to profile. | [A01](../../A-gpu-programming/A01.foundations-and-programming-model/README.md) |
+| **Tensor parallelism** | **Latency.** Splits every layer across GPUs, so one step is faster. Also shards weights *and* KV heads, raising capacity. | An all-reduce **inside every layer** — needs a fast intra-node fabric (Infinity Fabric / NVLink). Stops shrinking KV once TP exceeds `kv_heads`. | [B07](../B07.distributed-training-and-sharding/README.md) |
 | **Pipeline / data parallelism** | **Throughput.** Pipeline splits by layer (cheap point-to-point comms, but bubbles); data parallelism just runs independent replicas — the simplest scaling there is. | Pipeline bubbles (uniform batches from chunked prefill help); neither improves single-request latency. | B07 |
 | **Prefill/decode disaggregation** | Removes phase interference entirely; each pool tuned and scaled independently. | KV transfer on the critical path; substantially more complex operations. | §3.1 |
 
-**The one-line rule for TP vs PP/DP:** *tensor parallelism for latency, pipeline and data parallelism
-for throughput.* Pope et al.'s *Efficiently Scaling Transformer Inference* derives this properly —
+**The one-line rule for TP vs PP/DP:** *[tensor parallelism](../../../docs/GLOSSARY.md#data-tensor-pipeline-and-expert-parallelism)
+for latency, pipeline and data parallelism for throughput.* Pope et al.'s *Efficiently Scaling
+Transformer Inference* derives this properly —
 an analytic model of partitioning strategies and the resulting latency/throughput Pareto frontier
-([arXiv:2211.05102](https://arxiv.org/abs/2211.05102)). If you are choosing a parallelism layout, read
-that paper rather than copying someone's flags.
+([Pope et al., 2022](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)).
+If you are choosing a parallelism layout, read that paper rather than copying someone's flags.
 
 ### 3.6 Capacity planning: the arithmetic to do before you deploy
 
@@ -553,7 +558,9 @@ Validate with a load test against your real arrival process, scored on goodput.
 **There is no GPU code in this module, and that is deliberate.** The lessons here are *scheduling* and
 *memory-accounting* lessons: they live above the kernel, and a kernel would obscure them. Instead you
 get three analytic models that make the lessons measurable on a laptop — and, because they are
-deterministic, arguable. Kernel-level work is Track A; roofline and profiling are B02/B03.
+deterministic, arguable. Kernel-level work is [Track A](../../A-gpu-programming/README.md); roofline
+and profiling are [B02](../B02.roofline-and-arithmetic-intensity/README.md) /
+[B03](../B03.profiling-and-bottleneck-analysis/README.md).
 
 ```bash
 make help              # list targets
@@ -873,14 +880,14 @@ misses its SLO is not.
 
 **Engines that implement this module.** Every one of these is worth reading rather than reinventing:
 
-- **[vLLM](https://github.com/vllm-project/vllm)** — the reference implementation of PagedAttention and
+- **[vLLM](../../../docs/REFERENCES.md#vllm-project)** — the reference implementation of PagedAttention and
   continuous batching, now also chunked prefill, prefix caching, speculative decoding, and
   disaggregated serving. Runs on AMD via ROCm; see the
   [ROCm vLLM optimization guide](https://rocm.docs.amd.com/en/latest/how-to/rocm-for-ai/inference-optimization/vllm-optimization.html)
   for AITER kernels, attention-backend selection, and the `--max-num-seqs` /
   `--max-num-batched-tokens` / `--gpu-memory-utilization` knobs that are exactly the quantities in
   §3.6.
-- **[SGLang](https://github.com/sgl-project/sglang)** — RadixAttention prefix caching plus a frontend
+- **[SGLang](../../../docs/REFERENCES.md#sglang-project)** — RadixAttention prefix caching plus a frontend
   language for structured LLM programs; the system to study if your workload is prefix-heavy.
 - **NVIDIA TensorRT-LLM / Triton** — in-flight batching with compiled kernels; the highest-performance
   option on NVIDIA at the cost of an engine-build step per model/shape.
@@ -894,7 +901,8 @@ misses its SLO is not.
   This is speculative decoding's home turf, and n-gram/prompt-lookup drafting is unusually effective
   because completions frequently quote the surrounding file.
 - **Batch document processing** — no interactive SLO at all, so maximize throughput: the largest batch
-  memory allows, no speculation, aggressive quantization. A completely different operating point on
+  memory allows, no speculation, aggressive
+  [quantization](../../../docs/GLOSSARY.md#quantization). A completely different operating point on
   the same engine.
 - **RAG pipelines** — long prompts, short answers. Prefill-dominated, so chunked prefill and prefix
   caching of retrieved-document blocks matter far more than decode optimizations. Watch the
@@ -904,27 +912,38 @@ misses its SLO is not.
 - **Large fleets** — prefill/decode disaggregation (Splitwise, DistServe) becomes worth its operational
   cost only at a scale where phase-specific hardware provisioning pays for the extra machinery.
 
+**Where to go next.**
+[C05](../../C-ml-system-design/C05.deployment-and-serving-architecture/README.md) is this module's
+systems-design counterpart: the same serving problem seen from the API, autoscaling and
+rollout side, where the batch cap you derived in §3.6 becomes a capacity and cost decision.
+[B07](../B07.distributed-training-and-sharding/README.md) turns the one-line TP-vs-PP rule of §3.5
+into the sharding mathematics behind it, which is what you need the moment one GPU stops being
+enough. [C06](../../C-ml-system-design/C06.monitoring-drift-and-ethics/README.md) is where the two
+metrics this module tells you to watch — p99 inter-token latency and the speculative acceptance rate
+— become production monitoring rather than good intentions.
+
 ---
 
 ## 8. Cited References
 
-Grounding for every non-obvious claim above. Master list in
-[../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for every non-obvious claim above. Sources shared with other modules are cited by anchor
+into the [master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date
+live; sources only this module uses carry their URL here.
 
 **Scheduling and batching**
 
-- Yu, Jeong, Kim, Kim, Chun (2022). *Orca: A Distributed Serving System for Transformer-Based
-  Generative Models.* OSDI '22 — iteration-level scheduling and selective batching; the origin of
-  continuous batching. <https://www.usenix.org/conference/osdi22/presentation/yu>
+- [**Orca** (Yu et al., OSDI '22)](../../../docs/REFERENCES.md#orca-continuous-batching-yu-et-al-2022)
+  — iteration-level scheduling and selective batching; the origin of continuous batching, the source
+  of the static-batching diagnosis in §2 and of the 36.9× figure in §3.1 and §5.3.
 - Agrawal, Kedia, Panwar, Mohan, Kwatra, Gulavani, Tumanov, Ramjee (2024). *Taming Throughput-Latency
   Tradeoff in LLM Inference with Sarathi-Serve.* OSDI '24 — chunked prefill and stall-free scheduling.
   <https://arxiv.org/abs/2403.02310>
 
 **Memory management**
 
-- Kwon, Li, Zhuang, Sheng, Zheng, Yu, Gonzalez, Zhang, Stoica (2023). *Efficient Memory Management for
-  Large Language Model Serving with PagedAttention.* SOSP '23 — the vLLM paper; paging, block tables,
-  copy-on-write, prefix sharing. <https://arxiv.org/abs/2309.06180>
+- [**PagedAttention** (Kwon et al., SOSP '23)](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
+  — the vLLM paper; paging, block tables, copy-on-write and prefix sharing. Everything in §3.2,
+  including the 60–80% waste characterisation and the 2–4× throughput figure, comes from here.
 - Zheng, Yin, Xie, Huang, Sun, Yu, Cao, Kozyrakis, Stoica, Gonzalez, Barrett, Sheng (2023/2024).
   *SGLang / RadixAttention* — automatic KV-cache reuse in a radix tree with LRU eviction and
   cache-aware scheduling. <https://arxiv.org/abs/2312.07104> ·
@@ -932,8 +951,9 @@ Grounding for every non-obvious claim above. Master list in
 
 **Speculative decoding**
 
-- Leviathan, Kalman, Matias (2023). *Fast Inference from Transformers via Speculative Decoding.* ICML —
-  the acceptance-rate analysis and the lossless verification scheme. <https://arxiv.org/abs/2211.17192>
+- [**Fast Inference from Transformers via Speculative Decoding** (Leviathan et al., ICML 2023)](../../../docs/REFERENCES.md#speculative-decoding-leviathan-et-al-2023)
+  — the acceptance-rate analysis §3.4 reproduces and the lossless verification scheme that makes the
+  "identical outputs" claim defensible.
 - Chen, Borgeaud, Irving, Lespiau, Sifre, Jumper (2023). *Accelerating Large Language Model Decoding
   with Speculative Sampling.* <https://arxiv.org/abs/2302.01318>
 - Cai, Li, Geng, Peng, Lee, Chen, Dao (2024). *Medusa: Simple LLM Inference Acceleration Framework with
@@ -943,9 +963,9 @@ Grounding for every non-obvious claim above. Master list in
 
 **Parallelism, disaggregation and scaling**
 
-- Pope, Douglas, Chowdhery, Devlin, Bradbury, Levskaya, Heek, Xiao, Agrawal, Dean (2022). *Efficiently
-  Scaling Transformer Inference.* — analytic partitioning model and the latency/throughput Pareto
-  frontier; the basis for "TP for latency, PP/DP for throughput". <https://arxiv.org/abs/2211.05102>
+- [**Efficiently Scaling Transformer Inference** (Pope et al., 2022)](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)
+  — analytic partitioning model and the latency/throughput Pareto frontier; the basis for §3.5's
+  "TP for latency, PP/DP for throughput" rule.
 - Patel, Choukse, Zhang, Shah, Goiri, Maleki, Bianchini (2023). *Splitwise: Efficient Generative LLM
   Inference Using Phase Splitting.* <https://arxiv.org/abs/2311.18677>
 - Zhong, Liu, Chen, Hu, Zhu, Liu, Jin, Zhang (2024). *DistServe: Disaggregating Prefill and Decoding
@@ -957,14 +977,20 @@ Grounding for every non-obvious claim above. Master list in
 - **vLLM documentation** — engine arguments, scheduling, prefix caching, speculative decoding.
   <https://docs.vllm.ai/>
 - **AMD ROCm: vLLM V1 performance optimization** — AITER kernels, attention-backend selection,
-  parallelism strategies, FP8/FP4 quantization, engine tuning on Instinct MI300X/MI325X/MI350X/MI355X.
+  parallelism strategies, FP8/FP4 quantization, engine tuning on Instinct MI300X/MI325X/MI350X/MI355X;
+  the source of the FP8/FP4 row in §5.3 (retrieved 8 Aug 2026).
   <https://rocm.docs.amd.com/en/latest/how-to/rocm-for-ai/inference-optimization/vllm-optimization.html>
-- **SGLang** <https://github.com/sgl-project/sglang> · **vLLM** <https://github.com/vllm-project/vllm>
+- [**SGLang** (project)](../../../docs/REFERENCES.md#sglang-project) — the RadixAttention
+  implementation of §3.3 · [**vLLM** (project)](../../../docs/REFERENCES.md#vllm-project) — the
+  reference implementation of everything in §3.1 and §3.2, and the engine whose flags §3.6 computes.
 
 **Background this module assumes**
 
-- Vaswani et al. (2017). *Attention Is All You Need.* <https://arxiv.org/abs/1706.03762>
-- Dao et al. (2022). *FlashAttention.* <https://arxiv.org/abs/2205.14135>
+- [**Attention Is All You Need** (Vaswani et al., 2017)](../../../docs/REFERENCES.md#attention-is-all-you-need-vaswani-et-al-2017)
+  — the architecture whose per-token K and V vectors are the KV cache this whole module budgets for.
+- [**FlashAttention** (Dao et al., 2022)](../../../docs/REFERENCES.md#flashattention-dao-et-al-2022)
+  — the IO-aware tiled attention kernel that the paged, per-sequence attention backends of §3.1
+  and §3.2 descend from.
 
 ---
 
@@ -997,7 +1023,7 @@ Grounding for every non-obvious claim above. Master list in
 12. A prefix cache is deployed and the hit rate is 2%, though every request "uses the same system
     prompt." Name the most likely bug.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **TTFT** = time from request *arrival* to first output token — it includes queue wait, and is

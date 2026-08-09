@@ -5,9 +5,17 @@
 >
 > Same rules as case study 1: every number derives from a labelled assumption, and every
 > choice names the alternative it beat. Theory lives in the modules it belongs to —
-> **C01** (framing, metrics, Goodhart), **C02** (data pipelines, feature stores, labels),
-> **C03** (training systems), **C05** (deployment), **C06** (monitoring, feedback loops,
-> ethics), **A04** (reduction — the top-k primitive), **B02** (roofline).
+> [C01](../../C01.problem-framing-and-metrics/README.md) (framing, metrics, Goodhart),
+> [C02](../../C02.data-pipelines-and-features/README.md) (data pipelines, feature stores, labels),
+> [C03](../../C03.training-systems/README.md) (training systems),
+> [C05](../../C05.deployment-and-serving-architecture/README.md) (deployment),
+> [C06](../../C06.monitoring-drift-and-ethics/README.md) (monitoring, feedback loops, ethics),
+> [A04](../../../A-gpu-programming/A04.parallel-reduction/README.md) (reduction — the top-k
+> primitive),
+> [B02](../../../B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md) (roofline).
+>
+> Terms: [GLOSSARY.md](../../../../docs/GLOSSARY.md) ·
+> Sources: [REFERENCES.md](../../../../docs/REFERENCES.md).
 
 ---
 
@@ -81,8 +89,9 @@ that determines eligibility), ads auction mechanics, and notification ranking.
 ### Guardrails, and why each one exists
 
 This is the section that separates a design from a demo. The recommender's objective is a
-*proxy*, and Goodhart's law (C01) says the system will find the gap between the proxy and the
-goal. Each guardrail closes one known gap:
+*proxy*, and Goodhart's law
+([C01 §6](../../C01.problem-framing-and-metrics/README.md#6-challenges-drawbacks--tradeoffs)) says
+the system will find the gap between the proxy and the goal. Each guardrail closes one known gap:
 
 | Guardrail | Closes the gap where… |
 |---|---|
@@ -336,7 +345,8 @@ scores leaves the ranking unchanged and destroys the probabilities.
 
 ## 6. Training data
 
-See **C02** for the pipeline mechanics; the parts specific to recommendation:
+See [C02 §3](../../C02.data-pipelines-and-features/README.md#3-deep-dive) for the pipeline
+mechanics; the parts specific to recommendation:
 
 | Issue | Detail | Handling |
 |---|---|---|
@@ -439,7 +449,7 @@ show users worse content" it is an impossible one.
 **Plus a permanent 0.5% holdout** receiving no personalization at all. A/B tests compare model
 A to model B and therefore cannot see the system slowly degrading in a direction both models
 share. The holdout measures the total lift of personalization against nothing, and it is the
-only instrument that catches a multi-quarter drift.
+only instrument that catches a multi-quarter [drift](../../../../docs/GLOSSARY.md#drift).
 
 ---
 
@@ -462,7 +472,8 @@ symptom is a launch that underperforms its offline numbers with no obvious cause
 1. **Log what you served.** The served feature vector, keyed by request ID, becomes the
    training row. Skew becomes impossible rather than monitored. Do this one.
 2. **One transformation definition** compiled to both paths, so there is one place to change.
-3. **Continuous skew monitoring:** recompute a sample of online features offline and alert on
+3. **Continuous [skew](../../../../docs/GLOSSARY.md#training-serving-skew) monitoring:** recompute
+   a sample of online features offline and alert on
    distribution divergence. This is the backstop, not the plan.
 
 ### Caching
@@ -509,7 +520,8 @@ label and the aggregate features, and it inflates every metric.
 
 ### Online
 
-A/B tests are the ground truth ([Kohavi, Tang & Xu, *Trustworthy Online Controlled
+[A/B tests](../../../../docs/GLOSSARY.md#ab-testing-and-canary) are the ground truth
+([Kohavi, Tang & Xu, *Trustworthy Online Controlled
 Experiments*, Cambridge, 2020](https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59)).
 Practical requirements: randomize by user, not by request (or a user sees inconsistent feeds
 and the units are not independent); run at least one full week to cover weekly seasonality and
@@ -604,6 +616,8 @@ rate from 80% to 90% halves the feature-store egress. The second one is easier.
 - Zhao et al. (2019). *Recommending What Video to Watch Next: A Multitask Ranking System.* RecSys '19. <https://doi.org/10.1145/3298689.3346997>
 - Cheng et al. (2016). *Wide & Deep Learning for Recommender Systems.* <https://arxiv.org/abs/1606.07792>
 - Naumov et al. (2019). *Deep Learning Recommendation Model for Personalization and Recommendation Systems (DLRM).* <https://arxiv.org/abs/1906.00091>
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems.* <https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
+- Sculley et al. (2015). [*Hidden Technical Debt in Machine Learning Systems.*](../../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  — the maintenance bill behind §10's cost breakdown and §11's omissions.
 - Kohavi, Tang, Xu (2020). *Trustworthy Online Controlled Experiments: A Practical Guide to A/B Testing.* Cambridge University Press. <https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59>
-- Zinkevich, M. *Rules of Machine Learning: Best Practices for ML Engineering.* Google. <https://developers.google.com/machine-learning/guides/rules-of-ml>
+- Zinkevich, M. [*Rules of Machine Learning: Best Practices for ML Engineering.*](../../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google)
+  Google — the practitioner's case for §2's ordering: metrics and infrastructure before models.

@@ -2,9 +2,10 @@
 
 > Track C · Module 06 · Status: **DRAFT** · Est. 7 hours · Depth 4/5
 >
-> Prerequisites: [C01](../C01.problem-framing-and-metrics/) (metrics and guardrails),
-> [C02](../C02.data-pipelines-and-features/) (skew and lineage),
-> [C05](../C05.deployment-and-serving-architecture/) (the system this module watches).
+> Prerequisites: [C01](../C01.problem-framing-and-metrics/README.md) (metrics and guardrails),
+> [C02](../C02.data-pipelines-and-features/README.md)
+> ([skew](../../../docs/GLOSSARY.md#training-serving-skew) and lineage),
+> [C05](../C05.deployment-and-serving-architecture/README.md) (the system this module watches).
 >
 > **This is a design module.** There is no `hip/` or `cuda/` code — the artefacts are three
 > pure-standard-library Python tools in [`tools/`](tools/) and paper design drills in
@@ -14,6 +15,8 @@
 > theorems, measurable tradeoffs, and the requirement to *justify a choice*. It is not a moral
 > lecture, and it does not state legal requirements as fact. Where the law is the binding
 > constraint, this module says "involve counsel", because that is the correct engineering answer.
+>
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 
 ---
 
@@ -22,7 +25,8 @@
 **TL;DR.** A deployed model can be **perfectly healthy and quietly wrong**: 200s, low latency, GPU
 warm, and predictions that stopped being right three weeks ago. So you monitor four layers — system,
 data, model, business — and alert on very few of them. You distinguish **covariate shift**
-(*P(x)* moved), **prior/label shift** (*P(y)* moved) and **concept drift** (*P(y|x)* moved), because
+(*P(x)* moved), **prior/label shift** (*P(y)* moved) and
+**[concept drift](../../../docs/GLOSSARY.md#drift)** (*P(y|x)* moved), because
 only the last one *necessarily* requires retraining. You accept that labels arrive days or months
 late, so real accuracy is unknown in the moment and you must monitor proxies. You take seriously the
 fact that **the model's own predictions generate the data that trains its successor**, and you buy
@@ -148,7 +152,9 @@ A supervised model learns from samples of a joint distribution `P(x, y)`. Factor
 ```
 
 Anything that can change must be one of those factors. That gives you the taxonomy — it is not a
-list someone made up, it is exhaustive by construction:
+list someone made up, it is exhaustive by construction — and the names below are the standard ones,
+from [*Dataset Shift in Machine Learning*](../../../docs/REFERENCES.md#dataset-shift-in-machine-learning-2009)
+(Quiñonero-Candela et al., 2009):
 
 | Name | What moves | Concrete example | Does it need a retrain? |
 |---|---|---|---|
@@ -187,7 +193,10 @@ matter so much: they are the only signals available **now**.
       +--------------------------------------------------------------------+
 ```
 
-That arrow closing the loop is the whole problem. A recommender that shows only popular items
+That arrow closing the loop is the whole problem — it is the *feedback loop* that
+[*Hidden Technical Debt in Machine Learning Systems*](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+(Sculley et al., 2015) names as a defining cost of production ML, and it lives in the data rather
+than in any line of code. A recommender that shows only popular items
 observes clicks only on popular items and concludes that only popular items are wanted. A fraud
 model that blocks a transaction **never observes whether it would have been fraudulent** — the
 counterfactual is destroyed by the action. A hiring model trained on past hiring decisions learns to
@@ -208,7 +217,10 @@ having never shown 240 of 400 items and having found only 3 of the true top 10.
 **Alert fatigue is a real failure mode, and it is terminal.** A pager that fires on noise gets
 muted, and then the one real page is missed. So the discipline is: **alert only on things that are
 (a) actionable now, (b) urgent, and (c) reliably detectable.** Everything else goes on a dashboard
-with a weekly review, or into an automated report.
+with a weekly review, or into an automated report. The rubric behind the table below is
+[*The ML Test Score*](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+(Breck et al., 2017), which scores a production system on the tests and monitors it has in place
+rather than on how well its model scores offline.
 
 | Layer | Signal | Alert? | Threshold shape |
 |---|---|---|---|
@@ -418,7 +430,8 @@ labels from the unaffected control population when you have one. The generationa
 loop.
 
 **Every automatically retrained model still passes the full gate.** Same offline evaluation, same
-per-slice checks, same fairness checks, same shadow and canary stages as a human-authored model —
+per-slice checks, same fairness checks, same shadow and
+[canary](../../../docs/GLOSSARY.md#ab-testing-and-canary) stages as a human-authored model —
 [C05 §3.3](../C05.deployment-and-serving-architecture/README.md#33-progressive-delivery-four-mechanisms-one-purpose).
 An automated pipeline that ships to production without a gate is an automated way to deploy a
 regression at 03:00 on a Sunday. Automate the *training*; keep the *promotion* gated.
@@ -528,7 +541,8 @@ time to build it.
 ## 4. Hands-On Labs
 
 **Why there is no `hip/` or `cuda/` code here.** The subject is statistical detection, system
-dynamics and decision criteria. A kernel would teach none of it. What is runnable are three tools
+dynamics and decision criteria. A [kernel](../../../docs/GLOSSARY.md#kernel) would teach none of it.
+What is runnable are three tools
 that turn this module's three most abstract claims — *drift types are distinguishable*, *feedback
 loops collapse coverage*, *fairness criteria conflict* — into numbers you can reproduce and argue
 with.
@@ -862,33 +876,47 @@ human-in-the-loop advisory one needs much less.
   extraction of verbatim training data from production-scale models, which is why deduplication and
   PII filtering became standard corpus-preparation steps rather than optional hygiene.
 
+**Where to go next.** [C07](../C07.capstone-case-studies/README.md) is where this module stops being
+a checklist and becomes a design decision you have to defend under time pressure; its
+[recommendation case study](../C07.capstone-case-studies/README.md#32-case-study-2--a-large-scale-recommendation-system)
+is §3.5's feedback loop at production scale.
+[C02 §3](../C02.data-pipelines-and-features/README.md#data-validation-as-a-hard-gate) is where most
+data-layer alerts are actually *fixed* — a drift signal you can act on is usually a validation gate
+you never built. And [C05 §3.6](../C05.deployment-and-serving-architecture/README.md#36-ab-testing-done-correctly)
+supplies the experiment discipline behind the exploration traffic and the permanent holdout that
+§3.5 asks you to pay for.
+
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live; the
+rest carry their link here.
 
 **Production ML and monitoring**
 
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems*, NeurIPS — the source
-  for feedback loops, entanglement, and "the model is 5% of the system".
-  <https://papers.nips.cc/paper_files/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
-- Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score: A Rubric for ML Production
-  Readiness and Technical Debt Reduction*, IEEE Big Data — the monitoring rubric behind §3.1.
-  <https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/>
-- Google. *Rules of Machine Learning* — practical rules on monitoring, staleness, and metric choice.
-  <https://developers.google.com/machine-learning/guides/rules-of-ml>
+- [**Hidden Technical Debt in Machine Learning Systems** (Sculley et al., 2015)](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015),
+  NeurIPS — the source for feedback loops, entanglement, and "the model is 5% of the system", and
+  the citation behind §2.5's closing arrow.
+- [**The ML Test Score** (Breck et al., 2017)](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017),
+  IEEE Big Data — the monitoring rubric behind §3.1's four-layer table, and a ready-made way to
+  score your own system's readiness rather than argue about it.
+- [**Rules of Machine Learning** (Zinkevich, Google)](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google)
+  — practical rules on monitoring, staleness, and metric choice; the closest thing to a checklist
+  for the operational habits §3.1–3.6 assume.
 - Beyer et al., eds. (2016). *Site Reliability Engineering* — *Monitoring Distributed Systems* for
   the symptoms-not-causes rule and alert-fatigue discipline in §3.1.
   <https://sre.google/sre-book/monitoring-distributed-systems/>
-- Amershi et al. (2019). *Software Engineering for Machine Learning: A Case Study*, ICSE.
-  <https://www.microsoft.com/en-us/research/publication/software-engineering-for-machine-learning-a-case-study/>
+- [**Software Engineering for Machine Learning** (Amershi et al., 2019)](../../../docs/REFERENCES.md#software-engineering-for-machine-learning-amershi-et-al-2019),
+  ICSE — the field study behind Track C's nine-stage workflow, in which monitoring is a stage of the
+  job rather than something that happens after it.
 
 **Drift**
 
-- Quiñonero-Candela, Sugiyama, Schwaighofer, Lawrence, eds. (2009). *Dataset Shift in Machine
-  Learning*, MIT Press — the standard reference for the covariate/prior/concept taxonomy.
-  <https://mitpress.mit.edu/9780262170055/dataset-shift-in-machine-learning/>
+- [**Dataset Shift in Machine Learning** (Quiñonero-Candela, Sugiyama, Schwaighofer, Lawrence, eds., 2009)](../../../docs/REFERENCES.md#dataset-shift-in-machine-learning-2009),
+  MIT Press — the standard reference for the covariate/prior/concept taxonomy, and the source of the
+  vocabulary §2.3 derives and the rest of the module uses.
 - Moreno-Torres, Raeder, Alaiz-Rodríguez, Chawla, Herrera (2012). *A unifying view on dataset shift
   in classification*, Pattern Recognition — the taxonomy stated precisely.
   <https://doi.org/10.1016/j.patcog.2011.06.019>

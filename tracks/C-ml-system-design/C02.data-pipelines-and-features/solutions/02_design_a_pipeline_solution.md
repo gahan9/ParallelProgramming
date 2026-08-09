@@ -91,7 +91,9 @@ the job to fall over.
 One more thing the freshness fix does *not* solve: if the ETA is optimistic during spikes even with
 fresh features, the residual is a **model** problem, and the right lever is the loss function. The
 promise is built from the p80, so train with **quantile loss** rather than squared error; under-promising
-and over-promising have different costs (C01 §3), and a symmetric loss cannot express that.
+and over-promising have different costs
+([C01 §3](../../C01.problem-framing-and-metrics/README.md#3-deep-dive)), and a symmetric loss cannot
+express that.
 
 ---
 

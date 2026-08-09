@@ -104,7 +104,8 @@ GATE: REJECT - do not publish this batch downstream
 > [!TIP]
 > The row that matters most is the **label** drift: the positive rate moved from 11% to 29% with a
 > perfectly valid schema. No per-row check would notice, and a retrain on this batch would silently
-> shift everything downstream — including the cost-optimal threshold you derived in C01. The
+> shift everything downstream — including the cost-optimal threshold you derived in
+> [C01](../../C01.problem-framing-and-metrics/README.md). The
 > `account_age_days` INFO row is the control proving the gate is not simply flagging everything.
 
 ---

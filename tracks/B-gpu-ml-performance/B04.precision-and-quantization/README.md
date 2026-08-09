@@ -25,8 +25,7 @@ underflows in real training). Narrower formats are faster for two separate reaso
 bytes moved, and higher matrix-core throughput — and the two reasons apply in different
 regimes. [Quantization](../../../docs/GLOSSARY.md#quantization) (fp32 → int8/int4) then
 trades measurable accuracy for memory and bandwidth, and the only honest acceptance test
-is a **task-level eval before and after**,
-not "the loss looked fine".
+is a **task-level eval before and after**, not "the loss looked fine".
 
 **Layman analogy — the ruler.** Measuring something with a ruler involves two independent
 choices. First, **which unit**: millimetres, metres, or kilometres. That is the
@@ -57,7 +56,8 @@ pictures and most of this module is predictable.
 fp16/fp8-E4M3/fp8-E5M2/int8 from memory and derive their limits rather than recalling
 them; explain why bf16 needs no loss scaling and fp16 does, with numbers; quantify both
 mechanisms by which low precision is faster and say when each applies; write a
-mixed-precision kernel that stores narrow and accumulates wide; recognise catastrophic
+[mixed-precision](../../../docs/GLOSSARY.md#mixed-precision) kernel that stores narrow and
+accumulates wide; recognise catastrophic
 cancellation, summation-order sensitivity, and `exp` overflow in a kernel review; choose
 between per-tensor, per-channel, and per-group quantization and defend the choice; and
 state the evidence you need before shipping a quantized model.
@@ -141,14 +141,20 @@ You do not have to trust this table: `hip/precision_limits.cpp` **computes every
 
 - **fp8 E4M3 is not IEEE-shaped.** It has *no infinities* and reserves only one mantissa
   pattern at the top exponent for NaN, which buys back one extra binade — hence a max of
-  `1.75 × 2^8 = 448` rather than 240 ([FP8 Formats for Deep Learning](https://arxiv.org/abs/2209.05433),
+  `1.75 × 2^8 = 448` rather than 240
+  ([FP8 Formats for Deep Learning](../../../docs/REFERENCES.md#fp8-formats-for-deep-learning-micikevicius-et-al-2022),
   Table 1). E5M2 keeps IEEE conventions and has infinities.
 - **E4M3FNUZ is a different format with the same name.** AMD CDNA 3 (`gfx942`, MI300X)
   implements the *FNUZ* variants — bias 8, no infinities, a single NaN encoding, no
   negative zero — so its maximum is **240**, not 448
   ([HIP low-precision types](https://rocm.docs.amd.com/projects/HIP/en/latest/reference/low_fp_types.html)).
-  The same 8 bits decode to values a factor of two apart on the two vendors. Exercise 1E is
-  about that trap.
+  The same 8 bits decode to values a factor of two apart on the two vendors. This is the
+  [FP8 FNUZ/OCP split](../../../docs/GLOSSARY.md#fp8-and-the-fnuzocp-split): the 448 side is
+  the one defined by
+  [FP8 Formats for Deep Learning](../../../docs/REFERENCES.md#fp8-formats-for-deep-learning-micikevicius-et-al-2022)
+  and standardised as the
+  [OCP 8-bit Floating Point Specification](../../../docs/REFERENCES.md#ocp-8-bit-floating-point-specification-ofp8).
+  Exercise 1E is about that trap.
 
 ### The key insight: bf16 versus fp16
 
@@ -215,9 +221,12 @@ layout.
 
 ### Why lower precision is faster — two separate mechanisms
 
-**Mechanism 1: fewer bytes moved.** Take any kernel and write its arithmetic intensity as
+**Mechanism 1: fewer bytes moved.** Take any kernel and write its
+[arithmetic intensity](../../../docs/GLOSSARY.md#arithmetic-intensity) as
 `I = FLOPs / bytes`. Halving the element width halves the denominator, so `I` **doubles** —
-and for a memory-bound kernel, achievable FLOP/s is `I × bandwidth`, so the ceiling doubles
+and for a
+[memory-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound)
+kernel, achievable FLOP/s is `I × bandwidth`, so the ceiling doubles
 too. Worked example, the elementwise `y = a·x + y` from Lab 2:
 
 ```
@@ -226,11 +235,14 @@ fp32:  12 bytes/element -> at 3 TB/s, ceiling = 3e12/12 = 250 G elements/s
 fp16:   6 bytes/element -> at 3 TB/s, ceiling = 3e12/6  = 500 G elements/s
 ```
 
-Same for GEMM's global traffic: A06 derives `I = T/4 FLOP/byte` for an fp32 tiled GEMM with
+Same for GEMM's global traffic:
+[A06 §2](../../A-gpu-programming/A06.tiled-matrix-multiply/README.md#2-first-principles)
+derives `I = T/4 FLOP/byte` for an fp32 tiled GEMM with
 tile `T`; with 2-byte operands it becomes `I = T/2`. **Halving the element size doubles the
 intensity for free, before any faster arithmetic is involved.**
 
-**Mechanism 2: matrix cores run reduced precision much faster.** This is a *compute*
+**Mechanism 2: [matrix cores](../../../docs/GLOSSARY.md#tensor-core-nvidia-and-matrix-core-amd)
+run reduced precision much faster.** This is a *compute*
 ceiling, not a bandwidth one. NVIDIA's A100 datasheet is a clean, published example
 ([Ampere architecture whitepaper](https://images.nvidia.com/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf)):
 
@@ -243,7 +255,7 @@ ceiling, not a bandwidth one. NVIDIA's A100 datasheet is a clean, published exam
 
 AMD's CDNA 3 whitepaper makes the same point for MI300X/MI325X: FP8 peak throughput is
 **16× the FP32 peak**, and the Matrix Cores add full-rate TF32 and FP8 support relative to
-CDNA 2 ([CDNA 3 white paper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf)).
+CDNA 2 ([CDNA 3 white paper](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd)).
 
 **Now the honest part, and it matters more than either mechanism: doubling a ceiling is not
 a 2× end-to-end win.** Reasons you will meet in that order:
@@ -316,6 +328,10 @@ flowchart TB
 imperfect: the amber path down the middle is what fp16 forces on you and bf16 mostly
 deletes, and the green boxes are the fp32 island that neither format can do without.*
 
+The recipe in that diagram — master weights in fp32, accumulation in fp32, a scaled loss —
+is [Mixed Precision Training](../../../docs/REFERENCES.md#mixed-precision-training-micikevicius-et-al-2017)'s,
+and each piece below is one of its findings restated as a number.
+
 **Why the fp32 master copy exists.** This is the numeric example worth memorising. In
 bf16, `ulp(1) = 2^-7 = 7.8e-3`, so the representable neighbours of `1.0` are `1.0` and
 `1.0078`. An update of `1e-3` applied to a weight of `1.0` lands at `1.001`, which rounds
@@ -362,7 +378,7 @@ after `N` clean steps. bf16 needs none of this because nothing in the histogram 
 | bf16 C++ type | `__hip_bfloat16` (`hip/hip_bf16.h`) | `__nv_bfloat16` (`cuda_bf16.h`) |
 | fp8 C++ type | `__hip_fp8_e4m3_fnuz`, `__hip_fp8_e4m3` | `__nv_fp8_e4m3`, `__nv_fp8_e5m2` |
 
-Sources: [CDNA 3 white paper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf),
+Sources: [CDNA 3 white paper](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd),
 [HIP low-precision floating-point types](https://rocm.docs.amd.com/projects/HIP/en/latest/reference/low_fp_types.html),
 [Ampere whitepaper](https://images.nvidia.com/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf),
 [Transformer Engine FP8 primer](https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/examples/fp8_primer.html).
@@ -393,10 +409,11 @@ Three consequences for portable code:
 
 ### Numerical hazards, with the numbers
 
-**Hazard 1 — `exp` overflow in softmax.** fp16's max finite is `65504`, and
-`ln(65504) = 11.0899`. So `exp(x)` leaves fp16 at `x ≈ 11.09` — an entirely ordinary
-attention logit. Lab 1 section 3 sweeps `x` and prints the first overflow at `x = 11.10`.
-The fix is A07's: subtract the row maximum first, so every argument is `≤ 0` and
+**Hazard 1 — `exp` overflow in [softmax](../../../docs/GLOSSARY.md#softmax).** fp16's max
+finite is `65504`, and `ln(65504) = 11.0899`. So `exp(x)` leaves fp16 at `x ≈ 11.09` — an
+entirely ordinary attention logit. Lab 1 section 3 sweeps `x` and prints the first overflow at `x = 11.10`.
+The fix is [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md)'s:
+subtract the row maximum first, so every argument is `≤ 0` and
 `exp(·) ≤ 1`. Note that this is not a precision optimisation; it is the difference between
 a working kernel and `NaN`. bf16 would not overflow here (its max is `3.4e38`,
 `ln = 88.7`), which is one more reason it is the safer default.
@@ -411,10 +428,14 @@ the sum differently, so they produce different results — both correct. Lab 1 s
 measures the spread across launch configurations. Two practical consequences: a reduction
 is **not bit-reproducible** across grid sizes, so regression tests must use a tolerance
 against an fp64 reference; and "the loss changed after I retuned the launch config" is
-expected behaviour, not a bug. This is A04's reduction, revisited with a numerical eye.
+expected behaviour, not a bug. This is
+[A04](../../A-gpu-programming/A04.parallel-reduction/README.md)'s reduction, revisited with
+a numerical eye.
 
 **Hazard 4 — catastrophic cancellation.** Subtracting two nearly equal numbers destroys
-the leading digits and promotes rounding noise to the result. The canonical instance is
+the leading digits and promotes rounding noise to the result — the effect
+[Goldberg (1991)](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)
+analyses at length. The canonical instance is
 one-pass variance, `E[x²] − E[x]²`. With `x ≈ 1e6` and true variance `1/3`, both terms are
 about `1e12` and agree to 12 digits; fp32 carries ~7, so **nothing correct survives** — Lab
 1 section 7 prints a garbage (often negative) variance next to a correct two-pass result at
@@ -469,9 +490,9 @@ an alignment you do not control.
 | method | what it does | what it optimizes for | cost |
 |---|---|---|---|
 | **weight-only int8/int4**, round-to-nearest | quantize `W` per channel or per group; dequantize inside the GEMM | memory and bandwidth on a memory-bound decode; simplest possible kernel | accuracy at int4 without a smarter scheme |
-| **LLM.int8()** ([arXiv:2208.07339](https://arxiv.org/abs/2208.07339)) | decompose the matmul: outlier *feature columns* (a tiny fraction, but with huge magnitudes) stay in fp16, the rest is int8; sum the two partial products | zero-degradation int8 inference at scale, where a handful of emergent outlier features otherwise wreck per-tensor scales | two GEMMs, irregular layout, a runtime outlier threshold |
-| **GPTQ** ([arXiv:2210.17323](https://arxiv.org/abs/2210.17323)) | one-shot, layer-wise weight quantization that minimises the *output* error using approximate second-order (Hessian) information, quantizing column by column and compensating the remaining columns | the best int3/int4 weight-only accuracy from a single calibration pass, no retraining | a calibration pass with Hessian estimation per layer; sensitive to the calibration data |
-| **AWQ** ([arXiv:2306.00978](https://arxiv.org/abs/2306.00978), MLSys 2024) | observes that ~1% of weights are salient, identified by **activation** magnitude rather than weight magnitude; searches a per-input-channel scale that shrinks those weights before quantization | int4 accuracy that generalises (no backprop, no reconstruction, so less calibration overfitting) plus a fast fused kernel | a calibration pass to observe activations; the scaling must fold into an adjacent op |
+| **LLM.int8()** ([Dettmers et al., 2022](../../../docs/REFERENCES.md#llmint8-dettmers-et-al-2022)) | decompose the matmul: outlier *feature columns* (a tiny fraction, but with huge magnitudes) stay in fp16, the rest is int8; sum the two partial products | zero-degradation int8 inference at scale, where a handful of emergent outlier features otherwise wreck per-tensor scales | two GEMMs, irregular layout, a runtime outlier threshold |
+| **GPTQ** ([Frantar et al., 2022](../../../docs/REFERENCES.md#gptq-frantar-et-al-2022)) | one-shot, layer-wise weight quantization that minimises the *output* error using approximate second-order (Hessian) information, quantizing column by column and compensating the remaining columns | the best int3/int4 weight-only accuracy from a single calibration pass, no retraining | a calibration pass with Hessian estimation per layer; sensitive to the calibration data |
+| **AWQ** ([Lin et al., 2023](../../../docs/REFERENCES.md#awq-lin-et-al-2023), MLSys 2024) | observes that ~1% of weights are salient, identified by **activation** magnitude rather than weight magnitude; searches a per-input-channel scale that shrinks those weights before quantization | int4 accuracy that generalises (no backprop, no reconstruction, so less calibration overfitting) plus a fast fused kernel | a calibration pass to observe activations; the scaling must fold into an adjacent op |
 | **KV-cache quantization** ([KIVI, arXiv:2402.02750](https://arxiv.org/abs/2402.02750)) | quantize the stored keys and values (int8/fp8, or 2-bit with per-channel keys and per-token values, keeping a small recent window in fp16) | the memory *and* bandwidth of long-context, large-batch serving | a quantize/dequantize step on the attention path; quality risk at long context |
 
 The through-line: **every one of these is an answer to "the scale is only as good as the
@@ -481,7 +502,8 @@ scaling shrinks the block so fewer values share the damage.
 
 ### KV-cache quantization: usually the highest-leverage win
 
-For a decoder, the KV cache is the one tensor that grows with **batch × context** while the
+For a decoder, the [KV cache](../../../docs/GLOSSARY.md#kv-cache) is the one tensor that
+grows with **batch × context** while the
 weights stay fixed. Size it once and you will never forget it:
 
 ```
@@ -497,8 +519,9 @@ At that operating point the cache is **twice the weights**, and at 128k context 
 them. Because decode re-reads the entire cache for every generated token, halving its bytes
 halves that read (latency) *and* halves its footprint (→ larger batch → throughput). One
 change, both benefits — which is why fp8/int8 KV caches ship in vLLM, SGLang and
-TensorRT-LLM. B06 takes this further into paged attention and serving-level batching;
-Exercise 1D has you do the arithmetic.
+TensorRT-LLM.
+[B06 §3](../B06.inference-serving-optimizations/README.md#3-deep-dive) takes this further
+into paged attention and serving-level batching; Exercise 1D has you do the arithmetic.
 
 ---
 
@@ -632,7 +655,8 @@ not the storage width — are what production kernels are after.
 
 ### The two ceilings, quantified
 
-Write both roofline ceilings for a kernel with element width `w` bytes:
+Write both [roofline](../../../docs/GLOSSARY.md#roofline-model) ceilings for a kernel with
+element width `w` bytes:
 
 ```
 memory-bound ceiling  =  I(w) × bandwidth,      where I(w) = FLOPs / (elements × w)
@@ -695,7 +719,8 @@ ridge point      : 1000e12 / 3e12   = 333 FLOP/byte
 Two orders of magnitude below the ridge — so tokens/second is `bandwidth ÷ weight bytes`:
 about **115** in fp16 (26 GB), **231** in int8, **462** in int4. Weight-only quantization is
 one of the few changes that moves decode throughput almost proportionally, and it does so
-*without* using a single int8 matrix-core instruction. The same change during **prefill**
+*without* using a single int8 matrix-core instruction. The same change during
+**[prefill](../../../docs/GLOSSARY.md#prefill-and-decode)**
 (large batch, weights reused across many tokens) buys much less, because prefill is near
 the compute ceiling instead.
 
@@ -916,62 +941,75 @@ push you into it by accident.
   super-block scales) — §3's granularity table, taken to its practical conclusion for
   CPU and consumer GPU inference.
 - **fp8 / int8 KV caches** in vLLM, SGLang and TensorRT-LLM: the highest-leverage memory
-  win for long context, as §3 sizes it. B06 covers the serving side.
+  win for long context, as §3 sizes it.
+  [B06](../B06.inference-serving-optimizations/README.md) covers the serving side.
 - **Vendor GEMM libraries** are where mechanism 2 actually lives: hipBLASLt/rocBLAS on
   ROCm, cuBLASLt/CUTLASS on CUDA. If your low-precision kernel is not faster, the first
   question is whether a library would have used the matrix cores you are not using.
 
-**Standards and hardware.** The **OCP 8-bit Floating Point Specification** and the **OCP
-Microscaling (MX) Formats** specification are the reason fp8/fp6/fp4 are becoming
-interoperable rather than per-vendor; AMD CDNA 4 and NVIDIA Blackwell both implement MX
+**Standards and hardware.** The
+**[OCP 8-bit Floating Point Specification](../../../docs/REFERENCES.md#ocp-8-bit-floating-point-specification-ofp8)**
+and the **OCP Microscaling (MX) Formats** specification are the reason fp8/fp6/fp4 are
+becoming interoperable rather than per-vendor; AMD CDNA 4 and NVIDIA Blackwell both implement MX
 formats with block-level exponents, which is the industry's answer to "one scale per tensor
 cannot cover a wide distribution".
+
+**Where to go next.**
+[B03](../B03.profiling-and-bottleneck-analysis/README.md) is how you settle the question
+this module keeps deferring — whether a narrower format actually moved the ceiling you were
+standing under, proved with counters rather than a wall-clock ratio.
+[B05](../B05.transformer-performance/README.md) supplies the workload this module's format
+choices are made for, and shows why prefill and decode react to the same precision change in
+opposite ways.
+[B06](../B06.inference-serving-optimizations/README.md) takes the KV-cache arithmetic of §3
+into a real server, where quantizing the cache buys batch size as well as bandwidth.
 
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Full list in
-[../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into
+the [master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date
+live; the ones only this module uses carry their citation here.
 
 **Formats and standards**
 - **IEEE 754-2019**, *Standard for Floating-Point Arithmetic* — sign/exponent/mantissa,
-  rounding modes, subnormals, the definition of `ulp`.
+  rounding modes, subnormals, the definition of `ulp`; the derivations in §2 are IEEE's
+  formulas applied to each format's `(E, M, bias)`. (retrieved 8 Aug 2026)
   <https://standards.ieee.org/ieee/754/6210/>
-- Micikevicius et al. (2022). *FP8 Formats for Deep Learning* — E4M3/E5M2 bit layouts,
-  biases, max values (448 / 57344), the non-IEEE special-value handling in E4M3, and the
-  E4M3-for-weights-and-activations / E5M2-for-gradients recommendation.
-  <https://arxiv.org/abs/2209.05433>
-- **OCP 8-bit Floating Point Specification (OFP8)** and **OCP Microscaling Formats (MX)** —
-  the interoperable definitions the vendors implement.
-  <https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1>
-- Goldberg (1991). *What Every Computer Scientist Should Know About Floating-Point
-  Arithmetic* — still the best single treatment of cancellation and rounding.
-  <https://dl.acm.org/doi/10.1145/103162.103163>
+- [**FP8 Formats for Deep Learning** (Micikevicius et al., 2022)](../../../docs/REFERENCES.md#fp8-formats-for-deep-learning-micikevicius-et-al-2022)
+  — E4M3/E5M2 bit layouts, biases, max values (448 / 57344), the non-IEEE special-value
+  handling in E4M3, and the E4M3-for-weights-and-activations / E5M2-for-gradients
+  recommendation. Cited in §2 for the 448 half of the FNUZ/OCP split.
+- [**OCP 8-bit Floating Point Specification (OFP8)**](../../../docs/REFERENCES.md#ocp-8-bit-floating-point-specification-ofp8),
+  with **OCP Microscaling Formats (MX)** alongside it — the interoperable definitions the
+  vendors implement, and the reason §2's 448 and §3's 240 are both correct answers to
+  "what is E4M3".
+- [**What Every Computer Scientist Should Know About Floating-Point Arithmetic** (Goldberg, 1991)](../../../docs/REFERENCES.md#what-every-computer-scientist-should-know-about-floating-point-arithmetic-goldberg-1991)
+  — still the best single treatment of cancellation and rounding; the source behind §3's
+  Hazard 4 and the two-pass variance result in Lab 1.
 
 **Mixed-precision training**
-- Micikevicius et al. (2018). *Mixed Precision Training* (ICLR) — the fp32 master-weight
-  copy, fp32 accumulation, and loss scaling, with the underflow analysis this module's
-  Exercise 2 reproduces.
-  <https://arxiv.org/abs/1710.03740>
+- [**Mixed Precision Training** (Micikevicius et al., 2017; ICLR 2018)](../../../docs/REFERENCES.md#mixed-precision-training-micikevicius-et-al-2017)
+  — the fp32 master-weight copy, fp32 accumulation, and loss scaling, with the underflow
+  analysis this module's Exercise 2 reproduces. §3's diagram is this paper's recipe.
 - **PyTorch AMP documentation** — `autocast`, `GradScaler`, the op allowlists, and the
-  required unscale-before-clip ordering.
+  required unscale-before-clip ordering. (retrieved 8 Aug 2026)
   <https://pytorch.org/docs/stable/amp.html>
 - **NVIDIA Transformer Engine — FP8 primer** — delayed scaling with amax history, the
-  E4M3-forward/E5M2-backward split, MXFP8 block scaling.
+  E4M3-forward/E5M2-backward split, MXFP8 block scaling. (retrieved 8 Aug 2026)
   <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/examples/fp8_primer.html>
 
 **Quantization methods**
-- Dettmers et al. (2022). *LLM.int8(): 8-bit Matrix Multiplication for Transformers at
-  Scale* — emergent outlier features and mixed-precision decomposition.
-  <https://arxiv.org/abs/2208.07339>
-- Frantar et al. (2023). *GPTQ: Accurate Post-Training Quantization for Generative
-  Pre-trained Transformers* (ICLR) — one-shot second-order weight quantization to int3/int4.
-  <https://arxiv.org/abs/2210.17323>
-- Lin et al. (2024). *AWQ: Activation-aware Weight Quantization for LLM Compression and
-  Acceleration* (MLSys, best paper) — salient weights identified by activation magnitude,
-  per-input-channel scaling search.
-  <https://arxiv.org/abs/2306.00978>
+- [**LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale** (Dettmers et al., 2022)](../../../docs/REFERENCES.md#llmint8-dettmers-et-al-2022)
+  — emergent outlier features and mixed-precision decomposition; the source for §3's method
+  table and for escalation step 2 in §6.
+- [**GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers** (Frantar et al., 2022; ICLR 2023)](../../../docs/REFERENCES.md#gptq-frantar-et-al-2022)
+  — one-shot second-order weight quantization to int3/int4, the "accepts the outliers and
+  compensates the other weights" row of §3's table.
+- [**AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration** (Lin et al., 2023; MLSys 2024, best paper)](../../../docs/REFERENCES.md#awq-lin-et-al-2023)
+  — salient weights identified by activation magnitude, per-input-channel scaling search;
+  also the stated motivation behind §6's Trap 7 on calibration overfitting.
 - Liu et al. (2024). *KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache* (ICML)
   — per-channel keys, per-token values, and the fp16 residual window.
   <https://arxiv.org/abs/2402.02750>
@@ -981,28 +1019,35 @@ Grounding for the claims above. Full list in
   <https://arxiv.org/abs/1712.05877>
 
 **Vendor documentation for the hardware claims**
-- **AMD CDNA 3 white paper** — Matrix Core data types, tf32 as a 19-bit hybrid, OCP-compliant
-  fp8 (E5M2 for training, E4M3 for inference), FP8 peak at 16× the FP32 peak on
-  MI300X/MI325X, 2:4 structured sparsity.
-  <https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf>
+- [**AMD CDNA 3 white paper**](../../../docs/REFERENCES.md#amd-cdna-3-whitepaper-amd)
+  — Matrix Core data types, tf32 as a 19-bit hybrid, OCP-compliant fp8 (E5M2 for training,
+  E4M3 for inference), FP8 peak at 16× the FP32 peak on MI300X/MI325X, 2:4 structured
+  sparsity. The AMD half of §2's mechanism-2 claim and of §3's vendor table.
 - **HIP — Low-precision floating-point types** — `__half`, `__hip_bfloat16`, the four fp8
   classes, and the table showing that `gfx940/941/942` implement **FNUZ** fp8 but not OCP
-  fp8.
+  fp8. (retrieved 8 Aug 2026)
   <https://rocm.docs.amd.com/projects/HIP/en/latest/reference/low_fp_types.html>
 - **NVIDIA A100 / Ampere architecture whitepaper** — TF32 (8 exponent, 10 mantissa, 1 sign),
   BF16 tensor cores, and the published FP32/TF32/FP16/INT8 peak table used in §2.
+  (retrieved 8 Aug 2026)
   <https://images.nvidia.com/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf>
 - **NVIDIA — Accelerating AI Training with TF32 Tensor Cores** — TF32 as a default math
-  mode for fp32 workloads, and why it needs no script changes.
+  mode for fp32 workloads, and why it needs no script changes. (retrieved 8 Aug 2026)
   <https://developer.nvidia.com/blog/accelerating-ai-training-with-tf32-tensor-cores/>
-- **CUDA C++ Programming Guide** — `__half`/`__nv_bfloat16`/`__nv_fp8_*` types, conversion
-  intrinsics, and WMMA.
-  <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html>
+- [**CUDA C++ Programming Guide**](../../../docs/REFERENCES.md#cuda-c-programming-guide-nvidia)
+  — `__half`/`__nv_bfloat16`/`__nv_fp8_*` types, conversion intrinsics, and WMMA; the
+  normative spelling for every NVIDIA narrow type the labs use.
 
 **Within this curriculum**
-- A04 (reductions) for the summation-order result, A06 (tiled GEMM) for the arithmetic
-  intensity derivation reused in §2, A07 (softmax) for the max-subtraction trick, B02 for
-  the roofline vocabulary, and B06 for KV-cache quantization in a serving context.
+- [A04](../../A-gpu-programming/A04.parallel-reduction/README.md) (reductions) for the
+  summation-order result,
+  [A06](../../A-gpu-programming/A06.tiled-matrix-multiply/README.md) (tiled GEMM) for the
+  arithmetic intensity derivation reused in §2,
+  [A07](../../A-gpu-programming/A07.softmax-and-fused-kernels/README.md) (softmax) for the
+  max-subtraction trick,
+  [B02](../B02.roofline-and-arithmetic-intensity/README.md) for the roofline vocabulary, and
+  [B06](../B06.inference-serving-optimizations/README.md) for KV-cache quantization in a
+  serving context.
 
 ---
 
@@ -1031,7 +1076,7 @@ Grounding for the claims above. Full list in
 8. An fp8 checkpoint trained on an H100 produces garbage on an MI300X. No exceptions, no
    `NaN` — just bad outputs. What is your first hypothesis?
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. **bf16** represents `1e-9` (8 exponent bits → range down to `1.2e-38`); **fp16**

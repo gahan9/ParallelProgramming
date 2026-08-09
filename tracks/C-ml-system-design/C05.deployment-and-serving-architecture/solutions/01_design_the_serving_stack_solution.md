@@ -98,7 +98,9 @@ more than anything you can make 10% faster on it.
 
 - Queue wait (90 ms) is the only line the autoscaler controls, and it is the second-largest term.
   That is why §4 exists and why the scaling signal must be queue depth.
-- Prefill (210 ms) is the largest term and belongs to Track B / C04 — prompt compression, prefix
+- Prefill (210 ms) is the largest term and belongs to Track B
+  ([B06](../../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md)) /
+  [C04](../../C04.production-model-optimization/README.md) — prompt compression, prefix
   caching for the repeated system prompt, and chunked prefill are the levers, not anything in this
   module.
 - The two assumed retrieval numbers (35 + 18 = 53 ms) are the weakest part of the budget. If the

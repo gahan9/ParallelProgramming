@@ -6,7 +6,8 @@
 > (kernels, host/device model), [A04](../../A-gpu-programming/A04.parallel-reduction/README.md)
 > (reduction — and its floating-point associativity warning), and
 > [B01](../B01.accelerator-architecture/README.md) for the **interconnect hierarchy**, whose
-> [§3.5](../B01.accelerator-architecture/README.md#35-scale-up-interconnect) measures the links this module spends: 7 × 128 GB/s bidirectional Infinity
+> [§3.5](../B01.accelerator-architecture/README.md#35-scale-up-interconnect)
+> measures the links this module spends: 7 × 128 GB/s bidirectional Infinity
 > Fabric per MI300X (896 GB/s aggregate) against 5.3 TB/s of HBM — a ~6× gap that
 > is the reason everything below exists. Helpful:
 > [B05](../B05.transformer-performance/README.md) (transformer shapes),
@@ -29,7 +30,8 @@
 can do in your head: mixed-precision Adam costs **16 bytes per parameter** of
 resident state before a single activation exists, so a 70-billion-parameter model
 needs ~1043 GiB of state on hardware that has 192 GiB per device. So you *shard*,
-and there are exactly four axes to shard along — **data** (split the batch),
+and there are exactly
+[four axes to shard along](../../../docs/GLOSSARY.md#data-tensor-pipeline-and-expert-parallelism) — **data** (split the batch),
 **ZeRO/FSDP** (split the optimizer state, gradients, then parameters),
 **tensor** (split individual matrices), and **pipeline** (split the layers) — plus
 two specialised ones, **expert** (MoE) and **sequence/context**. Each axis trades
@@ -79,15 +81,16 @@ bandwidth hierarchy.
    correctness requirement, not a coordination nicety — and because
    floating-point addition is not associative, even a *correct* all-reduce that
    sums in a different order gives a slightly different answer
-   ([A04](../../A-gpu-programming/A04.parallel-reduction/README.md) makes this
-   precise). Bit-exact reproducibility across a reconfigured cluster is
+   ([A04 §Pitfall 5](../../A-gpu-programming/A04.parallel-reduction/README.md#pitfall-5--determinism-and-why-ml-cares)
+   makes this precise). Bit-exact reproducibility across a reconfigured cluster is
    something you *choose to pay for*, not something you get.
 2. **The analogy has no bandwidth hierarchy.** In real hardware, "shouting across
    the wall" (intra-node, hundreds of GB/s), "radioing the next site"
    (inter-node, tens of GB/s), and "posting a letter" differ by 10–100×. That
    single ratio is what decides the entire parallelism layout.
 3. **The slowest crew sets everyone's pace.** A synchronous training step ends
-   when the *last* rank arrives at the barrier, so one GPU that is 10% slow makes
+   when the *last* rank arrives at the
+   [barrier](../../../docs/GLOSSARY.md#barrier), so one GPU that is 10% slow makes
    1024 GPUs 10% slow. Section 6 does the statistics of that.
 
 ```mermaid
@@ -143,7 +146,8 @@ distributed-training interview.*
 
 **By the end of this module you can:** compute a training memory budget per GPU
 from parameters, optimizer, and activations; derive the ring all-reduce cost model
-and say whether a given collective is latency- or bandwidth-bound; derive the
+and say whether a given collective is
+[latency- or bandwidth-bound](../../../docs/GLOSSARY.md#memory-bound-compute-bound-and-latency-bound); derive the
 pipeline bubble fraction and the micro-batch count needed to hide it; choose and
 *justify* a parallelism combination for a given model, cluster, and interconnect;
 and name the failure mode each axis brings with it.
@@ -156,8 +160,8 @@ and name the failure mode each axis brings with it.
 
 Start with the thing everyone forgets: **the parameters are the small part.**
 
-Mixed-precision training with Adam keeps *five* tensors per weight. Walk through
-why each one has to exist:
+[Mixed-precision](../../../docs/GLOSSARY.md#mixed-precision) training with Adam
+keeps *five* tensors per weight. Walk through why each one has to exist:
 
 | Tensor | dtype | bytes/param | Why it cannot be dropped |
 |---|---|---:|---|
@@ -168,11 +172,12 @@ why each one has to exist:
 | Adam second moment `v` | fp32 | 4 | Per-parameter scaling — Adam's other whole point |
 | **Total** | | **16** | |
 
-This is the **16 bytes per parameter** figure from the ZeRO paper
+This is the **16 bytes per parameter** figure from the
+[ZeRO paper](../../../docs/REFERENCES.md#zero-rajbhandari-et-al-2020)
 ([arXiv:1910.02054](https://arxiv.org/abs/1910.02054), which writes it as
 `2Ψ + 2Ψ + KΨ` with `K = 12` for Adam). Note that plain fp32 + Adam is *also* 16
-bytes/param (4+4+4+4) — mixed precision buys you speed and activation memory, not
-state memory.
+bytes/param (4+4+4+4) — [mixed precision](../../../docs/REFERENCES.md#mixed-precision-training-micikevicius-et-al-2017)
+buys you speed and activation memory, not state memory.
 
 **Concrete model that cannot fit.** Take a Llama-2-70B-shaped model
 ([arXiv:2307.09288](https://arxiv.org/abs/2307.09288)): `Ψ = 70e9`, `L = 80`
@@ -182,7 +187,8 @@ layers, hidden `h = 8192`, `a = 64` heads, sequence `s = 4096`.
 state = 70e9 params x 16 bytes = 1.12e12 bytes = 1043 GiB
 ```
 
-An MI300X has **192 GB of HBM3**; an H100 SXM has 80 GB. So the *state alone*
+An MI300X has **192 GB of [HBM3](../../../docs/GLOSSARY.md#global-memory)**; an
+H100 SXM has 80 GB. So the *state alone*
 needs `1043 / 192 = 5.4` MI300X-class GPUs, and you have not yet stored a single
 activation. Data parallelism cannot help you here — DDP replicates all 1043 GiB on
 every rank. **This is the entire reason sharding exists.**
@@ -198,7 +204,9 @@ activation bytes per layer = s*b*h * (34 + 5*a*s/h)
 ```
 
 The `34` covers the linear projections, LayerNorms, GeLU, and dropout masks. The
-`5*a*s/h` term is the attention score matrix, and it is **quadratic in sequence
+`5*a*s/h` term is the
+[attention](../../../docs/GLOSSARY.md#attention-and-flashattention) score matrix,
+and it is **quadratic in sequence
 length** — that is the term that kills long-context training.
 
 Apply it to our 70B at `s=4096, b=1, h=8192, a=64`:
@@ -307,8 +315,8 @@ That is not a curiosity — it is why ZeRO-2 gets its memory saving *for free*
 (it was already doing both halves) and why sequence parallelism can replace an
 all-reduce with reduce-scatter + all-gather at identical volume.
 
-**AMD ships [RCCL](https://github.com/ROCm/rccl); NVIDIA ships
-[NCCL](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html).**
+**AMD ships [RCCL](../../../docs/REFERENCES.md#rccl-amd); NVIDIA ships
+[NCCL](../../../docs/REFERENCES.md#nccl-nvidia).**
 RCCL is API-compatible with NCCL, so PyTorch's `dist.init_process_group("nccl")`
 maps onto RCCL on a ROCm build. Both implement ring *and* tree algorithms and pick
 between them by message size and topology.
@@ -335,7 +343,8 @@ time  T(S,P)         = 2*(P-1)*alpha  +  (2*(P-1)/P) * S/B
                        \___latency___/    \____bandwidth____/
 ```
 
-with `alpha` = per-step latency and `B` = achievable per-link bandwidth. Two
+with `alpha` = per-step latency and `B` = achievable per-link
+[bandwidth](../../../docs/GLOSSARY.md#bandwidth). Two
 consequences that people get wrong constantly:
 
 - **As `P` grows, the volume converges to `2S`, not `P*S`.** `2(P-1)/P → 2`. A
@@ -404,9 +413,11 @@ against the raw link speed. At 0.25 MiB you achieve 3.8 GB/s on a 50 GB/s link �
 >    small messages and a good estimate for large ones, and get the truth from
 >    `rccl-tests` / `nccl-tests` on your actual fabric.
 > 2. `--bw` is the **bandwidth one rank can drive into the collective**, not a
->    single wire's rate. [B01 §3.5](../B01.accelerator-architecture/) pins the
+>    single wire's rate.
+>    [B01 §3.5](../B01.accelerator-architecture/README.md#35-scale-up-interconnect) pins the
 >    hardware down: an MI300X has 7 Infinity Fabric links at 128 GB/s
->    *bidirectional*, i.e. ~64 GB/s per direction per link, and 896 GB/s aggregate.
+>    *bidirectional*, i.e. ~64 GB/s per direction per link, and 896 GB/s aggregate
+>    ([AMD Instinct cluster design reference](../../../docs/REFERENCES.md#amd-instinct-cluster-design-reference-amd)).
 >    A single-ring collective would use one link (~64 GB/s each way); real
 >    libraries run *several rings concurrently* across all 7 links, which is why a
 >    few hundred GB/s is the right order for an intra-node 8-GPU group and why
@@ -441,7 +452,8 @@ parallelism is bounded by statistics, not just by hardware.
 
 ### 3.2 ZeRO / FSDP — shard the state, all-gather just in time
 
-The insight of ZeRO ([arXiv:1910.02054](https://arxiv.org/abs/1910.02054)) is that
+The insight of [ZeRO](../../../docs/REFERENCES.md#zero-rajbhandari-et-al-2020)
+([arXiv:1910.02054](https://arxiv.org/abs/1910.02054)) is that
 DDP's replication of *state* is pure waste: every rank stores 16 bytes/param but
 only needs a given parameter for the microseconds it is being used.
 
@@ -465,7 +477,8 @@ Derive the comm volumes and the free-lunch boundary:
 - **Nothing in ZeRO touches activations.** That is why the §2.3 table shows ZeRO-3
   at 628 GiB — the 485 GiB of activations is untouched.
 
-PyTorch's FSDP is the productionised form of stage 3 and adds the engineering that
+[PyTorch's FSDP](../../../docs/REFERENCES.md#pytorch-fsdp-pytorch) is the
+productionised form of stage 3 and adds the engineering that
 makes it viable: prefetching the next layer's all-gather, overlapping it with the
 current layer's compute, and rate-limiting outstanding collectives
 ([arXiv:2304.11277](https://arxiv.org/abs/2304.11277)).
@@ -479,7 +492,8 @@ resident parameters.
 
 ### 3.3 Tensor parallel — split the matrices, pay in activations
 
-**The Megatron trick** ([arXiv:1909.08053](https://arxiv.org/abs/1909.08053)) is to
+**The [Megatron trick](../../../docs/REFERENCES.md#megatron-lm-shoeybi-et-al-2019)**
+([arXiv:1909.08053](https://arxiv.org/abs/1909.08053)) is to
 choose *which dimension* you split so that consecutive splits cancel. Take an MLP
 block `Y = GeLU(X A)`, `Z = Y B`:
 
@@ -632,7 +646,8 @@ the steady state longer, and the bill for that arrives as activation memory.*
 
 **Schedules, in the order they were invented:**
 
-- **GPipe** ([arXiv:1811.06965](https://arxiv.org/abs/1811.06965)) — all forwards,
+- **[GPipe](../../../docs/REFERENCES.md#gpipe-huang-et-al-2019)**
+  ([arXiv:1811.06965](https://arxiv.org/abs/1811.06965)) — all forwards,
   then all backwards. Correct and simple, but the peak activation memory is
   proportional to `M`, so the very knob that shrinks the bubble blows up memory.
 - **1F1B / PipeDream** ([arXiv:1806.03377](https://arxiv.org/abs/1806.03377)) —
@@ -796,7 +811,8 @@ directions — so the same axes get used for different reasons.
 | Pipeline parallel | spans cheap links | **raises throughput, raises latency**: a request traverses all stages, so its latency is the sum of stages |
 | Data parallel | more tokens/step | replicate the whole engine for more QPS; nothing shared |
 
-**The latency subtlety that catches everyone.** During decode, the tensor-parallel
+**The latency subtlety that catches everyone.** During
+[decode](../../../docs/GLOSSARY.md#prefill-and-decode), the tensor-parallel
 all-reduce carries `b*h*2` bytes — for `b=1, h=8192` that is **16 KiB**, four
 hundred times *smaller* than training's 64 MiB message. Per §2.5 that puts you
 deep in the latency-bound regime:
@@ -816,7 +832,7 @@ algorithm choice, not bandwidth** — which is exactly why NCCL/RCCL use one-sho
 and tree algorithms for small messages, and why a fabric with great bandwidth but
 mediocre latency can disappoint on decode while looking great on training.
 
-**The KV cache must be sharded consistently with the attention heads.** With
+**The [KV cache](../../../docs/GLOSSARY.md#kv-cache) must be sharded consistently with the attention heads.** With
 `TP = t`, rank `r` owns a subset of heads, so it must own the K and V for *exactly
 those* heads — otherwise every step needs a cache reshuffle. Two consequences:
 
@@ -827,12 +843,14 @@ those* heads — otherwise every step needs a cache reshuffle. Two consequences:
   GQA model cannot cleanly run `TP=16` without replicating KV.
 
 The paging, batching, and cache-management side of this is
-[B06](../B06.inference-serving-optimizations/)'s subject — it reaches the same
-one-line rule (*tensor parallelism for latency, pipeline and data parallelism for
+[B06 §3.2](../B06.inference-serving-optimizations/README.md#32-pagedattention-the-kv-cache-is-the-scarce-resource)'s
+subject — it reaches the same one-line rule (*tensor parallelism for latency,
+pipeline and data parallelism for
 throughput*) from the serving side, and the underlying partitioning analysis is
-Pope et al.'s ([arXiv:2211.05102](https://arxiv.org/abs/2211.05102)). The sharding
+[Pope et al.'s](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)
+([arXiv:2211.05102](https://arxiv.org/abs/2211.05102)). The sharding
 constraint is this module's. See also
-[vLLM / PagedAttention](https://arxiv.org/abs/2309.06180) and
+[vLLM / PagedAttention](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023) and
 [DeepSpeed-Inference](https://arxiv.org/abs/2207.00032).
 
 ---
@@ -1180,21 +1198,22 @@ name the constraint first.
 
 ## 7. Real-World Use Cases
 
-- **Megatron-LM / NeMo** (NVIDIA) — the reference implementation of tensor +
+- **[Megatron-LM](../../../docs/REFERENCES.md#megatron-lm-shoeybi-et-al-2019) / NeMo** (NVIDIA) — the reference implementation of tensor +
   pipeline + data parallelism with interleaved schedules and sequence parallelism.
   The 3D layout in §3.7 is theirs ([arXiv:2104.04473](https://arxiv.org/abs/2104.04473)).
 - **DeepSpeed** (Microsoft) — ZeRO stages 1–3, ZeRO-Offload, and ZeRO-Infinity
   ([arXiv:2104.07857](https://arxiv.org/abs/2104.07857)) which extends the same
   sharding idea to NVMe. Where "shard the optimizer state" became a product.
-- **PyTorch FSDP / DDP** — what most teams actually run.
+- **[PyTorch FSDP](../../../docs/REFERENCES.md#pytorch-fsdp-pytorch) / DDP** — what most teams actually run.
   `torch.distributed.fsdp` is stage-3 sharding with the overlap machinery
   ([arXiv:2304.11277](https://arxiv.org/abs/2304.11277)); `DistributedDataParallel`
   is the bucketed all-reduce of §3.1.
 - **RCCL on AMD Instinct** — `dist.init_process_group("nccl")` on a ROCm PyTorch
-  build routes to [RCCL](https://github.com/ROCm/rccl) over Infinity Fabric
+  build routes to [RCCL](../../../docs/REFERENCES.md#rccl-amd) over Infinity Fabric
   intra-node and RoCE/InfiniBand across nodes. The §3.7 tiering is why MI300X
   nodes put 8 GPUs on a fully-connected mesh of 7 × 128 GB/s links
-  ([B01 §3.5](../B01.accelerator-architecture/)): that mesh *is* the
+  ([B01 §3.5](../B01.accelerator-architecture/README.md#35-scale-up-interconnect),
+  [AMD Instinct cluster design reference](../../../docs/REFERENCES.md#amd-instinct-cluster-design-reference-amd)): that mesh *is* the
   tensor-parallel domain, and its boundary is where your TP degree stops.
 - **Mixture-of-Experts in production** — GShard's 600B translation model
   ([arXiv:2006.16668](https://arxiv.org/abs/2006.16668)) and Switch Transformer's
@@ -1208,32 +1227,47 @@ name the constraint first.
   parallelism space rather than hand-tuning it; the search space is the one this
   module taught you to enumerate.
 
+**Where to go next.**
+[C03](../../C-ml-system-design/C03.training-systems/README.md) is this module's
+systems-design counterpart: it takes the cluster you have just sized and asks what
+it costs to checkpoint it, resume it bit-exactly, and survive the node failures
+that are routine at this scale.
+[B06](../B06.inference-serving-optimizations/README.md) picks the sharded model up
+after training and spends the same axes on latency and throughput instead of
+memory. [B03](../B03.profiling-and-bottleneck-analysis/README.md) is how you turn
+every "should overlap" in section 5 into a trace that says whether the collective
+actually did.
+
 ---
 
 ## 8. Cited References
 
-Full curriculum list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Sources shared with the rest of the curriculum are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval
+date live; module-specific papers keep their arXiv ID here.
 
 **The four axes**
 
-- Shoeybi et al. (2019). *Megatron-LM: Training Multi-Billion Parameter Language
-  Models Using Model Parallelism* — column-then-row tensor parallelism.
-  <https://arxiv.org/abs/1909.08053>
+- [**Megatron-LM** (Shoeybi et al., 2019)](../../../docs/REFERENCES.md#megatron-lm-shoeybi-et-al-2019)
+  — *Training Multi-Billion Parameter Language Models Using Model Parallelism*:
+  the column-then-row split §3.3 derives, and the reason one all-reduce finishes a
+  tensor-parallel block.
 - Narayanan et al. (2021). *Efficient Large-Scale Language Model Training on GPU
   Clusters Using Megatron-LM* — 3D parallelism, interleaved 1F1B, bubble analysis.
   <https://arxiv.org/abs/2104.04473>
-- Rajbhandari et al. (2019). *ZeRO: Memory Optimizations Toward Training Trillion
-  Parameter Models* — the `16Ψ` budget and stages 1/2/3.
-  <https://arxiv.org/abs/1910.02054>
+- [**ZeRO** (Rajbhandari et al.)](../../../docs/REFERENCES.md#zero-rajbhandari-et-al-2020)
+  — *Memory Optimizations Toward Training Trillion Parameter Models*: the `16Ψ`
+  budget §2.1 opens with, and the stage 1/2/3 boundaries §3.2 prices.
 - Rajbhandari et al. (2021). *ZeRO-Infinity* — extending sharding to CPU/NVMe.
   <https://arxiv.org/abs/2104.07857>
 - Zhao et al. (2023). *PyTorch FSDP: Experiences on Scaling Fully Sharded Data
-  Parallel* — the production engineering of stage 3.
-  <https://arxiv.org/abs/2304.11277> ·
-  [PyTorch FSDP docs](https://docs.pytorch.org/docs/stable/fsdp.html)
-- Huang et al. (2018). *GPipe: Efficient Training of Giant Neural Networks using
-  Pipeline Parallelism* — micro-batching and the bubble.
-  <https://arxiv.org/abs/1811.06965>
+  Parallel* — the production engineering of stage 3: prefetching, overlap, and
+  rate-limiting. <https://arxiv.org/abs/2304.11277> · the shipped API §3.2 and §7
+  name is [**PyTorch FSDP**](../../../docs/REFERENCES.md#pytorch-fsdp-pytorch).
+- [**GPipe** (Huang et al.)](../../../docs/REFERENCES.md#gpipe-huang-et-al-2019)
+  — *Efficient Training of Giant Neural Networks using Pipeline Parallelism*:
+  micro-batching, and the `M`-proportional activation cost that §3.4 contrasts with
+  1F1B.
 - Narayanan et al. (2018/2019). *PipeDream* — 1F1B scheduling and weight stashing.
   <https://arxiv.org/abs/1806.03377> ·
   [SOSP'19 version](https://dl.acm.org/doi/10.1145/3341301.3359646)
@@ -1246,23 +1280,29 @@ Full curriculum list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.m
   <https://arxiv.org/abs/2205.05198>
 - Chen et al. (2016). *Training Deep Nets with Sublinear Memory Cost* — activation
   checkpointing. <https://arxiv.org/abs/1604.06174>
-- Micikevicius et al. (2017). *Mixed Precision Training* — why the fp32 master
-  weight exists. <https://arxiv.org/abs/1710.03740>
+- [**Mixed Precision Training** (Micikevicius et al., 2017)](../../../docs/REFERENCES.md#mixed-precision-training-micikevicius-et-al-2017)
+  — why the fp32 master weight in §2.1's five-tensor table cannot be dropped, and
+  therefore why the budget is 16 bytes per parameter rather than 8.
 
 **Collectives and libraries**
 
 - Sergeev & Del Balso (2018). *Horovod* — ring all-reduce for deep learning,
   building on Baidu's implementation. <https://arxiv.org/abs/1802.05799> ·
   [baidu-allreduce](https://github.com/baidu-research/baidu-allreduce)
-- **RCCL** (AMD) — ROCm Collective Communication Library.
-  <https://github.com/ROCm/rccl> ·
-  [docs](https://rocm.docs.amd.com/projects/rccl/en/latest/)
-- **NCCL** (NVIDIA) — collective operations, algorithms, and the `busbw`
-  convention.
-  <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html> ·
+- [**RCCL**](../../../docs/REFERENCES.md#rccl-amd) (AMD) — the ROCm Collective
+  Communication Library every collective in §2.4 runs on, and what
+  `init_process_group("nccl")` actually reaches on a ROCm build ·
+  [docs](https://rocm.docs.amd.com/projects/rccl/en/latest/) (retrieved 8 Aug 2026)
+- [**NCCL**](../../../docs/REFERENCES.md#nccl-nvidia) (NVIDIA) — the NVIDIA
+  counterpart: the ring-versus-tree algorithm selection §2.5 models, and the
+  `busbw` convention the tool's output column follows ·
   [nccl-tests performance notes](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md)
+  (retrieved 8 Aug 2026)
 - **rccl-tests** — the AMD equivalent for measuring your own fabric.
-  <https://github.com/ROCm/rccl-tests>
+  <https://github.com/ROCm/rccl-tests> (retrieved 8 Aug 2026)
+- [**AMD Instinct cluster design reference**](../../../docs/REFERENCES.md#amd-instinct-cluster-design-reference-amd)
+  — the per-link and aggregate Infinity Fabric figures behind the `--bw` note in
+  §2.5 and the node-local tensor-parallel domain in §7.
 
 **MoE, long context, and serving**
 
@@ -1272,12 +1312,12 @@ Full curriculum list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.m
   load-balancing loss. <https://arxiv.org/abs/2101.03961>
 - Liu et al. (2023). *Ring Attention with Blockwise Transformers* — context
   parallelism. <https://arxiv.org/abs/2310.01889>
-- Pope et al. (2022). *Efficiently Scaling Transformer Inference* — the analytical
-  partitioning model behind "TP for latency, PP/DP for throughput," and multiquery
-  attention's effect on KV-cache scaling. <https://arxiv.org/abs/2211.05102>
-- Kwon et al. (2023). *Efficient Memory Management for LLM Serving with
-  PagedAttention* (vLLM) — KV-cache management under tensor parallelism.
-  <https://arxiv.org/abs/2309.06180>
+- [**Efficiently Scaling Transformer Inference** (Pope et al., 2022)](../../../docs/REFERENCES.md#efficiently-scaling-transformer-inference-pope-et-al-2022)
+  — the analytical partitioning model behind §3.8's "TP for latency, PP/DP for
+  throughput," and multiquery attention's effect on KV-cache scaling.
+- [**PagedAttention and vLLM** (Kwon et al., 2023)](../../../docs/REFERENCES.md#pagedattention-and-vllm-kwon-et-al-2023)
+  — KV-cache management under tensor parallelism, i.e. the other half of §3.8's
+  head-consistent sharding constraint.
 - Aminabadi et al. (2022). *DeepSpeed-Inference* — inference-oriented sharding.
   <https://arxiv.org/abs/2207.00032>
 - Zheng et al. (2022). *Alpa: Automating Inter- and Intra-Operator Parallelism*.
@@ -1286,9 +1326,9 @@ Full curriculum list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.m
 **Model shapes used in the tool presets**
 
 - GPT-3 <https://arxiv.org/abs/2005.14165> · Llama 2
-  <https://arxiv.org/abs/2307.09288> · Llama 3
-  <https://arxiv.org/abs/2407.21783> · Megatron-Turing NLG 530B
-  <https://arxiv.org/abs/2201.11990>
+  <https://arxiv.org/abs/2307.09288> ·
+  [Llama 3](../../../docs/REFERENCES.md#the-llama-3-herd-of-models-grattafiori-et-al-2024)
+  · Megatron-Turing NLG 530B <https://arxiv.org/abs/2201.11990>
 
 ---
 
@@ -1319,7 +1359,7 @@ Full curriculum list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.m
 10. Explain to a non-engineer, in three sentences, why adding a hundred more GPUs
     can make training *slower*.
 
-<details>
+<details markdown="1">
 <summary>Answers</summary>
 
 1. Aggregate HBM is not per-GPU HBM. DDP **replicates** state, so each rank needs

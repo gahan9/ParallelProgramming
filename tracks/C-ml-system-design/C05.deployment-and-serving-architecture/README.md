@@ -2,18 +2,24 @@
 
 > Track C · Module 05 · Status: **DRAFT** · Est. 7 hours · Depth 4/5
 >
-> Prerequisites: [C01](../C01.problem-framing-and-metrics/) (metrics and guardrails),
-> [C02](../C02.data-pipelines-and-features/) (training/serving skew),
-> [C04](../C04.production-model-optimization/) (making one replica fast).
+> Prerequisites: [C01](../C01.problem-framing-and-metrics/README.md) (metrics and guardrails),
+> [C02](../C02.data-pipelines-and-features/README.md)
+> ([training/serving skew](../../../docs/GLOSSARY.md#training-serving-skew)),
+> [C04](../C04.production-model-optimization/README.md) (making one replica fast).
 > Useful but not required: Track B for the GPU-performance vocabulary.
+> Terms: [GLOSSARY.md](../../../docs/GLOSSARY.md) · Sources: [REFERENCES.md](../../../docs/REFERENCES.md).
 >
 > **This is a design module.** There is no `hip/` or `cuda/` code — the artefacts are three
 > pure-standard-library Python tools in [`tools/`](tools/) and paper design drills in
 > [`exercises/`](exercises/). See §4 for why, and what is deliberately *not* here.
 >
-> **Scope boundary.** Everything *inside* one replica — continuous batching, paged KV cache,
-> speculative decoding, quantized kernels — belongs to Track B (B04 and the planned
-> `B06.inference-serving-optimizations`) and to [C04](../C04.production-model-optimization/).
+> **Scope boundary.** Everything *inside* one replica — [continuous batching](../../../docs/GLOSSARY.md#continuous-batching),
+> paged [KV cache](../../../docs/GLOSSARY.md#kv-cache),
+> [speculative decoding](../../../docs/GLOSSARY.md#speculative-decoding),
+> [quantized](../../../docs/GLOSSARY.md#quantization) kernels — belongs to Track B
+> ([B04](../../B-gpu-ml-performance/B04.precision-and-quantization/README.md) and the planned
+> [`B06.inference-serving-optimizations`](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md))
+> and to [C04](../C04.production-model-optimization/README.md).
 > This module owns everything *around* the replica: the architecture it sits in, how it scales,
 > how a new version reaches users, and how the system behaves when it breaks.
 
@@ -27,7 +33,8 @@ privacy requirements; putting the model behind its own service so it can scale a
 independently; scaling that service on **queue depth**, not CPU or GPU utilization, because a GPU
 replica takes *minutes* to load its weights while traffic doubles in *seconds*; releasing the new
 version through **shadow → canary → full** with automated rollback triggers wired to error rate,
-p99 latency and a quality guardrail; measuring the change with an A/B test that randomizes on
+p99 latency and a quality guardrail; measuring the change with an
+[A/B test](../../../docs/GLOSSARY.md#ab-testing-and-canary) that randomizes on
 **users** and does not peek; and designing every failure path to degrade to *something* — a cached
 prediction, a smaller model, a heuristic — rather than a 500.
 
@@ -45,7 +52,8 @@ version loadable**.
 
 1. **A bridge does not learn from its own traffic.** Your model's outputs shape the data that trains
    its successor. A bridge that made the next bridge's blueprint worse every time a car crossed it
-   would be a better analogy, and it is the subject of [C06](../C06.monitoring-drift-and-ethics/).
+   would be a better analogy, and it is the subject of
+   [C06](../C06.monitoring-drift-and-ethics/README.md).
 2. **Bridge capacity is fixed and instant.** A lane is either open or closed. A GPU replica takes
    two to ten minutes to become useful because it must pull and load tens of gigabytes of weights.
    There is no "open one more lane right now."
@@ -230,7 +238,7 @@ A stateless web server cold-starts in ~1 second. A GPU model replica must:
 | Pod scheduled, GPU attached | 5–30 s |
 | Container image pulled (if not cached) | 30 s – 5 min for multi-GB CUDA/ROCm images |
 | Weights read from object store or NVMe | tens of GB — **this dominates** |
-| Weights copied host → device over PCIe | seconds to tens of seconds |
+| Weights copied [host → device](../../../docs/GLOSSARY.md#host-and-device) over [PCIe](../../../docs/GLOSSARY.md#pcie-and-host-device-transfer) | seconds to tens of seconds |
 | Runtime warm-up: kernel autotune, graph capture, first-token JIT | 10–60 s |
 
 Order of magnitude: **2–10 minutes** for a large model from a cold node, versus **1 second** for a
@@ -320,11 +328,11 @@ effects.*
 | Edge/CDN | TLS termination near the user, static assets, DDoS absorption | a hop; cache invalidation complexity | serving a stale cached prediction after a model rollback |
 | Gateway | authn, per-tenant quota, rate limiting, request ID minting | 2–10 ms; a single choke point | becomes the SPOF; quota misconfig locks out a whole tenant |
 | Prediction cache | huge cost saving on repeated inputs | staleness; **must be keyed by model version** | forgetting the version in the cache key, so a rollback keeps serving the bad model's answers |
-| Feature store | consistent features between training and serving | p99 tail risk on the critical path | the skew problem from C02; a slow feature lookup eats the whole budget |
+| Feature store | consistent features between training and serving | p99 tail risk on the critical path | the skew problem from [C02](../C02.data-pipelines-and-features/README.md); a slow feature lookup eats the whole budget |
 | Router | version/tenant/experiment routing in one place | a hop; config complexity | config error routes 100% to the canary |
 | Replica pool | the actual inference | the money | cold start, OOM on long inputs, queue collapse |
 | Fallback tier | turns an outage into a degradation | extra system to maintain and *test* | never exercised, so it is broken when needed |
-| Observability | everything in [C06](../C06.monitoring-drift-and-ethics/) | storage and sampling cost | prediction log missing the inputs you need to debug |
+| Observability | everything in [C06](../C06.monitoring-drift-and-ethics/README.md) | storage and sampling cost | prediction log missing the inputs you need to debug |
 
 > **The cache key trap, stated plainly.** A prediction cache keyed only on the input is a landmine.
 > You roll back a bad model; the cache keeps serving its outputs until the TTL expires. Key on
@@ -343,7 +351,8 @@ the sampling interval"*, not *"the device was doing useful work at capacity"*. A
 runs one small kernel continuously reports ~100% at 5 requests/second and at 50. The signal
 saturates far below saturation, so it cannot tell you *how far behind you are*.
 
-**Why queue depth is right.** Little's law makes the connection exact:
+**Why queue depth is right.** [Little's law](../../../docs/REFERENCES.md#littles-law-little-1961)
+makes the connection exact:
 
 ```
   L = λ · W        L = requests in system, λ = arrival rate, W = time in system
@@ -453,9 +462,9 @@ enumerable:
 
 | Cause | Mechanism | Reference |
 |---|---|---|
-| **Training/serving skew** | features computed differently in the two paths | [C02](../C02.data-pipelines-and-features/) |
+| **Training/serving skew** | features computed differently in the two paths | [C02](../C02.data-pipelines-and-features/README.md) |
 | **Selection bias** | your offline set contains only items the *old* system chose to show | Bottou et al. 2013 |
-| **Feedback loops** | logged labels were generated under the old policy | [C06](../C06.monitoring-drift-and-ethics/) |
+| **Feedback loops** | logged labels were generated under the old policy | [C06](../C06.monitoring-drift-and-ethics/README.md) |
 | **Metric mismatch** | offline AUC ≠ online revenue; the proxy was never validated against the target | Kohavi et al. |
 | **Position/presentation effects** | offline evaluation ignores where and how the prediction is rendered | — |
 | **Latency** | the better model is slower, and the added latency costs more than the accuracy gains | measurable, and often decisive |
@@ -656,8 +665,9 @@ prediction to tenant B. That last one is a security bug, not a performance detai
 **Why there is no `hip/` or `cuda/` code in this module.** The subject is the architecture around
 the model, the release process, and the statistics of deciding whether a change helped. None of
 those are kernel-level concerns, and writing a HIP kernel here would teach nothing about them. Kernel
-work lives in Track A; single-replica inference performance lives in Track B and
-[C04](../C04.production-model-optimization/). What *is* runnable here are three tools that turn this
+work lives in Track A; single-replica inference performance lives in Track B
+([B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md)) and
+[C04](../C04.production-model-optimization/README.md). What *is* runnable here are three tools that turn this
 module's arguments into numbers you can put in a design doc.
 
 All three are **pure standard library** — no numpy, no scipy, no pandas — so they run on any Python
@@ -796,7 +806,8 @@ producing the document, not in recognising a good one.
 > means kernel time, achieved bandwidth and roofline placement. Here the system under analysis is
 > not a kernel — it is a deployment. The quantities that decide whether it is any good are
 > **end-to-end latency budget, availability, cost per prediction, and the statistical power of the
-> decision process**. Kernel-level analysis has not been dropped; it lives in Track B and C04 and is
+> decision process**. Kernel-level analysis has not been dropped; it lives in Track B and
+> [C04](../C04.production-model-optimization/README.md) and is
 > a *component* of the first row below.
 
 ### 5.1 The four system-level quantities
@@ -817,7 +828,8 @@ Two things distinguish a real analysis from a plausible one:
   means add capacity or shed load. Rising service time means the model, the batch shape, or the
   hardware. A single "latency" number conflates them and sends you optimizing the wrong thing.
 - **For generative models, report time-to-first-token and inter-token latency separately.** A single
-  end-to-end number is close to meaningless: TTFT is dominated by prefill and queueing, inter-token
+  end-to-end number is close to meaningless: TTFT is dominated by
+  [prefill](../../../docs/GLOSSARY.md#prefill-and-decode) and queueing, inter-token
   latency by decode throughput and batch pressure. They move independently and users perceive them
   differently.
 
@@ -937,7 +949,7 @@ flowchart TD
 
 *The branch worth memorizing is the middle one: **all 200s and users unhappy**. Every other branch
 is visible on a standard service dashboard; that one is invisible by construction, which is the
-entire reason [C06](../C06.monitoring-drift-and-ethics/) exists.*
+entire reason [C06](../C06.monitoring-drift-and-ethics/README.md) exists.*
 
 ### The failure modes a reviewer should look for
 
@@ -990,7 +1002,8 @@ did not ship.
 ## 7. Real-World Use Cases
 
 - **LLM assistants** are the reference case for this whole module: streaming responses over SSE,
-  continuous batching inside each replica, TTFT as the user-facing latency metric, semantic caching,
+  continuous batching inside each replica ([vLLM](../../../docs/REFERENCES.md#vllm-project),
+  [SGLang](../../../docs/REFERENCES.md#sglang-project)), TTFT as the user-facing latency metric, semantic caching,
   cold starts measured in minutes because the weights are hundreds of gigabytes, and a fallback to a
   smaller model when the primary pool is saturated. [KServe](https://kserve.github.io/website/) and
   [NVIDIA Triton Inference Server](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/index.html)
@@ -1015,30 +1028,43 @@ did not ship.
   metric queries — a useful concrete grounding for §3.3, and worth reading even if you do not use
   Kubernetes.
 
+**Where to go next.**
+[C06](../C06.monitoring-drift-and-ethics/README.md) picks up the one failure this module can only
+point at — the deployment that returns 200s and wrong answers — and turns it into monitoring you can
+alert on.
+[B06](../../B-gpu-ml-performance/B06.inference-serving-optimizations/README.md) is the
+inside-the-replica counterpart to everything here: the batching, caching and scheduling that decide
+how much traffic each of these GPUs can actually take, which is the input to every capacity number
+in §5.
+[C07](../C07.capstone-case-studies/README.md) is where the architecture, the rollout plan and the
+experiment design stop being separate exercises and have to hold together in one system.
+
 ---
 
 ## 8. Cited References
 
-Grounding for the claims above. Repo-wide list in [../../../docs/REFERENCES.md](../../../docs/REFERENCES.md).
+Grounding for the claims above. Sources shared with other modules are cited by anchor into the
+[master bibliography](../../../docs/REFERENCES.md), where the URL and its retrieval date live; the
+rest are specific to this module and carry their own link.
 
 **Production ML systems**
 
-- Sculley et al. (2015). *Hidden Technical Debt in Machine Learning Systems*, NeurIPS — the origin of
-  "ML systems are mostly not the model"; source for feedback loops, entanglement, and configuration
-  debt. <https://papers.nips.cc/paper_files/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html>
-- Breck, Cai, Nielsen, Salib, Sculley (2017). *The ML Test Score: A Rubric for ML Production
-  Readiness and Technical Debt Reduction*, IEEE Big Data — the checklist behind the release-gate and
-  rollback requirements in §3.3.
-  <https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/>
-- Google. *Rules of Machine Learning: Best Practices for ML Engineering* — practical rules on
-  serving/training skew, launching, and metric choice.
-  <https://developers.google.com/machine-learning/guides/rules-of-ml>
-- Amershi et al. (2019). *Software Engineering for Machine Learning: A Case Study*, ICSE — how ML
-  release processes differ from software release processes in practice.
-  <https://www.microsoft.com/en-us/research/publication/software-engineering-for-machine-learning-a-case-study/>
+- [**Hidden Technical Debt in Machine Learning Systems** (Sculley et al., 2015)](../../../docs/REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+  — the origin of "ML systems are mostly not the model"; source for the feedback loops, entanglement
+  and configuration debt behind §3.4's offline–online gap.
+- [**The ML Test Score** (Breck et al., 2017)](../../../docs/REFERENCES.md#the-ml-test-score-breck-et-al-2017)
+  — the production-readiness rubric behind the release-gate and rollback requirements in §3.3.
+- [**Rules of Machine Learning** (Zinkevich, Google)](../../../docs/REFERENCES.md#rules-of-machine-learning-zinkevich-google)
+  — practical rules on serving/training skew, launching, and metric choice; the closest thing to a
+  checklist for §2's requirement-first framing.
+- [**Software Engineering for Machine Learning** (Amershi et al., 2019)](../../../docs/REFERENCES.md#software-engineering-for-machine-learning-amershi-et-al-2019)
+  — how ML release processes differ from software release processes in practice, which is the
+  premise of §3.3.
 
 **Reliability engineering**
 
+- [**Little's Law** (Little, 1961)](../../../docs/REFERENCES.md#littles-law-little-1961) — the
+  `L = λ·W` identity §3.2 uses to argue that queue depth, not utilization, is the autoscaling signal.
 - Beyer, Jones, Petoff, Murphy, eds. (2016). *Site Reliability Engineering*, O'Reilly / Google —
   free online. Chapters used here: *Embracing Risk* (error budgets),
   *Handling Overload* (load shedding), *Addressing Cascading Failures* (retry amplification),
@@ -1078,14 +1104,20 @@ Grounding for the claims above. Repo-wide list in [../../../docs/REFERENCES.md](
 
 **Serving systems**
 
+- [**vLLM**](../../../docs/REFERENCES.md#vllm-project) and
+  [**SGLang**](../../../docs/REFERENCES.md#sglang-project) — the two open runtimes that implement the
+  inside-the-replica behaviour §7 attributes to LLM assistants; read them for what a replica in the
+  §3.1 diagram is actually doing between the router and the GPU.
 - KServe documentation — model serving on Kubernetes: canary rollout by traffic percentage,
-  concurrency-based autoscaling, scale-to-zero and its caveats. <https://kserve.github.io/website/>
+  concurrency-based autoscaling, scale-to-zero and its caveats (retrieved 8 Aug 2026).
+  <https://kserve.github.io/website/>
 - NVIDIA Triton Inference Server documentation — multi-model serving, model repository versioning,
-  dynamic batching, per-model metrics. <https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/index.html>
+  dynamic batching, per-model metrics (retrieved 8 Aug 2026).
+  <https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/index.html>
 - Argo Rollouts documentation — progressive delivery with automated metric-driven analysis and
-  rollback. <https://argo-rollouts.readthedocs.io/en/stable/>
-- Ray Serve documentation — model composition, autoscaling and multi-model deployment patterns.
-  <https://docs.ray.io/en/latest/serve/index.html>
+  rollback (retrieved 8 Aug 2026). <https://argo-rollouts.readthedocs.io/en/stable/>
+- Ray Serve documentation — model composition, autoscaling and multi-model deployment patterns
+  (retrieved 8 Aug 2026). <https://docs.ray.io/en/latest/serve/index.html>
 
 *Note on statistics:* the sample-size and two-proportion z-test formulae in `tools/ab_calculator.py`
 are the standard normal-approximation forms found in any biostatistics text; Acklam's inverse-normal
