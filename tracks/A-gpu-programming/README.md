@@ -21,21 +21,24 @@ flowchart LR
   class A03,A04,A06,A07,A08 trackA
 ```
 
-???+ note "Modules — Track A syllabus (10 modules)"
+<details markdown="1" open>
+<summary>Modules — Track A syllabus (10 modules)</summary>
 
-    | ID | Module | What you build | Status |
-    |----|--------|----------------|--------|
-    | [A01](A01.foundations-and-programming-model/) | Foundations & programming model | Vector add, coalescing experiment | **DONE** |
-    | [A02](A02.memory-hierarchy-and-coalescing/) | Memory hierarchy & coalescing | Bandwidth ceiling, tiled transpose | **DONE** |
-    | [A03](A03.execution-model-and-occupancy/) | Execution model, occupancy & divergence | Divergence cost, occupancy sweep | **DONE** |
-    | [A04](A04.parallel-reduction/) | Parallel reduction | The full optimization ladder, benchmarked | **DONE** |
-    | [A05](A05.parallel-scan-prefix-sum/) | Parallel scan / prefix sum | Hillis–Steele, Blelloch, stream compaction | **DONE** |
-    | [A06](A06.tiled-matrix-multiply/) | Tiled matrix multiply (GEMM) | Naive → tiled → register-blocked | **DONE** |
-    | [A07](A07.softmax-and-fused-kernels/) | Softmax & fused kernels | Online softmax, scale+mask+softmax fusion | **DONE** |
-    | [A08](A08.triton-foundations/) | Triton foundations | Vector add, fused softmax, autotuned matmul | **DONE** |
-    | [A09](A09.advanced-triton-flash-attention/) | Advanced Triton & FlashAttention | Tiled attention with causal block skipping | **DONE** |
-    | [A10](A10.cute-cutlass-and-cutile/) | CuTe / CUTLASS / cuTile | WMMA tensor-core GEMM, layout algebra | **DONE** *(NVIDIA-only, optional)* |
 
+| ID | Module | What you build | Status |
+|----|--------|----------------|--------|
+| [A01](A01.foundations-and-programming-model/) | Foundations & programming model | Vector add, coalescing experiment | **DONE** |
+| [A02](A02.memory-hierarchy-and-coalescing/) | Memory hierarchy & coalescing | Bandwidth ceiling, tiled transpose | **DONE** |
+| [A03](A03.execution-model-and-occupancy/) | Execution model, occupancy & divergence | Divergence cost, occupancy sweep | **DONE** |
+| [A04](A04.parallel-reduction/) | Parallel reduction | The full optimization ladder, benchmarked | **DONE** |
+| [A05](A05.parallel-scan-prefix-sum/) | Parallel scan / prefix sum | Hillis–Steele, Blelloch, stream compaction | **DONE** |
+| [A06](A06.tiled-matrix-multiply/) | Tiled matrix multiply (GEMM) | Naive → tiled → register-blocked | **DONE** |
+| [A07](A07.softmax-and-fused-kernels/) | Softmax & fused kernels | Online softmax, scale+mask+softmax fusion | **DONE** |
+| [A08](A08.triton-foundations/) | Triton foundations | Vector add, fused softmax, autotuned matmul | **DONE** |
+| [A09](A09.advanced-triton-flash-attention/) | Advanced Triton & FlashAttention | Tiled attention with causal block skipping | **DONE** |
+| [A10](A10.cute-cutlass-and-cutile/) | CuTe / CUTLASS / cuTile | WMMA tensor-core GEMM, layout algebra | **DONE** *(NVIDIA-only, optional)* |
+
+</details>
 **Suggested order.** A01 → A02 → A03 establish the programming model, the memory hierarchy, and how
 threads actually execute. A04 → A05 build the reduction and scan primitives that every later kernel
 reuses. A06 → A07 are the two kernels that dominate deep learning. A08 → A09 rewrite that knowledge in

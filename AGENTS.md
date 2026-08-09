@@ -14,13 +14,15 @@ A GPU + ML teaching curriculum: 24 modules across three tracks, dual-vendor (AMD
 NVIDIA CUDA) with a portable Triton path. Every module explains a concept twice - a plain-language
 analogy, then expert depth - with runnable labs, cited sources, and an honest tradeoffs section.
 
-## Current state (as of 2026-08-04)
+## Current state (as of 2026-08-08)
 
 | Thing | State |
 |---|---|
 | Modules | **24 / 24 authored.** A01-A10, B01-B07, C01-C07. All 9 sections, labs, exercises, solutions |
 | Docs site | Published, `--strict`, warning-free: <https://gahan9.github.io/ParallelProgramming/> |
+| Cross-references | All 24 modules linked to each other, to `docs/GLOSSARY.md` (62 `###` terms) and to `docs/REFERENCES.md` (62 anchored sources, 58 cited). 1957 relative links, all resolving. Contract lives in `docs/MODULE_TEMPLATE.md` |
 | Read-aloud | `docs/javascripts/read-aloud.js` + matching CSS, injected site-wide via `extra_javascript`. Browser `speechSynthesis`, no dependency. Skips code blocks and collapsed `<details>`; rewrites technical vocabulary before speaking |
+| Site UX | `navigation.tabs` + `prune` so a module page's sidebar shows only its own track, not all 24. `docs/javascripts/panel-toggle.js` hides the nav and TOC panels (persisted in `localStorage`); `docs/javascripts/gfm-alerts.js` upgrades GitHub `> [!NOTE]` blockquotes into Material admonitions, which keeps the source readable on both surfaces. Dark mode verified in a real browser, both schemes |
 | Live pages | `live/` - study planner, 49 cited recall cards (with a `L`isten control), 14-slide deck. Self-contained HTML |
 | Infographics | `assets/` - 6 hand-authored SVGs for what Mermaid cannot express |
 | Content studio | `content/` - video/Shorts scripts. Packs exist for A01 and A02 only |
@@ -33,8 +35,12 @@ analogy, then expert depth - with runnable labs, cited sources, and an honest tr
 README.md CURRICULUM.md          catalog + module index/tracker
 AGENTS.md                        this file
 build_docs.py                    stages the publishable files into _docs/ (see Traps)
+check_links.py                   resolves every relative link + anchor on both surfaces (Traps #8)
+build_reference_index.py         regenerates the "cited by" table in docs/REFERENCES.md
 mkdocs.yml                       site config; nav lists all 24 modules
 docs/                            SETUP, MODULE_TEMPLATE, BRAND, GLOSSARY, REFERENCES
+docs/javascripts/                read-aloud, panel-toggle, gfm-alerts (all vanilla, no deps)
+docs/stylesheets/brand.css       brand tokens + the Mermaid dark-mode pins (Traps #12)
 tracks/A-gpu-programming/        A01-A10 (+ legacy 01/02/03 raw examples, superseded by A01)
 tracks/B-gpu-ml-performance/     B01-B07
 tracks/C-ml-system-design/       C01-C07 (design track: no GPU code, stdlib-only Python tools)
@@ -55,7 +61,8 @@ content/                         video scripts + brand overlay spec
    specs carry a source link and a retrieval date.
 2. **Nine sections, exact headings**, per `docs/MODULE_TEMPLATE.md`. Section 1 opens with a
    load-bearing layman analogy and says where the analogy breaks. Section 9 puts conceptual answers
-   inside a `<details><summary>Answers</summary>` block.
+   inside a `<details markdown="1"><summary>Answers</summary>` block - the attribute is required
+   (Traps #11).
 3. **Cite or hedge.** Verify version-sensitive claims (hardware specs, tool flags, library APIs) with
    a web search and stamp the retrieval date. If you cannot verify it, say so in the text rather than
    asserting it. Never invent a citation, a DOI, or a benchmark.
@@ -74,6 +81,11 @@ content/                         video scripts + brand overlay spec
 ## Verify before you claim
 
 ```powershell
+# Links and anchors, both surfaces. Runs first in CI; a break fails the deploy
+python check_links.py                          # relative links + anchors, offline, seconds
+python check_links.py --external-only          # HTTP-checks every external URL, ~4 min
+python build_reference_index.py --check        # fails if REFERENCES.md's index is stale
+
 # Docs site (this is what CI runs; --strict means a warning fails the deploy)
 python build_docs.py
 python -m mkdocs build --clean --strict --site-dir ./site
@@ -118,6 +130,35 @@ node --check <extracted script>
    (tables + totals), `live/dashboard.html` (`M`, `PATHS`), `live/flashcards.html` (`CARDS`),
    `live/slides.html` (headline counts), and the Cursor canvas. Each surface must stand alone with no
    shared runtime; five is few enough to do by hand and a generator is not yet earned.
+8. **GitHub and MkDocs slugify headings differently**, so a deep link can work on one surface and
+   404 on the other. `## 6. Challenges, Drawbacks & Tradeoffs` is `#6-challenges-drawbacks--tradeoffs`
+   on GitHub (the `&` leaves two hyphens) but `...-tradeoffs` under stock Python-Markdown, which
+   collapses runs. `mkdocs.yml` pins `pymdownx.slugs.slugify` to make the two agree - do not remove
+   it, and run `check_links.py` (which models both) rather than trusting a rendered page.
+9. **Link depth is the most common mistake.** Three `../` from a module README to `docs/`, four from
+   `exercises/` or `solutions/`. GitHub silently renders a bad relative link as text; only the
+   checker catches it.
+10. **The reference index in `docs/REFERENCES.md` is generated**, between
+   `<!-- BEGIN/END GENERATED: reference-index -->`. Never hand-edit it; add the citation in the
+   module and re-run `build_reference_index.py`.
+11. **`md_in_html` needs `markdown="1"` on every raw HTML block**, or the Markdown inside publishes
+   as literal `**bold**` and backticks. This silently broke the Section 9 answers block in all 24
+   modules, and `--strict` does not catch it because it is valid HTML. Always write
+   `<details markdown="1">`. GitHub ignores the attribute, so both surfaces stay correct.
+12. **Never use MkDocs-only syntax for content GitHub must render.** `???+ note "Title"` with a
+   4-space-indented body looks right on the site but publishes on GitHub as a literal paragraph
+   plus an *indented code block* - which silently turned the four syllabus tables into unclickable
+   text. Use `<details markdown="1">` + `<summary>`, which both surfaces honour. `check_links.py`
+   cannot catch this: it reads raw Markdown, so it happily validates links GitHub will not render
+   as links. Check a real GFM render (`gh api -X POST /markdown`) when adding new syntax.
+13. **Do not re-theme Mermaid per diagram.** Material rebinds Mermaid's label colour to
+   `--md-mermaid-label-fg-color`, which it derives from `--md-code-fg-color` - tuned for dark code
+   backgrounds, so in the slate scheme it resolves to a near-invisible grey on this curriculum's
+   light `classDef` fills.    `docs/stylesheets/brand.css` pins the `--md-mermaid-*` variables
+   (flowchart *and* sequence) inside `.mermaid`. Fix contrast there, not in the diagrams.
+
+Both surfaces matter equally: the curriculum is read on GitHub *and* on the docs site, and Traps #8,
+#11 and #12 are all the same failure - a change verified on one surface only.
 
 ---
 
@@ -143,6 +184,10 @@ Known likely first-build friction:
 - AMD's own CDNA 3 whitepaper (17.2 TB/s) and Hot Chips 2024 slides (14.7 TB/s) **disagree** on
   Infinity Cache bandwidth. B01 reports both rather than picking one; do not "fix" this.
 - Omniperf/Omnitrace were renamed in ROCm 6.3 (`rocprof-compute`, `rocprof-sys-*`).
+- **24 of the 310 external URLs cannot be machine-checked** and this is not a defect. ACM, doi.org,
+  MIT Press and the OCP spec site answer any scripted request with 403 no matter how the request is
+  dressed; tensorflow.org sends browser agents around a locale-redirect loop. `check_links.py`
+  reports these as "behind bot protection" and passes. Do not "fix" them by swapping in a mirror.
 
 ---
 
@@ -175,3 +220,5 @@ Rough effort record, kept because the operator asks for usage tracking.
 | 2026-08-02 | Fixed the Pages deploy: enabled Pages (never switched on - the real cause of the 404), staged docs root, repaired `validation:`, turned on `--strict`. First successful publish |
 | 2026-08-04 | `assets/` infographic system (6 SVGs) + encoding repairs; `live/flashcards.html` (49 cited cards, three-box Leitner) and shared nav across the three live pages |
 | 2026-08-05 | Read-aloud across the docs site and the recall cards. Chose browser `speechSynthesis` over pre-generated audio for the same reason SVG beat GIF: no unreviewable binaries, nothing to regenerate on a content edit |
+| 2026-08-08 | Docs-site UX pass in a parallel session: found that `md_in_html` had been silently publishing all 24 Section 9 answer blocks as raw Markdown (Traps #11); pinned the Mermaid dark-mode variables (Traps #12); added `navigation.tabs`/`prune`, the nav+TOC toggles and the GFM-alert upgrader. Its `??? note` collapsibles then broke the syllabus tables on GitHub, migrated to `<details markdown="1">` |
+| 2026-08-08 | Cross-referencing layer across all 24 modules (765 -> 1957 relative links). Built `check_links.py` and `build_reference_index.py` and put both in CI; rebuilt `docs/GLOSSARY.md` and `docs/REFERENCES.md` as anchored `###` entries; wrote the contract into `docs/MODULE_TEMPLATE.md`. Fixed the GitHub/MkDocs slug split (Traps #8) that had 14 deep links working on one surface only. Modules rolled out in four subagent waves; a second session was editing the same files concurrently, so agents were restricted to targeted string replacements - that worked, no lost edits |

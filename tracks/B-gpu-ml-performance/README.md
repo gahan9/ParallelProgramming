@@ -18,18 +18,21 @@ flowchart TD
   class B01,B02,B03,B04,B05,B06,B07 trackB
 ```
 
-???+ note "Modules — Track B syllabus (7 modules)"
+<details markdown="1" open>
+<summary>Modules — Track B syllabus (7 modules)</summary>
 
-    | ID | Module | What you build | Status |
-    |----|--------|----------------|--------|
-    | [B01](B01.accelerator-architecture/) | Accelerator architecture (CDNA vs Hopper) | Runtime device/topology introspection | **DONE** |
-    | [B02](B02.roofline-and-arithmetic-intensity/) | Roofline model & arithmetic intensity | An intensity sweep that finds its own ridge point | **DONE** |
-    | [B03](B03.profiling-and-bottleneck-analysis/) | Profiling & bottleneck analysis | Four unlabelled "mystery" kernels to diagnose | **DONE** |
-    | [B04](B04.precision-and-quantization/) | Precision & numerics (fp32 → fp8) | Labs that print the hazards; int8 quantization demo | **DONE** |
-    | [B05](B05.transformer-performance/) | Transformer performance | Model calculator; per-sub-op layer profiling | **DONE** |
-    | [B06](B06.inference-serving-optimizations/) | Inference serving optimizations | Batching simulator, KV planner, speculation model | **DONE** |
-    | [B07](B07.distributed-training-and-sharding/) | Distributed training & sharding | Memory planner, collective cost, pipeline bubble | **DONE** |
 
+| ID | Module | What you build | Status |
+|----|--------|----------------|--------|
+| [B01](B01.accelerator-architecture/) | Accelerator architecture (CDNA vs Hopper) | Runtime device/topology introspection | **DONE** |
+| [B02](B02.roofline-and-arithmetic-intensity/) | Roofline model & arithmetic intensity | An intensity sweep that finds its own ridge point | **DONE** |
+| [B03](B03.profiling-and-bottleneck-analysis/) | Profiling & bottleneck analysis | Four unlabelled "mystery" kernels to diagnose | **DONE** |
+| [B04](B04.precision-and-quantization/) | Precision & numerics (fp32 → fp8) | Labs that print the hazards; int8 quantization demo | **DONE** |
+| [B05](B05.transformer-performance/) | Transformer performance | Model calculator; per-sub-op layer profiling | **DONE** |
+| [B06](B06.inference-serving-optimizations/) | Inference serving optimizations | Batching simulator, KV planner, speculation model | **DONE** |
+| [B07](B07.distributed-training-and-sharding/) | Distributed training & sharding | Memory planner, collective cost, pipeline bubble | **DONE** |
+
+</details>
 **Suggested order.** B01 → B02 → B03 is the diagnostic core: know the hardware, classify the kernel,
 then confirm with a profiler. B04 covers the numerics you trade for speed. B05 → B06 → B07 apply all of
 it to transformers, serving, and multi-GPU scale.

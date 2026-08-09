@@ -76,7 +76,10 @@ serves the topic; state what you omitted and why in Section 4.
   it is vendor documentation. See [Cross-referencing](#cross-referencing) below.
 
 ### 9. Self-Assessment & Interview Drills
-- **Conceptual** questions (with answers) that check understanding.
+- **Conceptual** questions that check understanding, with the answers hidden behind
+  `<details markdown="1"><summary>Answers</summary>` so the reader can self-test first.
+  The `markdown="1"` is **required**: `md_in_html` leaves the block's Markdown unparsed
+  without it, so the answers publish as literal `**bold**` and backticks on the docs site.
 - **Coding & Algorithms** drills — clean, bug-free, edge-case-aware code, no pseudo-code unless
   the drill asks for it. Include at least one GPU parallel-algorithm drill where relevant.
 - Point to `exercises/` (do-it-yourself) and `solutions/` (reference).
