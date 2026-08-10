@@ -1,0 +1,287 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B05.transformer-performance' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:39Z
+---
+============================================================
+  Transformer performance calculator - DERIVED ESTIMATES
+============================================================
+
+Configuration
+------------------------------------------------------------
+  preset            llama3-8b
+  source            Meta Llama 3 8B model card / HF config.json (arXiv:2407.21783)
+  layers L          32
+  hidden d          4096
+  heads h           32  (head_dim 128)
+  kv heads          8  -> GQA, group size 4, d_kv 1024
+  ffn d_ffn         14336  (GLU, 3 matrices)  -> effective m = 5.25
+  vocab             128256  (untied embeddings)
+  weight dtype      fp16 (2 B)   kv dtype fp16 (2 B)
+  seq len N         8192      batch B  1
+  accelerator       5300 GB/s, 192 GB, 1307.4 TFLOP/s
+
+Parameters
+------------------------------------------------------------
+  Q proj      d*d           =     16.777 M
+  K+V proj    2*d*d_kv      =      8.389 M
+  O proj      d*d           =     16.777 M
+  attention   subtotal      =     41.943 M   (2.50 d^2)
+  FFN         3*d*d_ffn     =    176.161 M   (10.50 d^2)
+  per layer                 =    218.104 M   (13.00 d^2)
+  all  32 layers            =      6.979 G
+  embeddings + lm_head      =      1.051 G
+  TOTAL                     =      8.030 G params
+
+  (4+2m)d^2 @ m=5.25, MHA =    243.270 M   (14.50 d^2)
+  actual layer              =    218.104 M   (13.00 d^2)
+    the 1.50 d^2 gap is GQA: K and V are 4096x1024, not 4096x4096
+  12 d^2 (m=4, MHA) shortcut=    201.327 M   -> 0.92x actual
+  (norm weights, biases, and positional embeddings are O(d) or O(N*d) and omitted)
+
+Memory
+------------------------------------------------------------
+  weights, fp16             =    16.060 GB
+  KV per token per seq      =   131.072 KB   (2 * 32 * 1024 * 2 B)
+  KV per seq, N=8192        =     1.074 GB
+  KV for batch B=1          =     1.074 GB
+  weights + KV              =    17.134 GB
+
+  192 GB capacity - weights = 175.940 GB left for KV + activations
+  max concurrent seqs @ N=8192 = 163   (ignores activations, fragmentation, runtime overhead)
+  same model with MHA instead = 40 seqs   (4x larger KV per seq)
+
+FLOPs
+------------------------------------------------------------
+  GEMM fwd per token        = 13.959 GFLOP   (2 x 6.979 G non-embedding params)
+  lm_head per token         =  1.051 GFLOP
+  attention, 1 seq          = 35.184 TFLOP   (4 * L * N^2 * d, N=8192)
+  PREFILL total             = 158.141 TFLOP   (B=1, N=8192)
+
+  DECODE per token per seq  = 19.304 GFLOP
+    of which attn vs KV     =  4.295 GFLOP   (22.2%)
+  training fwd+bwd / token  = 41.876 GFLOP   (~6 x non-embedding params)
+
+  Attention overtakes the GEMMs at N = p_layer/(2d) = 26624 tokens
+    textbook MHA form, N = (2+m)d = 29696   (higher: MHA has more projection params to beat)
+    at N=8192: attention is 23.5% of a prefill layer stack's FLOPs
+
+Regime analysis (arithmetic intensity)
+------------------------------------------------------------
+  machine ridge point          = 247 FLOP/byte   (1307.4 TFLOP/s / 5300 GB/s)
+  d x d projection,   8192 tok  =   1638.4 FLOP/byte  (prefill shape)
+  d x d projection,      1 tok  =      1.0 FLOP/byte  (decode shape, B=1)
+  batch needed for compute-bound decode ~ 280 concurrent sequences
+
+Memory-bound decode throughput (the useful prediction)
+------------------------------------------------------------
+  Generating one token reads ~every weight once, plus this sequence's KV.
+  bytes read per decode step (B=1) = weights + B * KV
+    = 16.060 GB + 1 * 1.074 GB = 17.134 GB
+  step time  >= 3.233 ms   -> 309.3 steps/s
+  THROUGHPUT ceiling            =      309.3 tokens/s aggregate
+  per-sequence (user-visible)   =      309.3 tokens/s
+
+  B=1 ceiling (weights only)    =      330.0 tokens/s   (5300 GB/s / 16.060 GB)
+  compute-only ceiling          =    67725.9 tokens/s aggregate   (peak FLOP/s / 19.304 GFLOP per token)
+  -> the memory ceiling is 219x lower, so decode is BANDWIDTH-BOUND
+
+Prefill throughput (compute-bound side)
+------------------------------------------------------------
+  prefill FLOPs / peak         = 120.96 ms at 100% of peak
+  at a realistic 60% of peak   = 201.60 ms  -> 40,636 tokens/s
+  Prefill scales with FLOPs, so batching it buys little - the GEMMs are
+  already large enough to saturate the matrix cores.
+
+============================================================
+  All figures above are ANALYTICAL CEILINGS, not measurements.
+  Measure with bench/profile_layer.py and bench/batch_scaling.py.
+============================================================
+============================================================
+  Transformer performance calculator - DERIVED ESTIMATES
+============================================================
+
+Configuration
+------------------------------------------------------------
+  preset            llama2-70b
+  source            Llama 2 paper Table 1 + reference impl ModelArgs (arXiv:2307.09288)
+  layers L          80
+  hidden d          8192
+  heads h           64  (head_dim 128)
+  kv heads          8  -> GQA, group size 8, d_kv 1024
+  ffn d_ffn         28672  (GLU, 3 matrices)  -> effective m = 5.25
+  vocab             32000  (untied embeddings)
+  weight dtype      fp16 (2 B)   kv dtype fp16 (2 B)
+  seq len N         4096      batch B  32
+  accelerator       5300 GB/s, 192 GB, 1307.4 TFLOP/s
+
+Parameters
+------------------------------------------------------------
+  Q proj      d*d           =     67.109 M
+  K+V proj    2*d*d_kv      =     16.777 M
+  O proj      d*d           =     67.109 M
+  attention   subtotal      =    150.995 M   (2.25 d^2)
+  FFN         3*d*d_ffn     =    704.643 M   (10.50 d^2)
+  per layer                 =    855.638 M   (12.75 d^2)
+  all  80 layers            =     68.451 G
+  embeddings + lm_head      =    524.288 M
+  TOTAL                     =     68.975 G params
+
+  (4+2m)d^2 @ m=5.25, MHA =    973.079 M   (14.50 d^2)
+  actual layer              =    855.638 M   (12.75 d^2)
+    the 1.75 d^2 gap is GQA: K and V are 8192x1024, not 8192x8192
+  12 d^2 (m=4, MHA) shortcut=    805.306 M   -> 0.94x actual
+  (norm weights, biases, and positional embeddings are O(d) or O(N*d) and omitted)
+
+Memory
+------------------------------------------------------------
+  weights, fp16             =   137.951 GB
+  KV per token per seq      =   327.680 KB   (2 * 80 * 1024 * 2 B)
+  KV per seq, N=4096        =     1.342 GB
+  KV for batch B=32         =    42.950 GB
+  weights + KV              =   180.900 GB
+
+  192 GB capacity - weights = 54.049 GB left for KV + activations
+  max concurrent seqs @ N=4096 = 40   (ignores activations, fragmentation, runtime overhead)
+  same model with MHA instead = 5 seqs   (8x larger KV per seq)
+
+FLOPs
+------------------------------------------------------------
+  GEMM fwd per token        = 136.902 GFLOP   (2 x 68.451 G non-embedding params)
+  lm_head per token         = 524.288 MFLOP
+  attention, 1 seq          = 43.980 TFLOP   (4 * L * N^2 * d, N=4096)
+  PREFILL total             = 19420.124 TFLOP   (B=32, N=4096)
+
+  DECODE per token per seq  = 148.164 GFLOP
+    of which attn vs KV     = 10.737 GFLOP   (7.2%)
+  training fwd+bwd / token  = 410.706 GFLOP   (~6 x non-embedding params)
+
+  Attention overtakes the GEMMs at N = p_layer/(2d) = 52224 tokens
+    textbook MHA form, N = (2+m)d = 59392   (higher: MHA has more projection params to beat)
+    at N=4096: attention is 7.3% of a prefill layer stack's FLOPs
+
+Regime analysis (arithmetic intensity)
+------------------------------------------------------------
+  machine ridge point          = 247 FLOP/byte   (1307.4 TFLOP/s / 5300 GB/s)
+  d x d projection,   4096 tok  =   2048.0 FLOP/byte  (prefill shape)
+  d x d projection,     32 tok  =     31.8 FLOP/byte  (decode shape, B=32)
+  d x d projection,      1 tok  =      1.0 FLOP/byte  (decode shape, B=1)
+  batch needed for compute-bound decode ~ 262 concurrent sequences
+
+Memory-bound decode throughput (the useful prediction)
+------------------------------------------------------------
+  Generating one token reads ~every weight once, plus this sequence's KV.
+  bytes read per decode step (B=32) = weights + B * KV
+    = 137.951 GB + 32 * 1.342 GB = 180.900 GB
+  step time  >= 34.132 ms   -> 29.3 steps/s
+  THROUGHPUT ceiling            =      937.5 tokens/s aggregate
+  per-sequence (user-visible)   =       29.3 tokens/s
+
+  B=1 ceiling (weights only)    =       38.4 tokens/s   (5300 GB/s / 137.951 GB)
+  compute-only ceiling          =     8824.0 tokens/s aggregate   (peak FLOP/s / 148.164 GFLOP per token)
+  -> the memory ceiling is 9x lower, so decode is BANDWIDTH-BOUND
+
+Prefill throughput (compute-bound side)
+------------------------------------------------------------
+  prefill FLOPs / peak         = 14854.00 ms at 100% of peak
+  at a realistic 60% of peak   = 24756.67 ms  -> 5,294 tokens/s
+  Prefill scales with FLOPs, so batching it buys little - the GEMMs are
+  already large enough to saturate the matrix cores.
+
+============================================================
+  All figures above are ANALYTICAL CEILINGS, not measurements.
+  Measure with bench/profile_layer.py and bench/batch_scaling.py.
+============================================================
+============================================================
+  Transformer performance calculator - DERIVED ESTIMATES
+============================================================
+
+Configuration
+------------------------------------------------------------
+  preset            gpt3-175b
+  source            GPT-3 paper Table 2.1 (arXiv:2005.14165)
+  layers L          96
+  hidden d          12288
+  heads h           96  (head_dim 128)
+  kv heads          96  -> MHA, group size 1, d_kv 12288
+  ffn d_ffn         49152  (2 matrices)  -> effective m = 4.00
+  vocab             50257  (tied embeddings)
+  weight dtype      fp16 (2 B)   kv dtype fp16 (2 B)
+  seq len N         2048      batch B  1
+  accelerator       5300 GB/s, 192 GB, 1307.4 TFLOP/s
+
+Parameters
+------------------------------------------------------------
+  Q proj      d*d           =    150.995 M
+  K+V proj    2*d*d_kv      =    301.990 M
+  O proj      d*d           =    150.995 M
+  attention   subtotal      =    603.980 M   (4.00 d^2)
+  FFN         2*d*d_ffn     =      1.208 G   (8.00 d^2)
+  per layer                 =      1.812 G   (12.00 d^2)
+  all  96 layers            =    173.946 G
+  embeddings + lm_head      =    617.558 M
+  TOTAL                     =    174.564 G params
+
+  (4+2m)d^2 @ m=4.00, MHA =      1.812 G   (12.00 d^2)
+  actual layer              =      1.812 G   (12.00 d^2)
+  12 d^2 (m=4, MHA) shortcut=      1.812 G   -> 1.00x actual
+  (norm weights, biases, and positional embeddings are O(d) or O(N*d) and omitted)
+
+Memory
+------------------------------------------------------------
+  weights, fp16             =   349.127 GB
+  KV per token per seq      =     4.719 MB   (2 * 96 * 12288 * 2 B)
+  KV per seq, N=2048        =     9.664 GB
+  KV for batch B=1          =     9.664 GB
+  weights + KV              =   358.791 GB
+
+  192 GB capacity - weights = -157.127 GB left for KV + activations
+  !! weights alone exceed capacity - needs tensor/pipeline sharding (B07)
+
+FLOPs
+------------------------------------------------------------
+  GEMM fwd per token        = 347.892 GFLOP   (2 x 173.946 G non-embedding params)
+  lm_head per token         =  1.235 GFLOP
+  attention, 1 seq          = 19.791 TFLOP   (4 * L * N^2 * d, N=2048)
+  PREFILL total             = 734.804 TFLOP   (B=1, N=2048)
+
+  DECODE per token per seq  = 358.791 GFLOP
+    of which attn vs KV     =  9.664 GFLOP   (2.7%)
+  training fwd+bwd / token  =  1.044 TFLOP   (~6 x non-embedding params)
+
+  Attention overtakes the GEMMs at N = p_layer/(2d) = 73728 tokens
+    textbook MHA form, N = (2+m)d = 73728   (higher: MHA has more projection params to beat)
+    at N=2048: attention is 2.7% of a prefill layer stack's FLOPs
+
+Regime analysis (arithmetic intensity)
+------------------------------------------------------------
+  machine ridge point          = 247 FLOP/byte   (1307.4 TFLOP/s / 5300 GB/s)
+  d x d projection,   2048 tok  =   1536.0 FLOP/byte  (prefill shape)
+  d x d projection,      1 tok  =      1.0 FLOP/byte  (decode shape, B=1)
+  batch needed for compute-bound decode ~ 257 concurrent sequences
+
+Memory-bound decode throughput (the useful prediction)
+------------------------------------------------------------
+  Generating one token reads ~every weight once, plus this sequence's KV.
+  bytes read per decode step (B=1) = weights + B * KV
+    = 349.127 GB + 1 * 9.664 GB = 358.791 GB
+  step time  >= 67.696 ms   -> 14.8 steps/s
+  THROUGHPUT ceiling            =       14.8 tokens/s aggregate
+  per-sequence (user-visible)   =       14.8 tokens/s
+
+  B=1 ceiling (weights only)    =       15.2 tokens/s   (5300 GB/s / 349.127 GB)
+  compute-only ceiling          =     3643.9 tokens/s aggregate   (peak FLOP/s / 358.791 GFLOP per token)
+  -> the memory ceiling is 247x lower, so decode is BANDWIDTH-BOUND
+
+Prefill throughput (compute-bound side)
+------------------------------------------------------------
+  prefill FLOPs / peak         = 562.03 ms at 100% of peak
+  at a realistic 60% of peak   = 936.72 ms  -> 2,186 tokens/s
+  Prefill scales with FLOPs, so batching it buys little - the GEMMs are
+  already large enough to saturate the matrix cores.
+
+============================================================
+  All figures above are ANALYTICAL CEILINGS, not measurements.
+  Measure with bench/profile_layer.py and bench/batch_scaling.py.
+============================================================
+torch is required: see ../../../docs/SETUP.md, or pip install -r requirements.txt
+make: *** [Makefile:67: profile] Error 1

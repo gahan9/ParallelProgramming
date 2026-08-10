@@ -1,0 +1,22 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A03.execution-model-and-occupancy/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:54Z
+---
+== 01_fix_divergence.exe ==
+device: AMD Instinct GPU (gfx950), warpSize = 64, n = 4194304, 128 iterations per element
+
+divergent  (thread t -> element t) :   0.385 ms  PASSED
+remapped   (your TODO)             :   0.382 ms  PASSED
+speedup                            :    1.01x
+
+No real speedup yet - TODO 1 is still the identity mapping.
+
+== 02_warp_reduce.exe ==
+warpSize     : 64 lanes
+sum          : 589824.0  (expected 4718592.0, ratio 0.125x)
+kernel time  : 0.576 ms   effective BW 7.3 GB/s
+result       : FAILED
+
+Ratio 0.5x -> TODO 1 (half the wavefront). Ratio 1/warps_per_block ->
+TODO 2 (only one wavefront published). Both -> the product of the two.
+   (non-zero exit - expected until the TODOs are done)

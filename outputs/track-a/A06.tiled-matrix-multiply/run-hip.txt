@@ -1,0 +1,24 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A06.tiled-matrix-multiply' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:10Z
+---
+== hip/matmul.exe ==
+device : AMD Instinct GPU (gfx950)
+problem: C[1024 x 1024] = A[1024 x 1024] * B[1024 x 1024]   (2.15 GFLOP per call)
+computing CPU reference in double (O(M*N*K), this takes a moment)...
+
+variant                             ms/iter      GFLOP/s   speedup  max rel err result  
+-------------------------------- ---------- ------------ --------- ------------ --------
+naive (global reads only)             0.386       5559.1     1.00x     2.03e-06 PASSED  
+tiled 32x32 (shared memory)           0.136      15797.5     2.84x     2.03e-06 PASSED  
+regblock 64x64x16, 4x4/thread         0.187      11468.4     2.06x     2.03e-06 PASSED  
+
+Analytic global-memory intensity (fp32, ignoring cache hits):
+  naive    : 2*K FLOP per 8*K bytes            = 0.25 FLOP/byte
+  tiled    : T/4 with T = 32                   = 8.00 FLOP/byte
+  regblock : BM*BN / (2*(BM+BN)) = 64*64/(2*128) = 16.00 FLOP/byte
+
+Expect naive << tiled < regblock. All three do identical arithmetic;
+the delta is data reuse (see README section 5). A production GEMM
+(rocBLAS / hipBLASLt / cuBLAS) will still beat regblock by a wide
+margin because it uses matrix cores - that is expected, not a bug.

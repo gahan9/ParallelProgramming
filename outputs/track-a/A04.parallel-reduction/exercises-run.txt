@@ -1,0 +1,19 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A04.parallel-reduction/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:00Z
+---
+== 01_max_reduce.exe ==
+A: mixed signs, n = 1048576                    expected     100.000000  got   24582.230469  FAILED
+B: all negative, n = 1000003 (identity!)       expected      -1.000000  got -498995584.000000  FAILED
+C: single element, n = 1                       expected     -42.500000  got     -42.500000  PASSED
+
+2 of 3 cases failed.
+   (non-zero exit - expected until the TODOs are done)
+
+== 02_fix_sync.exe ==
+n = 4194304, grid = 16384, 20 trials
+reference (fp64) : 2076178.509063
+run-to-run       : DIFFERENT between trials (race!)
+worst rel error  : 6.378e+01
+result           : FAILED (20/20 trials outside tolerance)
+   (non-zero exit - expected until the TODOs are done)

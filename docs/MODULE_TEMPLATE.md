@@ -57,6 +57,9 @@ serves the topic; state what you omitted and why in Section 4.
 - Numbers, not adjectives. Give the profiling command and a representative result.
 - Tie results to the **roofline**: is this kernel compute-bound or memory-bound, and why?
 - Show at least one before/after optimization with the measured delta.
+- Reference runs for GPU labs are cached under [`outputs/`](../outputs/README.md) (`gfx950`,
+  ROCm 7, hostnames and detailed versions stripped). Link to the matching artifact rather than
+  pasting raw logs when the full transcript is long.
 
 ### 6. Challenges, Drawbacks & Tradeoffs
 - Where this breaks: race conditions, synchronization traps, numerical issues, occupancy cliffs.
@@ -91,7 +94,9 @@ serves the topic; state what you omitted and why in Section 4.
 1. **Layman-first, expert-deep.** If a smart non-specialist can't follow Section 1, rewrite it.
    If a Principal Engineer would find Section 3 shallow, deepen it.
 2. **Show the naive version, then fix it.** Learners must see *why* the fast version is fast.
-3. **Every perf claim is reproducible.** Give the command and the hardware it ran on.
+3. **Every perf claim is reproducible.** Give the command and the hardware it ran on
+   (`gfx950`, ROCm 7 for the cached reference runs). Sanitized transcripts live under
+   [`outputs/`](../outputs/README.md); regenerate with `bash scripts/collect_outputs.sh`.
 4. **Errors are always checked** in example code (`HIP_CHECK` / `CUDA_CHECK`). No silent failure.
 5. **Cite as you go.** No orphan claims.
 6. **Call out AMD vs NVIDIA differences explicitly** wherever they matter.

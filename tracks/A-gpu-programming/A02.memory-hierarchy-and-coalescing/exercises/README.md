@@ -36,9 +36,15 @@ performance / hierarchy-aware sizing). Solutions include the reasoning, not just
 
 ## Sample sandbox output
 
-Reference runs on **AMD MI300X (`gfx942`, ROCm 6.2, `hipcc -O3`)**. Your exact GB/s differ by GPU,
-driver, and `N` — the **PASS/FAIL state and the before/after ratio** are the lesson. NVIDIA output is
-equivalent (`CUDA error …` instead of `HIP error …`).
+Reference runs on **`gfx950`, ROCm 7** (`hipcc -O3`). Full sanitized transcripts:
+[`outputs/.../exercises-run.txt`](../../../../outputs/track-a/A02.memory-hierarchy-and-coalescing/exercises-run.txt).
+
+Reproduce: `git clone https://github.com/gahan9/ParallelProgramming` →
+`cd tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/exercises` →
+`make run GPU_ARCH=gfx950`.
+
+Your exact GB/s differ by GPU, driver, and `N` — the **PASS/FAIL state and the before/after ratio**
+are the lesson. NVIDIA output is equivalent (`CUDA error …` instead of `HIP error …`).
 
 ### Exercise 1 — Coalesce a strided kernel (`01_coalesce.exe`)
 

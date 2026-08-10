@@ -36,9 +36,21 @@ performance reasoning). Solutions include the reasoning, not just the answer.
 
 ## Sample sandbox output
 
-Reference runs captured on an **AMD MI300X (`gfx942`, ROCm 6.2, `hipcc -O3`)**. Your exact numbers
-will differ by GPU, driver, and `N` — the **shape and the PASS/FAIL state** are the lesson, not the
-digits. NVIDIA output is line-for-line equivalent (`CUDA error …` instead of `HIP error …`).
+Reference runs captured on **`gfx950`, ROCm 7** (`hipcc -O3`). Full sanitized transcripts:
+[`outputs/.../exercises-run.txt`](../../../../outputs/track-a/A01.foundations-and-programming-model/exercises-run.txt)
+and [`run-hip.txt`](../../../../outputs/track-a/A01.foundations-and-programming-model/run-hip.txt).
+
+Reproduce:
+
+```bash
+git clone https://github.com/gahan9/ParallelProgramming
+cd ParallelProgramming/tracks/A-gpu-programming/A01.foundations-and-programming-model/exercises
+make run GPU_ARCH=gfx950
+```
+
+Your exact numbers will differ by GPU, driver, and `N` — the **shape and the PASS/FAIL state**
+are the lesson, not the digits. NVIDIA output is line-for-line equivalent (`CUDA error …` instead
+of `HIP error …`).
 
 ### Exercise 1 — SAXPY (`01_saxpy.exe`)
 
@@ -109,14 +121,15 @@ When you run the module's `vector_add` you should see something shaped like this
 of your GPU's peak HBM bandwidth, and `PASSED`:
 
 ```text
-$ make run-hip
+$ make run-hip GPU_ARCH=gfx950
 n = 16777216, block = 256, grid = 65536
-kernel time      : 0.612 ms
-effective BW     : 3289.4 GB/s
+kernel time      : 0.647 ms
+effective BW     : 311.0 GB/s
 result           : PASSED
 ```
 
 > [!NOTE]
 > The `effective BW` line is the number to reason about, not `kernel time`. Compare it to peak
-> (MI300X ≈ 5.3 TB/s, H100 ≈ 3.35 TB/s). Landing in the low-thousands of GB/s on a coalesced
-> vector add is the expected, memory-bound result explained in README §5.
+> HBM bandwidth for your chip (order-of-thousands of GB/s on `gfx950`). Landing in the low hundreds
+> on a tiny vector add under profiler-free timing is normal once setup and PCIe are in the picture;
+> the coalescing lab (Lab 3) is where you should see near-peak streaming bandwidth.

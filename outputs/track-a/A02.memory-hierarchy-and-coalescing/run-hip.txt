@@ -1,0 +1,18 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:45Z
+---
+== hip/bandwidth.exe ==
+copy: n = 67108864, 268.4 MB per buffer
+time / iter      : 0.121 ms
+effective BW     : 4446.3 GB/s  (your practical HBM ceiling)
+
+== hip/transpose.exe ==
+kernel                                 effective GB/s result  
+-------------------------------------- -------------- --------
+naive (strided writes)                 2615.7         PASSED  
+tiled  (shared mem, bank conflicts)    3271.5         PASSED  
+tiled+padded (conflict-free)           4469.0         PASSED  
+
+Expect: naive << tiled < tiled+padded. Same result, the whole delta is
+memory access pattern (coalescing + shared memory + bank conflicts).

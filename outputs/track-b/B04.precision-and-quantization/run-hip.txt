@@ -1,0 +1,194 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B04.precision-and-quantization' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:35Z
+---
+== hip/precision_limits.exe ==
+=== B04 Lab 1 - precision limits, measured ===
+device: AMD Instinct GPU (gfx950)
+
+[1] Format reference table (derived from the bit layout, not tabulated)
+
+format         bits   E   M   bias   max finite   min normal min subnormal      ulp(1)  digits  binades overflow     
+------------- ----- --- --- ------ ------------ ------------ ------------- ----------- ------- -------- -------------
+fp32             32   8  23    127   3.4028e+38   1.1755e-38    1.4013e-45   1.192e-07    7.22      254 inf          
+tf32             32   8  10    127   3.4012e+38   1.1755e-38    1.1479e-41   9.766e-04    3.31      254 inf          
+bf16             16   8   7    127   3.3895e+38   1.1755e-38    9.1835e-41   7.812e-03    2.41      254 inf          
+fp16             16   5  10     15   6.5504e+04   6.1035e-05    5.9605e-08   9.766e-04    3.31       30 inf          
+fp8 E4M3          8   4   3      7   4.4800e+02   1.5625e-02    1.9531e-03   1.250e-01    1.20       15 saturate/NaN 
+fp8 E5M2          8   5   2     15   5.7344e+04   6.1035e-05    1.5259e-05   2.500e-01    0.90       30 inf          
+fp8 E4M3FNUZ      8   4   3      8   2.4000e+02   7.8125e-03    9.7656e-04   1.250e-01    1.20       15 saturate/NaN 
+int8              8   -   -      -   1.2700e+02 1 (the step)             - 1 (the step)    2.41        - clamp        
+
+  Read the table left to right: E buys RANGE (look at the max-finite and
+  binades columns), M buys PRECISION (ulp(1) and digits). bf16 and fp32 share
+  E = 8 and therefore share the range; fp16 has MORE mantissa than bf16 and so
+  more precision, but only 30 binades of range against 254.
+
+[2] The same value stored in each format (software round-to-nearest-even)
+
+         value           fp32           tf32           bf16           fp16       fp8 E4M3       fp8 E5M2   fp8 E4M3FNUZ
+           0.1            0.1      0.0999756       0.100098      0.0999756       0.101562        0.09375       0.101562
+      0.333333       0.333333       0.333252       0.333984       0.333252        0.34375         0.3125        0.34375
+       1.00049        1.00049              1              1              1              1              1              1
+         65505          65505          65504          65536          65504            448            inf            240
+         1e-08          1e-08    9.99717e-09    1.00117e-08              0              0              0              0
+         3e+38          3e+38    3.00073e+38    3.00406e+38            inf            448            inf            240
+           448            448            448            448            448            448            448            240
+           240            240            240            240            240            240            256            240
+           300            300            300            300            300            288            320            240
+
+  Note 65505 -> inf in E5M2 but 65504 in fp16 (same 5 exponent bits, more
+  mantissa), 3e38 -> inf in fp16 but survives in bf16 (same 8 exponent bits as
+  fp32), and 1e-8 -> 0 in every 16-bit-or-smaller format except bf16.
+
+    native fp8 cross-check vs __hip_fp8_e4m3_fnuz (software model: fp8 E4M3FNUZ)
+      0.1        native 0.101562     software 0.101562     match
+      0.333333   native 0.34375      software 0.34375      match
+      1          native 1            software 1            match
+      7.5        native 7.5          software 7.5          match
+      240        native 240          software 240          match
+      0.001      native 0.000976562  software 0.000976562  match
+      -2.75      native -2.75        software -2.75        match
+    -> software model agrees with the hardware type
+
+[3] fp16 exp() overflow - the softmax hazard (kernel 0.006 ms)
+
+       x  expf(x) in fp32   stored as fp16 status    
+-------- ---------------- ---------------- ----------
+   9.000     8.103084e+03     8.104000e+03 ok        
+  10.000     2.202646e+04     2.203200e+04 ok        
+  10.500     3.631550e+04     3.632000e+04 ok        
+  11.000     5.987414e+04     5.987200e+04 ok        
+  11.050     6.294396e+04     6.294400e+04 ok        
+  11.080     6.486088e+04     6.486400e+04 ok        
+  11.090     6.551275e+04     6.550400e+04 ok        
+  11.100     6.617119e+04              inf OVERFLOW  
+  11.150     6.956380e+04              inf OVERFLOW  
+  11.500     9.871577e+04              inf OVERFLOW  
+  12.000     1.627548e+05              inf OVERFLOW  
+
+  fp16 max finite = 65504, and ln(that) = 11.0899, so exp() escapes fp16 at
+  x = 11.100 - a completely ordinary logit. fp32 has headroom to x = 88.7.
+  A07's fix is not a micro-optimisation: subtracting the row max makes every
+  exponent argument <= 0, so exp() <= 1 and the format cannot overflow at all.
+
+[4] 1.0 + tiny: where a weight update vanishes (kernel 0.006 ms)
+
+      tiny       fp32 1+t       fp16 1+t       bf16 1+t   update survives in
+---------- -------------- -------------- --------------   ------------------
+     1e-01    1.100000024    1.099609375    1.101562500   fp32 fp16 bf16
+     1e-02    1.009999990    1.009765625    1.007812500   fp32 fp16 bf16
+     1e-03    1.001000047    1.000976562    1.000000000   fp32 fp16 
+     1e-04    1.000100017    1.000000000    1.000000000   fp32 
+     1e-05    1.000010014    1.000000000    1.000000000   fp32 
+     1e-06    1.000000954    1.000000000    1.000000000   fp32 
+     1e-08    1.000000000    1.000000000    1.000000000   NOTHING (silently dropped)
+
+  ulp(1) is 9.766e-04 in fp16 and 7.812e-03 in bf16, so any update smaller than half
+  of that rounds straight back to 1.0. A learning rate of 1e-3 against weights
+  of order 1 is exactly this regime - which is why mixed-precision training
+  applies the update to an fp32 MASTER copy and only casts down for the next
+  forward pass. Note the ordering: fp16 keeps more of these than bf16, because
+  precision near 1.0 is a mantissa question, not a range question.
+
+[5] Dot product: one summation order, three accumulator widths
+
+       n   fp16 accumulator      rel err   fp32 accumulator      rel err   verdict
+-------- ------------------ ------------ ------------------ ------------   -------
+     256          64.812500    8.892e-04          64.754898    3.825e-07   fp32 ok
+    1024         252.375000    8.853e-03         254.629150    1.769e-07   fp32 ok
+    4096         956.500000    6.744e-02        1025.673218    1.102e-07   fp32 ok
+   16384        2048.000000    4.911e-01        4024.074951    2.870e-06   fp32 ok
+   65536        2048.000000    8.740e-01       16254.680664    4.243e-06   fp32 ok
+
+  fp64 GPU result vs a long-double host sum in the same order: PASSED (<=1e-12 rel)
+  The fp16 column is the lesson. Its error grows with n because every one of
+  the n additions is rounded onto a grid with only 10 mantissa bits, and once
+  the running sum is large enough, each new term is smaller than half an ulp
+  of it and contributes NOTHING. This is why matrix cores multiply in 16 bits
+  but accumulate in fp32: the product is cheap to narrow, the SUM is not.
+
+[6] Same fp32 precision, different summation order (A04's reduction)
+
+  blocks        fp32 result        rel err
+-------- ------------------ --------------
+       1       16254.750000      2.214e-08
+       4       16254.749023      3.794e-08
+      16       16254.749023      3.794e-08
+      64       16254.749023      3.794e-08
+     256       16254.748047      9.802e-08
+    1024       16254.748047      9.802e-08
+
+  Spread across launch configurations: 1.953e-03 absolute. Nothing is broken and
+  no result is 'the' right one - fp32 addition is not associative, so the
+  partition of the sum is part of the answer. Consequences you will actually
+  hit: a reduction is not bit-reproducible across grid sizes, so a regression
+  test must use a tolerance, and 'the loss changed after I retuned the launch
+  config' is expected, not a bug.
+
+[7] Catastrophic cancellation: one-pass variance (kernel 0.319 ms)
+
+  data          : 4096 values, x = 1e+06 + Uniform(-1, 1), so var(x) = 1/3
+  E[x^2]-E[x]^2 in fp32 : 40177532.000000000   <-- garbage (sometimes negative!)
+  E[x^2]-E[x]^2 in fp64 :        0.335386986   <-- the same formula, wider accumulator
+  two-pass in fp32      :      957.956542969   <-- FAILED
+
+  Both fp32 sums are individually accurate to ~7 digits. The subtraction
+  destroys them: E[x^2] and E[x]^2 are both about 1e12 and agree to 12
+  digits, so their difference keeps almost no correct digits at all. The fix
+  is algebraic, not numeric - subtract the mean FIRST, while the operands are
+  still small. No amount of extra precision makes an unstable formula stable;
+  fp64 only moves the cliff.
+
+total measured kernel time: 5.582 ms (this lab is about numerics, not speed -
+see mixed_precision_gemm for the throughput side)
+
+== hip/mixed_precision_gemm.exe ==
+=== B04 Lab 2 - mixed precision: what you gain, what you pay ===
+device : AMD Instinct GPU (gfx950)
+[A] GEMM  C[1024 x 1024] = A[1024 x 1024] * B[1024 x 1024], 2.15 GFLOP per call, 10 iters
+computing the double-precision reference on the host (this takes a moment)...
+
+store  accum    ms/iter   GFLOP/s   speedup  MB global      GB/s     max rel    mean rel      tol  result
+------ ------ --------- --------- --------- ---------- --------- ----------- ----------- --------  ------
+fp32   fp32       0.136   15801.3     1.00x      272.6    2006.0    2.03e-06    3.41e-07    1e-04  PASSED
+fp16   fp32       0.124   17318.8     1.10x      138.4    1116.3    5.38e-05    8.95e-06    2e-03  PASSED
+bf16   fp32       0.123   17461.9     1.11x      138.4    1125.5    4.33e-04    6.98e-05    2e-02  PASSED
+fp16   fp16       0.126   17043.9     1.08x      138.4    1098.5    2.40e-02    6.90e-03    2e-03  FAILED (expected)
+
+  Read the accuracy columns first. fp16 and bf16 storage both stay within the
+  error their own mantissa allows, and bf16's error is about 8x fp16's - exactly
+  the ratio of their ulp(1) (2^-7 vs 2^-10). Now read the last row: the same
+  fp16 storage with an fp16 ACCUMULATOR is far worse, because 1024 roundings of a
+  growing sum compound. Storage precision costs you a bounded relative error;
+  accumulator precision costs you the whole result. That single asymmetry is why
+  every matrix core multiplies narrow and accumulates in fp32.
+
+  Now read the throughput columns, and be suspicious. Global traffic halves
+  exactly as the byte accounting predicts, but the GFLOP/s should move far less
+  than that (how much less depends on your GPU): at a 32x32 tile this kernel is
+  limited by LDS traffic and VALU issue rather than HBM, and it never touches the
+  matrix cores. Narrower operands only buy time where BYTES are the limit - which
+  is what [B] shows - or where a matrix-core path exists to consume them, which is
+  what hipBLASLt / cuBLASLt do and this kernel does not. README section 5.
+
+[B] Elementwise y = a*x + y, n = 16777216 (1 FLOP per 3 stored elements)
+
+store      MB moved    ms/iter       GB/s   speedup     max rel  result
+------ ------------ ---------- ---------- --------- -----------  ------
+fp32          201.3     0.0350     5747.3      1.00x    5.96e-08  PASSED
+fp16          100.7     0.0252     3990.6      1.39x    4.88e-04  PASSED
+bf16          100.7     0.0279     3602.7      1.25x    3.89e-03  PASSED
+
+  This is the roofline result from B02, in one table: the kernel moves 3 elements
+  per FLOP, so it sits far to the left of the ridge point and its ceiling IS the
+  bandwidth divided by the bytes per element. Halve the element width and the
+  ceiling doubles, so the time should approach half - expect a speedup near 2x but
+  short of it, because the GB/s column shows both variants are already close to
+  the same HBM limit and the fp16/bf16 runs have less work to hide launch and
+  scheduling overhead behind. Compare the GB/s across rows: if they match, you are
+  bandwidth-bound in both and the speedup is purely the byte count.
+
+  Neither table is a benchmark of your GPU. Run it on yours; the SHAPE (bytes
+  halve, error grows with the reciprocal of mantissa bits, fp16 accumulate loses)
+  is what transfers.

@@ -1,0 +1,13 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B01.accelerator-architecture/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:26Z
+---
+== 03_measure_vs_spec.exe ==
+device        : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-)
+CUs           : 256, wavefront 64
+buffers       : 2 x 256.0 MiB
+time / iter   : 0.002 ms
+achieved BW   : 0.0 GB/s
+theoretical   : unavailable (driver reported clock=1900000 kHz, bus=8192 bits)
+result        : FAILED (66846720 mismatches)
+   (non-zero exit - expected until the TODOs are done)

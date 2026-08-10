@@ -1,0 +1,5 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A09.advanced-triton-flash-attention' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:22Z
+---
+make: *** No rule to make target 'run-hip'.  Stop.

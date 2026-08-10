@@ -1,0 +1,98 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:39Z
+---
+== memory_planner: 70B on 8 GPUs, nothing fits ==
+model      : 70.0B params, L=80, h=8192, heads=64
+step shape : seq=4096, micro-batch=1, recompute=none
+cluster    : 8 GPUs x 192 GiB (reserve 10 GiB, usable 182 GiB)
+state      : 2+2+12 = 16 bytes/param -> 1043 GiB unsharded (5.4 GPUs of pure state)
+
+strategy                        axes                      state    activ  reserve    total  fits 192 GiB?
+---------------------------------------------------------------------------------------------------------
+DDP (replicate everything)      dp=8 tp=1 pp=1 z0        1043.1    485.0     10.0   1538.1  NO  
+ZeRO-1 (shard optimizer)        dp=8 tp=1 pp=1 z1         358.6    485.0     10.0    853.6  NO  
+ZeRO-2 (+ shard grads)          dp=8 tp=1 pp=1 z2         244.5    485.0     10.0    739.5  NO  
+ZeRO-3 / FSDP (+ shard params)  dp=8 tp=1 pp=1 z3         133.6    485.0     10.0    628.6  NO  
+Tensor parallel tp=8            dp=1 tp=8 pp=1 z0         130.4     60.6     10.0    201.0  NO  
+Pipeline parallel pp=8          dp=1 tp=1 pp=8 z0         130.4    485.0     10.0    625.4  NO  
+---------------------------------------------------------------------------------------------------------
+all figures GiB per GPU, analytic model (not measured)
+
+== memory_planner: same model on 64 GPUs, ranked fits ==
+model      : 70.0B params, L=80, h=8192, heads=64
+step shape : seq=4096, micro-batch=1, recompute=none
+cluster    : 64 GPUs x 192 GiB (reserve 10 GiB, usable 182 GiB)
+state      : 2+2+12 = 16 bytes/param -> 1043 GiB unsharded (5.4 GPUs of pure state)
+
+strategy                        axes                      state    activ  reserve    total  fits 192 GiB?
+---------------------------------------------------------------------------------------------------------
+tp=1 pp=1 z3 rc=selective       dp=64 tp=1 pp=1 z3         19.6     85.0     10.0    114.6  YES 
+tp=1 pp=1 z2 rc=full            dp=64 tp=1 pp=1 z2        144.6      5.0     10.0    159.6  YES 
+tp=1 pp=1 z3 rc=full            dp=64 tp=1 pp=1 z3         19.6      5.0     10.0     34.6  YES 
+tp=1 pp=2 z2 rc=selective       dp=32 tp=1 pp=2 z2         79.5     85.0     10.0    174.5  YES 
+tp=2 pp=1 z2 rc=selective       dp=32 tp=2 pp=1 z2         79.5     42.5     10.0    132.0  YES 
+tp=1 pp=2 z1 rc=full            dp=32 tp=1 pp=2 z1        142.6      5.0     10.0    157.6  YES 
+---------------------------------------------------------------------------------------------------------
+all figures GiB per GPU, analytic model (not measured)
+
+cheapest fit (heuristic score 6): dp=64 tp=1 pp=1 z3 recompute=selective -> 114.6 GiB/GPU
+== collective_cost: where a ring all-reduce stops being latency-bound ==
+op=allreduce  ranks=8  link=50 GB/s  alpha=8 us
+latency/bandwidth crossover S* = P*alpha*B = 3.05 MiB (below this, fuse your messages)
+
+  size MiB   time ms  latency %  busbw GB/s  regime
+--------------------------------------------------------------
+      0.25     0.121       92.4         3.8  latency-bound
+      1.00     0.149       75.3        12.3  latency-bound
+      4.00     0.259       43.3        28.4  bandwidth-bound
+     16.00     0.699       16.0        42.0  bandwidth-bound
+     64.00     2.461        4.6        47.7  bandwidth-bound
+    256.00     9.507        1.2        49.4  bandwidth-bound
+   1024.00    37.693        0.3        49.9  bandwidth-bound
+--------------------------------------------------------------
+analytic ring model, not measured
+
+== collective_cost: 7B DDP gradient all-reduce + bucketing ==
+op=allreduce  ranks=16  link=25 GB/s  alpha=15 us
+latency/bandwidth crossover S* = P*alpha*B = 5.72 MiB (below this, fuse your messages)
+
+  size MiB   time ms  latency %  busbw GB/s  regime
+--------------------------------------------------------------
+      0.25     0.470       95.8         1.0  latency-bound
+      1.00     0.529       85.1         3.7  latency-bound
+      4.00     0.765       58.9        10.3  latency-bound
+     16.00     1.708       26.3        18.4  bandwidth-bound
+     64.00     5.483        8.2        22.9  bandwidth-bound
+    256.00    20.583        2.2        24.5  bandwidth-bound
+   1024.00    80.981        0.6        24.9  bandwidth-bound
+--------------------------------------------------------------
+analytic ring model, not measured
+
+DDP gradient all-reduce for 7B params @ 2B: 13351 MiB -> 1050.5 ms
+  fraction of a 900 ms step: 116.7%  -> COMMUNICATION-BOUND
+
+bucketing (total 13351 MiB, bandwidth-bound above 5.72 MiB):
+ bucket MiB  count   time ms  latency %  overlap?  bandwidth-bound?
+------------------------------------------------------------------
+          1  13352    7058.4       85.1  yes       no
+          4   3338    2552.1       58.9  yes       no
+         25    535    1290.8       18.7  yes       yes
+        100    134    1110.3        5.4  yes       yes
+        400     34    1065.3        1.4  yes       yes
+== pipeline_bubble: 8 stages, 8 micro-batches, and the sweep ==
+stages S=8  micro-batches M=8  chunks v=1
+bubble fraction (S-1)/v / (M + (S-1)/v) = 46.7%
+pipeline efficiency                     = 53.3%
+to reach 90% efficiency you need M >= 63 (=7.9x the stage count)
+cost of that: the first stage keeps ~8 micro-batches of activations alive under 1F1B
+
+  S \ M       1       2       4       8      16      32      64     128
+-----------------------------------------------------------------------
+      2     50%     67%     80%     89%     94%     97%     98%     99%
+      4     25%     40%     57%     73%     84%     91%     96%     98%
+      8     12%     22%     36%     53%     70%     82%     90%     95%
+     16      6%     12%     21%     35%     52%     68%     81%     90%
+     32      3%      6%     11%     21%     34%     51%     67%     81%
+-----------------------------------------------------------------------
+pipeline efficiency %, analytic model with v=1 (balanced stages, free P2P)

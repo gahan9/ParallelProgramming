@@ -1,0 +1,79 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:28Z
+---
+== hip/measure_ceilings.exe ==
+device            : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-)
+compute units     : 256
+theoretical HBM BW: 3891.2 GB/s (from device properties, informational)
+launch            : 2048 blocks x 256 threads
+
+ceiling                             value        verify   how
+----------------------------------- ------------ -------- ---------------------------
+memory roof   B  (GB/s)                   4345.1   PASSED coalesced grid-stride copy
+compute roof  P  (GFLOP/s, fp32)        120724.8   PASSED register-resident FMA loop
+
+ridge point   I_ridge = P / B      = 27.78 FLOP/byte
+  below 27.78 FLOP/byte -> memory-bound (bandwidth decides)
+  above 27.78 FLOP/byte -> compute-bound (FLOP/s decides)
+
+What this means in practice: a kernel needs to do more than 28 FLOPs for
+every byte it pulls from HBM before arithmetic becomes its limit. An
+elementwise add does about 0.08. That gap is why fusion pays.
+
+Draw the chart:
+  python ../tools/roofline_plot.py --peak-gflops 120725 --peak-gbps 4345 --demo-kernels
+
+Caveat: P here is the fp32 SIMT FMA roof. Matrix cores (AMD MFMA / NVIDIA
+Tensor Cores) have their own, far higher roof for fp16/bf16/fp8, and that
+is the ceiling ML kernels are actually measured against. See README S6.
+
+== hip/roofline_sweep.exe ==
+device      : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-), 256 CUs
+n           : 33554432 floats (134.2 MB per buffer)
+launch      : 8192 blocks x 256 threads, 4 chains/thread
+per element : 8 bytes moved (1 read + 1 write), 2K FLOPs -> I = K/4
+
+  K  I (FLOP/byte)   ms/iter      GB/s     GFLOP/s  verify
+---- -------------- --------- --------- ----------- ------
+   0          0.000     0.056    4769.6         0.0   PASS
+   1          0.250     0.052    5185.7      1296.4   PASS
+   2          0.500     0.051    5296.0      2648.0   PASS
+   4          1.000     0.051    5234.1      5234.1   PASS
+   8          2.000     0.051    5255.4     10510.8   PASS
+  16          4.000     0.052    5209.5     20837.9   PASS
+  32          8.000     0.053    5064.0     40512.2   PASS
+  64         16.000     0.077    3498.4     55974.1   PASS
+ 128         32.000     0.143    1883.4     60269.2   PASS
+ 256         64.000     0.270     995.5     63709.0   PASS
+ 512        128.000     0.501     536.3     68645.4   PASS
+
+measured ceilings (this sweep, this machine)
+  memory roof  B : 5296.0 GB/s      (best traffic rate, reached at low K)
+  compute roof P : 68645.4 GFLOP/s   (best arithmetic rate, reached at high K)
+  ridge point    : I_ridge = P / B = 12.96 FLOP/byte  -> K ~= 52
+
+placement vs the roofline min(P, I x B)
+  K  I (FLOP/byte)   roof GF/s   achieved   % of roof  regime          GFLOP/s bar
+---- -------------- ----------- ----------- --------- --------------- ----------------------
+   0          0.000           -           -         - bandwidth cal.  ....................
+   1          0.250      1324.0      1296.4     97.9% memory-bound    ....................
+   2          0.500      2648.0      2648.0    100.0% memory-bound    #...................
+   4          1.000      5296.0      5234.1     98.8% memory-bound    ##..................
+   8          2.000     10592.1     10510.8     99.2% memory-bound    ###.................
+  16          4.000     21184.1     20837.9     98.4% memory-bound    ######..............
+  32          8.000     42368.3     40512.2     95.6% near the ridge  ############........
+  64         16.000     68645.4     55974.1     81.5% near the ridge  ################....
+ 128         32.000     68645.4     60269.2     87.8% compute-bound   ##################..
+ 256         64.000     68645.4     63709.0     92.8% compute-bound   ###################.
+ 512        128.000     68645.4     68645.4    100.0% compute-bound   ####################
+
+Expected shape: GFLOP/s rises roughly linearly with I while the kernel is
+on the memory roof, then flattens once it hits the compute roof. GB/s does
+the mirror image. The K where the two curves cross is the ridge point above.
+Absolute values are hardware-specific; the shape is not.
+
+Feed these ceilings to the plotter:
+  python ../tools/roofline_plot.py --peak-gflops 68645 --peak-gbps 5296 --demo-kernels
+
+verification: PASSED (all K reproduce the input exactly)

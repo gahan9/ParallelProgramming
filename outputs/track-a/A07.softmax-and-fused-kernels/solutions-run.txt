@@ -1,0 +1,30 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A07.softmax-and-fused-kernels/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:20Z
+---
+== 01_safe_softmax_solution.exe ==
+rows = 4096, cols = 512, block = 256
+time / iter    : 0.010 ms
+effective BW   : 3294.0 GB/s   (3 reads + 1 write)
+non-finite     : 0
+max |err|      : 8.654e-10
+row 0 sum      : 1.000000  (must be 1.0)
+result         : PASSED
+
+== 02_masked_softmax_solution.exe ==
+row   valid   row sum       max |err|     non-fin   result
+----- ------- ------------- ------------- --------- ------
+0     256     1.000000      1.695e-09     0         PASSED
+1     200     1.000000      3.009e-09     0         PASSED
+2     128     1.000000      2.921e-09     0         PASSED
+3     0       0.000000      0.000e+00     0         PASSED
+4     64      1.000000      9.867e-09     0         PASSED
+5     1       1.000000      0.000e+00     0         PASSED
+6     250     1.000000      2.406e-09     0         PASSED
+7     17      1.000000      1.154e-08     0         PASSED
+
+overall: PASSED
+Row 3 (valid = 0) emits exact zeros. The two guards that make that true -
+skipping the normalizer pass when m == -inf, and treating s == 0 as "emit 0" -
+cost one comparison each and are the difference between a training run that
+converges and one that turns every weight into nan.

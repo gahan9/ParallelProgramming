@@ -1,0 +1,20 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A03.execution-model-and-occupancy/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:57Z
+---
+== 01_fix_divergence_solution.exe ==
+device: AMD Instinct GPU (gfx950), warpSize = 64, n = 4194304, 128 iterations per element
+
+divergent  (thread t -> element t) :   0.383 ms  PASSED
+remapped   (wavefront-uniform)     :   0.185 ms  PASSED
+speedup                            :    2.07x
+
+The divergent wavefront runs sqrt-chain AND Newton-chain with half its lanes
+masked; the remapped one runs exactly one chain per wavefront. Same results,
+same total useful FLOPs.
+
+== 02_warp_reduce_solution.exe ==
+warpSize     : 64 lanes  (4 per 256-thread block)
+sum          : 4718592.0  (expected 4718592.0, ratio 1.000x)
+kernel time  : 0.587 ms   effective BW 7.1 GB/s
+result       : PASSED

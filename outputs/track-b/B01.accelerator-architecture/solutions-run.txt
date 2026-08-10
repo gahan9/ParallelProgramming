@@ -1,0 +1,17 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B01.accelerator-architecture/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:27Z
+---
+== 03_measure_vs_spec_solution.exe ==
+device        : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-)
+CUs           : 256, wavefront 64
+buffers       : 2 x 256.0 MiB
+time / iter   : 0.181 ms
+achieved BW   : 2971.2 GB/s  (2 x 256.0 MiB / iter)
+theoretical   : 3891.2 GB/s  (2 x 1900 MHz x 8192 bits / 8)
+efficiency    : 76.4% of peak
+
+Use the ACHIEVED number as the memory ceiling of your roofline in B02.
+The peak is the number on the datasheet; the gap is DRAM refresh, ECC,
+read/write turnaround and command overhead, and it never goes to zero.
+result        : PASSED (0 mismatches)

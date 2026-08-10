@@ -1,0 +1,79 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B04.precision-and-quantization/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:39Z
+---
+=== Solution 3 - group-wise int8 quantization ===
+
+W: 64 x 256 fp32, 64.0 KiB
+  |w|max inside the band  : 12.4679
+  |w|max outside the band : 0.2012
+
+scheme                      rel err W rel err Wx rest max err rest rms err     bytes   vs fp32
+----------------------------------------------------------------------------------------------
+per-tensor                    0.04044    0.03993     0.049083     0.028496     16386     4.00x
+per-channel                   0.02341    0.02228     0.048995     0.016522     16512     3.97x
+per-group g=128               0.01654    0.01623     0.048446     0.011509     16640     3.94x
+per-group g=64                0.01171    0.01133     0.048446     0.007919     16896     3.88x
+per-group g=32                0.00819    0.00836     0.047309     0.005176     17408     3.76x
+per-group g=16                0.00565    0.00569     0.042899     0.002966     18432     3.56x
+per-group g=8                 0.00472    0.00486     0.042247     0.002510     20480     3.20x
+
+per-group g=8, band 100..107    0.00472    0.00486     0.042247     0.002510     20480     3.20x
+per-group g=8, band  96..103    0.00385    0.00377     0.000728     0.000197     20480     3.20x
+  ^ same 8 wide columns, moved onto the group boundary. Now the contaminated
+    group contains ONLY band values, so no ordinary weight pays for them and
+    'rest max err' collapses to the per-column-scale ideal.
+
+TODO 4 answers
+
+(a) Why the rms improves and the max does not.
+    A group's scale is set by the largest magnitude anywhere in that group. With
+    g = 32 a row's groups are columns 0-31, 32-63, 64-95, 96-127, ... and the band
+    (columns 100-107) lands inside the 96-127 group. The other 24 columns of that
+    group - 96-99 and 108-127 - inherit a step sized for a value of ~12.5 instead of
+    ~0.2, so their error is essentially unchanged from per-channel (0.0473 vs
+    0.0490). They are only 24 of the 248 non-band columns, so they barely move the
+    rms - which improves ~3.2x, from 0.0165 to 0.0052 - while completely determining
+    the max. Seven of the eight groups per row did get ~60x finer; that is the gain,
+    and the max column simply cannot see it.
+    Alignment: the run above repeats g = 8 with the same 8 wide columns starting at
+    column 96 instead of 100, so the band IS one whole group. 'rest max err' drops
+    from 0.042 to 0.00073 - a factor of 58, which is the ratio of the two |w|max
+    values, i.e. the theoretical best. Two lessons: group-wise CONTAINS outlier
+    damage rather than removing it, and how well it contains it depends on an
+    alignment you do not control - which is why methods that rescale channels (AWQ)
+    or split them out entirely (LLM.int8()) exist.
+
+(b) Where to stop shrinking g.
+    Not at a favourite number - at the point where the error stops being the binding
+    constraint. The rule: shrink g until the quantization error is comfortably below
+    the error your task-level eval can already tolerate, then stop, because every
+    further halving costs bytes and kernel complexity for accuracy you cannot spend.
+    Here rel err W improves ~2.9x from per-channel (0.0234) to g=32 (0.0082), then
+    only ~1.4x per further halving while bytes/weight keeps climbing - g = 64 or 128
+    with fp16 scales is the shipped answer for int4 kernels for this reason. Note the
+    second constraint: g must divide the reduction tile of the GEMM kernel, or the
+    dequantization stops being free.
+
+(c) Bytes per weight.
+    g = 128: 1 + 2/128 = 1.0156 bytes/weight -> 3.94x vs fp32.
+    g = 8  : 1 + 2/8   = 1.25   bytes/weight -> 3.20x vs fp32.
+    On a memory-bound decode the weight bytes ARE the token latency, so g = 8 gives
+    up ~19% of the throughput you were quantizing to get, in exchange for a small
+    error improvement. Pick g = 128 unless the eval says otherwise; that is the
+    whole decision, and it is a throughput decision informed by a quality number.
+
+(d) A scheme that exploits the column structure better.
+    The band is the same columns in every row, i.e. it is a property of the INPUT
+    feature (activation) dimension, not of any output channel. Two options:
+      * mixed-precision decomposition (LLM.int8(), arXiv:2208.07339): keep those
+        columns in fp16 and int8 the rest, then add the two partial products. Cost:
+        two GEMMs instead of one, an irregular memory layout, and a runtime
+        threshold that decides which columns are outliers.
+      * per-channel activation scaling (AWQ, arXiv:2306.00978): fold a per-input
+        scale s_j into the weights (W_ij / s_j) and its inverse into the activations,
+        which shrinks the band's weight magnitudes before quantization. Cost: a
+        calibration pass to choose s from observed activations, and the scaling has
+        to be foldable into an adjacent op or it becomes an extra kernel.
+    Both beat group-wise here because they act along the axis the structure lives on.
+    Group-wise wins when the outliers are scattered rather than aligned to a column.

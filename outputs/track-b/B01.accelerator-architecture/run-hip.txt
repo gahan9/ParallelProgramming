@@ -1,0 +1,55 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B01.accelerator-architecture' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:22Z
+---
+== hip/device_query.exe ==
+HIP runtime (ROCm 7)
+Visible devices: <n>
+
+================================================================
+Device 0: AMD Instinct GPU (gfx950)
+  LLVM target / arch name                gfx950:sramecc+:xnack-
+  gfxip (major.minor)                    9.5
+  PCI domain:bus:device                  <pci>
+
+  -- Execution resources --
+  Compute units (CUs)                    256
+  Wavefront / warp size                  64
+  Max threads per block                  1024
+  Max threads per CU                     2048
+  32-bit registers per block             131072
+  Max block dims (x,y,z)                 1024 x 1024 x 1024
+  Max grid dims (x,y,z)                  2147483647 x 65535 x 65535
+  Cooperative launch supported           1
+
+  -- Clocks --
+  Peak engine clock                      2200 MHz
+  Memory clock                           1900 MHz
+
+  -- Memory system --
+  Global memory (HBM/VRAM)               270566162432 B (251.98 GiB)
+  Memory bus width                       8192 bits
+  L2 cache                               4194304 B (4.0 MiB)
+  LDS / shared memory per block          163840 B (160.0 KiB)
+  LDS / shared memory per CU             163840 B (160.0 KiB)
+  Constant memory                        2147483647 B (2.00 GiB)
+
+  -- Host/device memory model (matters for MI300A-class APUs) --
+  Integrated (shares host memory)        0
+  Can map host memory                    1
+  Managed memory supported               1
+  Concurrent managed access              1
+
+  -- Derived ceilings (the input to B02's roofline) --
+  Theoretical peak HBM bandwidth         3891.2 GB/s
+      = 2 (DDR) x 1900 MHz x 8192 bits / 8
+  FP32 vector-FMA estimate (lower bnd)   72.1 TFLOP/s
+      = 2 FLOP x 256 CUs x 64 lanes x 2.20 GHz
+      NOTE: matrix-core (MFMA) throughput is NOT in device properties.
+            On CDNA3/CDNA4 the fp16/bf16/fp8 matrix peak is roughly an
+            order of magnitude above this vector number - consult the
+            vendor datasheet for it, and see README S3.
+  Roofline ridge point (vector fp32)     18.5 FLOP/byte
+      kernels below this intensity are memory-bound - B02 formalizes it.
+
+[additional devices omitted — same arch (gfx950), run locally for a full listing]

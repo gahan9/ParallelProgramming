@@ -1,0 +1,139 @@
+# cmd: bash -lc cd 'tracks/C-ml-system-design/C02.data-pipelines-and-features' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:40Z
+---
+== data_validator: a batch that should be rejected ==
+data validation report
+  source : built-in demo batch (300 rows; 7 injected cell violations and 3 column shifts)
+  rows   : 300
+
+  [ERROR] allowed-values     country            1 row(s): value outside the declared allowed set ['US', 'GB', 'DE', 'IN']
+            example: line 5: 'FR'
+  [ERROR] allowed-values     label              1 row(s): value outside the declared allowed set [0, 1]
+            example: line 7: '2'
+  [ERROR] drift              amount             PSI 1.7402 exceeds the declared maximum 0.2500; mean 65.5190 -> 225.7662 (+2.38 reference sd)
+  [ERROR] drift              country            1 category value(s) never seen in the reference
+            example: FR
+  [ERROR] drift              country            2 share(s) moved by more than 0.150
+            example: IN: 0.063 -> 0.473 (+0.410)
+            example: US: 0.620 -> 0.283 (-0.337)
+  [ERROR] drift              label              1 numeric value(s) never seen in the reference
+            example: 2
+  [ERROR] drift              label              2 share(s) moved by more than 0.150
+            example: 0: 0.890 -> 0.703 (-0.187)
+            example: 1: 0.110 -> 0.293 (+0.183)
+  [ERROR] nullability        amount             1 row(s): empty value in a column declared nullable=false
+            example: line 3
+  [ERROR] range              account_age_days   1 row(s): value outside the declared [min, max]
+            example: line 6: -12 < 0
+  [ERROR] range              amount             1 row(s): value outside the declared [min, max]
+            example: line 2: -5.00 < 0.0
+  [ERROR] type               event_time         1 row(s): value does not parse as declared type 'timestamp'
+            example: line 4: 'not-a-timestamp'
+  [ERROR] uniqueness         txn_id             1 duplicated value(s) in a column declared unique
+            example: 'b0007' on lines [8, 9]
+  [WARN ] unexpected-column  experiment_arm     present in the data but not declared; a silent upstream schema change
+  [INFO ] drift              account_age_days   PSI 0.1190 within tolerance; mean 1391.8567 -> 1490.8167 (+0.12 reference sd)
+
+summary: 12 error(s), 1 warning(s)
+GATE: REJECT - do not publish this batch downstream
+== leakage_detector: three planted leaks, each caught by a different check ==
+leakage report
+  source        : built-in demo table (240 rows, 3 planted leaks)
+  rows          : 240 (240 with a usable 0/1 label)
+  label column  : label   label time column: label_time
+  features      : 8   timestamp suffix: '_ts'
+
+  [LEAK   ] time-travel    investigator_notes_len   240 of 240 comparable rows have investigator_notes_len observed at or after the label
+               line 2: investigator_notes_len at 2026-05-03T08:00:00 >= label at 2026-05-01T08:00:00
+               line 3: investigator_notes_len at 2026-05-03T09:00:00 >= label at 2026-05-01T09:00:00
+               line 4: investigator_notes_len at 2026-05-03T10:00:00 >= label at 2026-05-01T10:00:00
+  [SUSPECT] separation     investigator_notes_len   single-feature ROC-AUC 1.0000 (>= 0.99) - one threshold almost perfectly separates the label
+  [LEAK   ] time-travel    chargeback_amount        240 of 240 comparable rows have chargeback_amount observed at or after the label
+               line 2: chargeback_amount at 2026-05-01T09:00:00 >= label at 2026-05-01T08:00:00
+               line 3: chargeback_amount at 2026-05-01T10:00:00 >= label at 2026-05-01T09:00:00
+               line 4: chargeback_amount at 2026-05-01T11:00:00 >= label at 2026-05-01T10:00:00
+  [SUSPECT] separation     chargeback_amount        single-feature ROC-AUC 1.0000 (>= 0.99) - one threshold almost perfectly separates the label
+  [WARN   ] naming         chargeback_amount        name contains 'chargeback' - names like this usually mark a column derived from the outcome
+  [SUSPECT] separation     case_status_at_review    category 'open' covers 45.4% of rows and is 100.0% one label
+
+  NOT CHECKED for time travel (no '_ts' companion column): claim_id
+  A feature with no recorded observability time cannot be audited. Adding that
+  timestamp to the pipeline is the fix, not tuning this tool.
+
+summary: 5 leak/suspect finding(s), 1 warning(s) across 8 feature(s)
+GATE: REJECT - resolve or drop these features before training
+Reminder: SUSPECT is a screen, not a verdict. A feature can be legitimately
+near-perfect (a hard business rule). Confirm by asking whether its value was
+available at the decision moment - not by looking at the metric.
+== split_demo: random vs temporal vs grouped on identical data ==
+dataset: 6000 rows, 600 users, 10 rows per user, base rate  0.4118 (seed 13)
+
+features under test
+  x_signal                 honest, stationary predictor
+  x_drifting               predictive, but its relationship to the label flips over time
+  x_user_mean_global       per-user label mean computed over ALL rows (leaks)
+  x_user_mean_trainonly    per-user label mean fitted on TRAIN rows only
+
+RANDOM split - rows shuffled; the same user and the same day appear on both sides
+  train 4200 rows / test 1800 rows | test users also in train: 100% | time ranges overlap: yes
+  base rate train  0.4079 vs test  0.4211
+  feature                  test AUC
+  x_signal                   0.7274
+  x_drifting                 0.5080
+  x_user_mean_global         0.7879
+  x_user_mean_trainonly      0.6913
+
+TEMPORAL split - train is the earlier period, test is the later period
+  train 4200 rows / test 1800 rows | test users also in train: 100% | time ranges overlap: no
+  base rate train  0.4117 vs test  0.4122
+  feature                  test AUC
+  x_signal                   0.6976
+  x_drifting                 0.3310
+  x_user_mean_global         0.7669
+  x_user_mean_trainonly      0.6589
+
+GROUPED split - train and test users are disjoint
+  train 4200 rows / test 1800 rows | test users also in train: 0% | time ranges overlap: yes
+  base rate train  0.4138 vs test  0.4072
+  feature                  test AUC
+  x_signal                   0.7001
+  x_drifting                 0.5207
+  x_user_mean_global         0.7949
+  x_user_mean_trainonly      0.5000
+
+measured optimism (random split test AUC minus the honest split's)
+  feature                  vs grouped  vs temporal   verdict
+  x_signal                   0.0273       0.0298    no split-driven gap (audit the feature itself)
+  x_drifting                -0.0127       0.1770    SPLIT ARTIFACT - the random number is not real
+  x_user_mean_global        -0.0070       0.0210    no split-driven gap (audit the feature itself)
+  x_user_mean_trainonly      0.1913       0.0324    SPLIT ARTIFACT - the random number is not real
+
+how to read this
+  Gaps below about 0.04 sit inside sampling noise at this test-set size, so only the
+  two flagged rows below are real artifacts.
+
+  x_signal is stationary and entity-independent, so all three splits roughly agree:
+  that is the control proving the dataset and the metric themselves are fine.
+
+  x_drifting collapses under the TEMPORAL split - below 0.5, i.e. actively
+  anti-predictive - because its relationship to the label reverses across the time
+  axis. A random split averages past and future together and reports a number
+  production will never see. This is the leak a temporal split exists to catch.
+
+  x_user_mean_trainonly collapses to ~0.5 under the GROUPED split, because a user
+  with no training history gets the fallback constant. That is the honest cold-start
+  number. Its higher score under the other splits is legitimate only if you really
+  will have that user's history at serving time. This is the leak a grouped split
+  exists to catch.
+
+  x_user_mean_global is the important one: it scores high under EVERY split. The leak
+  is not in the split, it is in the feature - the aggregate was computed over the
+  whole dataset, so each row's own label is inside its own feature value and no
+  partition can remove it. A number that is stable across all three splits is
+  therefore NOT evidence of validity. Only reading the transformation code, or
+  auditing feature timestamps, finds this class of bug.
+
+choose the split that matches how the model will be used - temporal if you predict
+the future, grouped if you will see unseen entities, both if both are true - and
+compute every aggregate feature from training data only.

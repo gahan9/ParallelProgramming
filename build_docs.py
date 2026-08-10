@@ -42,7 +42,7 @@ STAGE = REPO / "_docs"
 #
 # .svg and .js are load-bearing: without them the infographics and the read-aloud script
 # resolve locally but 404 on the published site.
-PUBLISH_SUFFIXES = {".md", ".html", ".css", ".svg", ".js"}
+PUBLISH_SUFFIXES = {".md", ".html", ".css", ".svg", ".js", ".txt", ".json"}
 
 # Directories never worth walking. `site` and `_docs` are build output; the rest are
 # tooling or caches that would only slow the walk down.
@@ -50,6 +50,7 @@ SKIP_DIRS = {
     ".git", ".github", ".cursor", "_docs", "site",
     "__pycache__", ".venv", "venv", ".mypy_cache", ".pytest_cache",
     "profiling_output", "node_modules",
+    "outputs/_raw",
 }
 
 

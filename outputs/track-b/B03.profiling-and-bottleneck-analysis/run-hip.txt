@@ -1,0 +1,16 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:34Z
+---
+== hip/mystery_kernels.exe ==
+n = 16777216 elements (67.1 MB per buffer), 3 warmup + 20 timed iterations
+
+kernel            time (ms)   effective GB/s   result
+-------------- ------------ ---------------- --------
+kernel_alpha          0.023           5878.2   PASSED
+kernel_beta           0.130           1032.0   PASSED
+kernel_gamma          1.109            121.0   PASSED
+kernel_delta          1.064            126.1   PASSED
+
+All four are correct. The differences are entirely performance.
+Profile them and name each bottleneck: see exercises/01_diagnose_mystery.md

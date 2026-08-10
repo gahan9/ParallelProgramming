@@ -1,0 +1,19 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:06Z
+---
+== 01_exclusive_to_inclusive.exe ==
+n = 256
+given  blelloch exclusive scan : PASSED (0 mismatches)
+TODO 1 exclusive -> inclusive  : FAILED (256 mismatches)
+TODO 2 inclusive -> exclusive  : FAILED (255 mismatches)
+TODO 3 grand total             : FAILED (got 0.0, expected 766.0)
+   (non-zero exit - expected until the TODOs are done)
+
+== 02_segmented_scan.exe ==
+segmented inclusive scan: n = 256, 7 segments (head every 37 elements)
+result : FAILED (219 mismatches)
+first mismatch at i = 37 (segment head at 37): got 111.0, expected 3.0
+An unsegmented scan is correct until the first head, then carries the
+previous segment's total forward. That is the bug the flags must stop.
+   (non-zero exit - expected until the TODOs are done)

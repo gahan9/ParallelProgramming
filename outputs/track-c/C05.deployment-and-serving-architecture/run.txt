@@ -1,0 +1,213 @@
+# cmd: bash -lc cd 'tracks/C-ml-system-design/C05.deployment-and-serving-architecture' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:41Z
+---
+================ tools/ab_calculator.py ================
+==========================================================================
+A/B CALCULATOR DEMO -- run with -h for the individual sub-commands
+==========================================================================
+
+>>> size --baseline 0.12 --mde-rel 0.02
+
+Sample size (two-sided two-proportion test)
+--------------------------------------------------------------
+  baseline rate        : 0.1200
+  minimum detectable   : 0.0024 absolute (2.0% relative)
+  significance (alpha) : 0.050   -> z = 1.9600
+  power (1 - beta)     : 0.800   -> z = 0.8416
+
+  users per arm        : 290,273
+  users total (2 arms) : 580,546
+  at 500,000 eligible users/day x 20% in the test: 5.8 days
+  NOTE: run at least one full week anyway. Weekday and weekend
+        populations differ; a 3-day test measures Tue-Thu users.
+
+  Sensitivity: halving the MDE quadruples the sample size.
+    MDE x 2.00  ->         73,186 users/arm
+    MDE x 1.00  ->        290,273 users/arm
+    MDE x 0.50  ->      1,156,135 users/arm
+    MDE x 0.25  ->      4,614,613 users/arm
+
+>>> evaluate --n-control 120000 --c-control 14320 --n-treatment 120000 --c-treatment 14690
+
+Observed result (two-sided two-proportion z-test)
+--------------------------------------------------------------
+  control   :    120,000 users,   14,320 conv -> 0.1193
+  treatment :    120,000 users,   14,690 conv -> 0.1224
+
+  absolute lift : +0.00308
+  relative lift : +2.58%
+  z statistic   : +2.3169
+  p-value       : 0.02051
+  95% CI (abs)  : [+0.00048, +0.00569]
+
+  verdict: significant at alpha=0.050
+
+  Reminder: this p-value is only valid if you fixed the sample size
+  in advance and looked once. If you have been watching a dashboard,
+  run the 'peeking' sub-command to see what that costs you.
+
+>>> peeking
+
+The peeking problem (seeded A/A simulation -- SIMULATED DATA, not measured)
+--------------------------------------------------------------------------
+  Both arms are drawn from the SAME true rate (0.120), so any 'significant'
+  result is a false positive by construction. alpha = 0.050, so an honest
+  test looked at once should be wrong about 5.0% of the time.
+  trials = 4,000, users/arm = 40,000, seed = 20240729
+
+  looks    stop-at-first-signif.  fixed-n, test once    
+  -------- ---------------------- ----------------------
+  1        5.1%                   5.1%                  
+  2        8.5%                   5.2%                  
+  5        13.5%                  4.9%                  
+  10       18.1%                  4.2%                  
+  20       24.9%                  4.9%                  
+
+  Read the left column: it is the chance of shipping a change that does
+  nothing, purely because someone refreshed the dashboard. It climbs with
+  the number of looks while the right column stays near alpha.
+
+  Fixes, in rough order of practicality:
+    1. Fix the sample size in advance and do not stop early. Boring, correct.
+    2. Alpha-spending / group-sequential boundaries (O'Brien-Fleming,
+       Pocock) if you need pre-planned interim looks.
+    3. Always-valid inference / sequential tests (Johari et al. 2015) if
+       you genuinely need a continuously-monitored dashboard.
+    4. Keep a separate, always-on guardrail alert for harm. Stopping EARLY
+       FOR HARM is legitimate; stopping early for a win is not.
+
+================ tools/capacity_autoscale.py ================
+====================================================================================================
+GPU AUTOSCALING SIMULATION -- every figure below is SIMULATED, not measured
+====================================================================================================
+  seed 20240729 | 18 rps per replica | cold start 180s (12 ticks) | SLO 1500 ms
+  service latency at empty queue 400 ms | shed beyond 5s of queued work | $3.00/GPU-h
+
+  primary product traffic (simulated, 24 h in 15-second ticks)
+  mean 123.4 rps, peak 604 rps, trough 19.0 rps, peak/trough 31.7x
+  hour  000000000011111111112222
+        012345678901234567890123
+  load [..      ...::=------:::.]
+  flash spike: x2.5 for 15 minutes starting at minute 780 of the day
+  replicas required at peak: 48
+
+PANEL 1 -- policy comparison, cold start 180s
+============================================================================================
+policy                            SLO viol     shed   p50 ms    p99 ms   p99.9 ms    util    GPU-h     $/day
+------------------------------------------------------------------------------------------------------------
+static @ peak (48 replicas)          0.00%    0.00%      400       400        400     14%   1152.0      3456
+reactive autoscale (floor 1)         0.79%    0.26%      400       400       5400     52%    316.6       950
+reactive + warm pool 2               0.79%    0.20%      400       400       5400     45%    364.8      1095
+reactive + warm pool 5               0.76%    0.11%      400       400       5400     38%    436.8      1310
+reactive + warm pool 10              0.48%    0.00%      400       400       4401     30%    557.0      1671
+
+PANEL 2 -- cold-start sensitivity for the reactive autoscaler (floor 1, no warm pool)
+============================================================================================
+  Same policy, same traffic, same seed. Only the weight-load time changes.
+
+policy                            SLO viol     shed   p50 ms    p99 ms   p99.9 ms    util    GPU-h     $/day
+------------------------------------------------------------------------------------------------------------
+cold start   15s                     0.11%    0.01%      400       400       1501     52%    314.8       944
+cold start   30s                     0.17%    0.05%      400       400       1874     52%    315.4       946
+cold start   60s                     0.30%    0.10%      400       400       5400     52%    315.2       946
+cold start  180s                     0.79%    0.26%      400       400       5400     52%    316.6       950
+cold start  300s                     1.42%    0.42%      400      1501       5400     52%    314.8       944
+cold start  600s                     2.48%    0.82%      400      5400       5400     51%    319.8       959
+
+PANEL 3 -- scale-to-zero on a sparse, bursty workload
+============================================================================================
+  sparse internal-tool traffic (simulated, 24 h in 15-second ticks)
+  mean 0.4 rps, peak 15 rps, trough 0.0 rps, peak/trough infinite (fully idle periods)
+  hour  000000000011111111112222
+        012345678901234567890123
+  load [   .                    ]
+
+policy                            SLO viol     shed   p50 ms    p99 ms   p99.9 ms    util    GPU-h     $/day
+------------------------------------------------------------------------------------------------------------
+scale-to-zero (floor 0)             52.83%   52.83%     cold      cold       cold      6%      4.9        15
+floor 1 (always one replica)         0.00%    0.00%      400       400        400      2%     26.4        79
+static @ peak (2 replicas)           0.00%    0.00%      400       400        400      1%     48.0       144
+
+HOW TO READ THIS
+====================================================================================================
+  1. Static-at-peak is the honest upper bound on cost and lower bound on risk:
+     $3456/day, 0.00% violations, 14% utilization. You are paying for the
+     evening peak all night long.
+  2. Reactive autoscaling saves $2506/day (73%) and buys +0.79 pp of SLO
+     violations. Whether that trade is acceptable is a product decision, not an
+     infrastructure one -- take it to the person who owns the SLO.
+  3. The warm pool is priced insurance. It shows up directly in GPU-hours and
+     directly reduces p99 during the ramp and the flash spike. Present it that
+     way to a budget owner rather than as a technical detail.
+  4. Panel 2 is the strategic result: shrinking the cold start moves the whole
+     frontier. Local NVMe weight cache, faster checkpoint formats, and keeping a
+     warm image beat any amount of controller tuning.
+  5. Panel 3: scale-to-zero costs $65/day less than a single always-on replica,
+     and takes SLO violations from 0.00% to 52.83%. If your SLO is anywhere near
+     the cold start, scale-to-zero is not a cost optimization -- it is an outage
+     you scheduled in advance, once per idle gap.
+
+================ tools/degradation_planner.py ================
+========================================================================================
+AVAILABILITY WITH AND WITHOUT GRACEFUL DEGRADATION
+  stack: LLM assistant serving stack
+========================================================================================
+
+Serial path -- every one of these must work
+component                                      availability    downtime/yr
+---------------------------------------------- ------------ --------------
+edge / CDN                                        99.99900%        5.3 min
+API gateway + authn                               99.99000%       52.6 min
+model router                                      99.95000%      4.4 hours
+SERIAL SUBTOTAL (product)                         99.93901%      5.3 hours
+
+Fallback chain -- tried in order, only one has to work
+alternative                                    availability  quality     reached
+---------------------------------------------- ------------ -------- -----------
+primary GPU model (70B)                           99.50000%    1.00   100.0000%
+response cache (semantic, <1h old)                98.00000%    0.72     0.5000%
+small model (7B) on spare capacity                99.00000%    0.65     0.0100%
+static templated answer + retry hint              99.99000%    0.20     0.0001%
+
+Result (shared-fate correlation = 0.00)
+scenario                                        availability    nines      downtime/yr
+---------------------------------------------- ------------- -------- ----------------
+primary only (500 on any failure)                  99.43931%     2.25         2.0 days
+with fallback chain (any response)                 99.93901%     3.21        5.3 hours
+quality-weighted (honest number)                   99.79835%     2.70       17.7 hours
+
+  The fallback chain buys 1.8 days of availability per year
+  (2.25 nines -> 3.21 nines). But 12.3 hours of that is served at reduced
+  quality, which is why the third row exists. Publish the third row.
+
+Sensitivity -- effect of taking each component to one extra nine
+improve this                                    downtime saved/yr
+---------------------------------------------- ------------------
+model router                                            3.9 hours
+API gateway + authn                                      47.3 min
+edge / CDN                                                4.7 min
+static templated answer + retry hint                      0.0 min
+small model (7B) on spare capacity                        0.0 min
+response cache (semantic, <1h old)                        0.0 min
+primary GPU model (70B)                                   0.0 min
+
+  Spend effort at the top of this list. Anything on the serial path is
+  usually worth more than the fourth fallback, because the serial path
+  has no alternative by definition.
+
+Shared-fate sensitivity -- what independence is worth
+shared fate            availability      nines      downtime/yr
+-------------------- -------------- ---------- ----------------
+0%                        99.93901%       3.21        5.3 hours
+10%                       99.88904%       2.95        9.7 hours
+25%                       99.81408%       2.73       16.3 hours
+50%                       99.68916%       2.51         1.1 days
+100%                      99.43931%       2.25         2.0 days
+
+  Read the last row as the answer to 'what if the fallback shares a
+  dependency with the primary?'. A cache in the same cluster, a small
+  model behind the same router, or a heuristic that reads the same
+  feature store are all closer to the bottom row than the top one.
+  Test this by actually failing the primary in a game day, not by
+  believing the spreadsheet.

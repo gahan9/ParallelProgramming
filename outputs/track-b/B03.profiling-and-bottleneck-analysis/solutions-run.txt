@@ -1,0 +1,6 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:35Z
+---
+make: *** No rule to make target 'run'.  Stop.
+make: *** No rule to make target 'run'.  Stop.

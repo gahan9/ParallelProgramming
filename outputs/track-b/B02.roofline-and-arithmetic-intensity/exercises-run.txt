@@ -1,0 +1,28 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:31Z
+---
+== 03_place_your_kernel.exe ==
+device      : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-), 256 CUs
+n           : 67108864 floats, 2048 blocks x 256 threads
+
+NOTE: no compute ceiling given, using the placeholder 60000 GFLOP/s.
+      Run ../hip/measure_ceilings.exe and pass its P as argv[1].
+
+ceilings
+  memory roof  B : 4547.1 GB/s     (measured here, coalesced copy)
+  compute roof P : 60000.0 GFLOP/s  (PLACEHOLDER)
+  ridge point    : 13.20 FLOP/byte
+
+kernel              ms       FLOPs       bytes   I (F/B)     GFLOP/s   roof GF/s   % roof verdict         verify
+------------ --------- ----------- ----------- --------- ----------- ----------- -------- --------------- ------
+sum_reduce       0.075   0.000e+00   0.000e+00     0.000         0.0         0.0     0.0% TODO              PASS
+fma_heavy        0.167   0.000e+00   0.000e+00     0.000         0.0         0.0     0.0% TODO              PASS
+
+kernels verified : PASSED
+instrumentation  : FAILED (TODOs still return 0)
+
+Fill in TODO 1-3 above. When correct you should see roughly
+I = 0.25 FLOP/byte for sum_reduce (memory-bound) and I = 16 FLOP/byte
+for fma_heavy, whose verdict depends on where your ridge point landed.
+   (non-zero exit - expected until the TODOs are done)

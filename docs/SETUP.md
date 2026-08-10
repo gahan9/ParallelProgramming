@@ -156,6 +156,27 @@ Options, roughly cheapest-first:
 
 ---
 
+## 6. Cached lab output (`outputs/`)
+
+GPU lab transcripts are checked in under [`outputs/`](../outputs/README.md) — captured on
+**`gfx950`, ROCm 7**, with hostnames, usernames, PCI addresses, topology matrices, and detailed
+toolchain versions stripped. Use them when you have no local GPU or when you want to compare your
+run against a reference shape (PASS/FAIL, bandwidth ratios, profiler table layout).
+
+Reproduce or refresh the cache on any ROCm 7 + `gfx950` machine:
+
+```bash
+git clone https://github.com/gahan9/ParallelProgramming
+cd ParallelProgramming
+export GPU_ARCH=gfx950
+export HIP_PATH=/opt/rocm
+bash scripts/collect_outputs.sh
+```
+
+Sanitized files land in `outputs/`; raw captures stay in `outputs/_raw/` (gitignored).
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

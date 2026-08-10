@@ -1,0 +1,31 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A07.softmax-and-fused-kernels/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:18Z
+---
+== 01_safe_softmax.exe ==
+rows = 4096, cols = 512, block = 256
+time / iter    : 0.008 ms
+effective BW   : 4363.2 GB/s   (3 reads + 1 write)
+non-finite     : 1
+max |err|      : 1.105e-09
+row 0 sum      : -nan  (must be 1.0)
+result         : FAILED
+   (non-zero exit - expected until the TODOs are done)
+
+== 02_masked_softmax.exe ==
+row   valid   row sum       max |err|     non-fin   result
+----- ------- ------------- ------------- --------- ------
+0     256     1.000000      1.695e-09     0         PASSED
+1     200     0.830092      5.752e-03     0         FAILED
+2     128     0.509737      2.257e-02     0         FAILED
+3     0       0.000000      0.000e+00     0         PASSED
+4     64      0.188956      9.078e-02     0         FAILED
+5     1       0.017030      9.830e-01     0         FAILED
+6     250     0.980729      4.192e-04     0         FAILED
+7     17      0.056736      3.164e-01     0         FAILED
+
+overall: FAILED
+Row 3 is the one that matters: valid = 0, so every score is -inf. It must
+produce a row of exact zeros, never a NaN - a single NaN here propagates
+through the whole backward pass and poisons every weight in the model.
+   (non-zero exit - expected until the TODOs are done)

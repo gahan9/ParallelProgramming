@@ -1,0 +1,35 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A01.foundations-and-programming-model' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:40Z
+---
+== hip/hello.exe ==
+Launching 2 blocks x 4 threads = 8 GPU threads
+Hello from block 1, thread 0 -> global index 4
+Hello from block 1, thread 1 -> global index 5
+Hello from block 1, thread 2 -> global index 6
+Hello from block 1, thread 3 -> global index 7
+Hello from block 0, thread 0 -> global index 0
+Hello from block 0, thread 1 -> global index 1
+Hello from block 0, thread 2 -> global index 2
+Hello from block 0, thread 3 -> global index 3
+Hello from the CPU (host) - after the GPU finished.
+
+== hip/vector_add.exe ==
+n = 16777216, block = 256, grid = 65536
+kernel time      : 0.647 ms
+effective BW     : 311.0 GB/s
+result           : PASSED
+
+== hip/coalescing.exe ==
+stride   effective GB/s  
+-------- ----------------
+1        3618.1          
+2        1533.3          
+4        757.4           
+8        382.0           
+16       190.8           
+32       104.4           
+
+Expect: stride 1 (coalesced) near peak HBM; higher strides drop as
+each wavefront's lanes fall into separate cache lines. Same math, worse
+memory pattern -> much lower effective bandwidth.

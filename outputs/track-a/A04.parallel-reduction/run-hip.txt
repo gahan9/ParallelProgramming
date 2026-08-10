@@ -1,0 +1,31 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A04.parallel-reduction' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:59Z
+---
+== hip/reduction.exe ==
+device          : AMD Instinct GPU (gfx950) (256 CUs/SMs)
+n               : 16777216 floats (64.0 MiB), block = 256, cascade grid = 1024
+reference (fp64): 8304714.996250
+
+stage                                                      ms      GB/s    vs #1    rel err result
+---------------------------------------------------- -------- --------- -------- ---------- ------
+1 interleaved, modulo branch (divergent)               0.0596    1125.5     1.00x   4.52e-10 PASSED
+2 interleaved, strided index (bank conflicts)          0.0585    1147.5     1.02x   4.52e-10 PASSED
+3 sequential addressing (conflict-free)                0.0483    1388.7     1.23x   4.52e-10 PASSED
+4 + first add during global load                       0.0295    2275.4     2.02x   6.07e-08 PASSED
+5 + unrolled last warp                                 0.0240    2791.4     2.48x   6.07e-08 PASSED
+6 + complete unroll (templated block size)             0.0224    3001.0     2.67x   6.07e-08 PASSED
+7 + grid-stride cascade (many elems/thread)            0.0277    2427.0     2.16x   5.98e-08 PASSED
+8 warp shuffle + grid stride (modern idiom)            0.0259    2589.5     2.30x   4.52e-10 PASSED
+9 shuffle + atomicAdd (1 launch, nondeterministic)     0.0344    1951.8     1.73x   2.40e-07 PASSED
+
+determinism probe (8 repeats of the same input):
+  stage 8 (second kernel launch): bitwise identical every run   [min 8304715.000000, max 8304715.000000]
+  stage 9 (atomicAdd): results DIFFER between runs   [min 8304712.500000, max 8304716.500000]
+
+Expect roughly: #1 slowest; a large jump at #3 (divergence + bank
+conflicts gone) and again at #7 (enough work per thread to saturate
+HBM); #7/#8/#9 within noise of each other because all three are
+bandwidth-bound. Absolute numbers are hardware-dependent - the
+ORDERING is the lesson. Compare the top GB/s against your GPU's peak
+HBM bandwidth (A02 Lab 1 measures it).

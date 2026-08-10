@@ -1,0 +1,31 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B04.precision-and-quantization/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:39Z
+---
+=== Exercise 3 - group-wise int8 quantization ===
+
+W: 64 x 256 fp32, 64.0 KiB
+  |w|max inside the band  : 12.4679
+  |w|max outside the band : 0.2012
+
+scheme                      rel err W rel err Wx rest max err rest rms err     bytes   vs fp32
+----------------------------------------------------------------------------------------------
+per-tensor                    0.04044    0.03993     0.049083     0.028496         0      nanx
+per-channel                not implemented yet (fill in the TODO)
+per-group g=128            not implemented yet (fill in the TODO)
+per-group g=64             not implemented yet (fill in the TODO)
+per-group g=32             not implemented yet (fill in the TODO)
+per-group g=16             not implemented yet (fill in the TODO)
+per-group g=8              not implemented yet (fill in the TODO)
+
+TODO 4 - answer these, in a comment at the bottom of this file:
+  a) Going from per-channel to g=32, 'rest rms err' improves substantially
+     but 'rest max err' hardly moves at all. Which specific columns are still
+     badly quantized, and why? (The band is columns 100..107.)
+     Then: what would change if the band were 32-column aligned?
+  b) 'rel err W' keeps improving as g shrinks while 'vs fp32' keeps falling.
+     Pick the g you would ship, and state the rule you used - not the value.
+  c) Compute bytes per weight at g=128 and at g=8. Which one would you pick for
+     a memory-bound decode, and does the error column change your mind?
+  d) The band sits in the same columns of every row. Name a scheme that exploits
+     that structure better than group-wise does, and say what it costs you.

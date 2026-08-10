@@ -1,0 +1,47 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A07.softmax-and-fused-kernels' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:16Z
+---
+== hip/softmax.exe ==
+device            : AMD Instinct GPU (gfx950) (warpSize = 64)
+softmax over rows : rows = 8192, cols = 1024 (32.0 MiB per tensor), block = 256
+poison            : x[0][3] = 100.0  (expf overflows fp32 above ~88.7)
+
+kernel                           passes  ms        GB/s        max |err|   nonfin result
+-------------------------------- ------- --------- ----------- ----------- ------ ------
+1 naive unsafe (no max sub)      3       0.022     4575.4      inf         1      FAILED
+2 safe 3-pass (max trick)        4       0.028     4761.0      8.39e-10    0      PASSED
+3 online 2-pass (running max)    3       0.030     3350.4      9.73e-10    0      PASSED
+4 online 1-pass (row in regs)    2       0.026     2559.3      9.73e-10    0      PASSED
+
+row 0 (the poisoned row): sum over the row, then the first 6 outputs.
+Expected: sum = 1.0, and ~1.0 at col 3 with ~0 everywhere else.
+  1 naive unsafe (no max sub)      sum=      -nan |   0.000000   0.000000   0.000000       -nan   0.000000   0.000000
+  2 safe 3-pass (max trick)        sum=  1.000000 |   0.000000   0.000000   0.000000   1.000000   0.000000   0.000000
+  3 online 2-pass (running max)    sum=  1.000000 |   0.000000   0.000000   0.000000   1.000000   0.000000   0.000000
+  4 online 1-pass (row in regs)    sum=  1.000000 |   0.000000   0.000000   0.000000   1.000000   0.000000   0.000000
+
+Kernel 1 is SUPPOSED to fail: exp(100) = inf, so the normalizer is inf,
+inf/inf = nan for the big score and finite/inf = 0 for every other one.
+Kernels 2-4 are bit-for-bit the same mathematics with the max subtracted;
+the only thing that changes between them is how many times the row is read
+from HBM (4 -> 3 -> 2 traversals), which for a ~1 FLOP/byte kernel is the
+entire runtime story.
+
+== hip/fused_softmax.exe ==
+scores            : 2048 x 2048 fp32 (16.0 MiB per tensor), scale = 1/sqrt(128)
+mask              : causal (additive -inf strictly above the diagonal)
+
+pipeline                         launches  traversals  HBM MiB     ms        GB/s        max |err|   result
+-------------------------------- --------- ----------- ----------- --------- ----------- ----------- ------
+unfused: scale | mask | softmax  3         7           112.0       0.036     3224.0      3.00e-08    PASSED
+fused:   one kernel              1         2           32.0        0.014     2409.4      3.00e-08    PASSED
+
+HBM traffic  : 112.0 MiB unfused vs 32.0 MiB fused -> 3.50x less
+measured     : 0.036 ms unfused vs 0.014 ms fused -> 2.62x faster
+
+The speedup normally lands BELOW the 3.5x traffic ratio: the scale and mask
+kernels are pure streaming (they hit close to peak bandwidth) while the fused
+kernel carries reduction barriers, and part of the unfused traffic may be
+served by L2 rather than HBM. Compare the two numbers on your GPU and explain
+the gap - that reasoning is the point of the lab.

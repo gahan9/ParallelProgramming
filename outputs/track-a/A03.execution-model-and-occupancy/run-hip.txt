@@ -1,0 +1,51 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A03.execution-model-and-occupancy' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:52Z
+---
+== hip/divergence.exe ==
+device      : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-)
+warpSize    : 64 lanes per wavefront
+workload    : n = 4194304, 512 FMAs per element, block = 256, 20 timed reps
+
+kernel                                           ms    GFLOP/s   vs base result
+------------------------------------------ -------- ---------- --------- ------
+lane-divergent  if (i % 2)                    0.298    14395.9     1.19x PASSED
+warp-uniform    if ((i / warpSize) % 2)       0.137    31408.8     0.54x PASSED
+branchless      arithmetic select             0.251    17093.8     1.00x PASSED
+
+Expect lane-divergent ~2x the branchless baseline (both paths execute per
+wavefront) and warp-uniform ~1x (each wavefront runs one path). If the two
+are equal, your compiler if-converted the branch for you - check the ISA
+with: hipcc -O3 --offload-arch=gfx950:sramecc+:xnack- --save-temps -c hip/divergence.cpp
+
+== hip/occupancy.exe ==
+device            : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-)
+CUs               : 256
+warpSize          : 64 lanes per wavefront
+max threads / CU  : 2048  (= 32 wavefronts)
+LDS / CU          : 163840 B
+regs / block      : 131072
+workload          : 1048576 threads, 64 dependent hops, 20 timed reps
+
+sweep 1 - block size, no dynamic LDS
+  block  blocks/CU  waves/CU  theo.occ        ms    Ghops/s result
+------- ---------- --------- --------- --------- ---------- ------
+     64         32        32    100.0%     0.023    2862.15 PASSED
+    128         16        32    100.0%     0.025    2665.68 PASSED
+    256          8        32    100.0%     0.022    3085.90 PASSED
+    512          4        32    100.0%     0.023    2906.78 PASSED
+   1024          2        32    100.0%     0.023    2972.97 PASSED
+
+sweep 2 - dynamic LDS per block (block = 256, LDS is the limiter)
+ LDS KB  blocks/CU  waves/CU  theo.occ        ms    Ghops/s result
+------- ---------- --------- --------- --------- ---------- ------
+      2          8        32    100.0%     0.021    3214.50 PASSED
+      8          8        32    100.0%     0.021    3249.37 PASSED
+     16          8        32    100.0%     0.021    3195.52 PASSED
+     32          5        20     62.5%     0.036    1868.31 PASSED
+
+Read sweep 1 for 'theoretical occupancy barely moves, time still does' and
+sweep 2 for the real occupancy cliff: every doubling of the LDS request halves
+the resident blocks. Occupancy is a means (latency hiding), not the goal -
+if Ghops/s stops improving while occupancy still rises, you have found the
+point of diminishing returns on this GPU.

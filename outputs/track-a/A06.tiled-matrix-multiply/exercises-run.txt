@@ -1,0 +1,23 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A06.tiled-matrix-multiply/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:11Z
+---
+== 01_tiled_matmul.exe ==
+kernel          ms/iter      GFLOP/s  max rel err result  
+------------ ---------- ------------ ------------ --------
+naive             0.057       4716.8     1.56e-06 PASSED  
+tiled             0.002     107974.5     1.00e+00 FAILED  
+
+The tiled kernel is still a skeleton - finish TODO 1..4.
+   (non-zero exit - expected until the TODOs are done)
+
+== 02_ragged_dims.exe ==
+TILE = 32. A case only exercises the guards when a dimension is not
+a multiple of TILE.
+
+A) all dims multiple           512 x 512   k=512    max rel 1.56e-06  PASSED
+B) M,N ragged  K aligned       500 x 260   k=512    max rel 1.39e-06  PASSED
+C) K ragged                    500 x 260   k=377    max rel 4.74e-02  FAILED (130000/130000 wrong, 7120 of them in the boundary tiles, first at [0,0])
+
+1 case(s) failed. Fix TODO 1 and TODO 2, then answer Q1-Q3.
+   (non-zero exit - expected until the TODOs are done)

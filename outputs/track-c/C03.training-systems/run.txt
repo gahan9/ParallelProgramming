@@ -1,0 +1,178 @@
+# cmd: bash -lc cd 'tracks/C-ml-system-design/C03.training-systems' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:40Z
+---
+== checkpoint_planner: 64-GPU job, MTBF 6h, 180s checkpoint ==
+Checkpoint interval planner - analytic model (Young/Daly first order)
+------------------------------------------------------------------------------
+  MTBF                      : 6.00 h
+  full checkpoint write     : 180.0 s
+  restart + reload          : 12.0 min
+  step time                 : 0.750 s
+  useful compute in the run : 336.0 h
+  GPUs x $/GPU-hour         : 64 x $2.50
+
+1. Overhead vs interval (synchronous single-writer checkpoint)
+  interval    steps    write%   lost%   total%   goodput%
+  ---------- -------- -------- ------- -------- ---------
+         60s       80  300.00%   3.47%  303.47%     0.00%
+        2.0m      160  150.00%   3.61%  153.61%     0.00%
+        5.0m      400   60.00%   4.03%   64.03%    35.97%
+       10.0m      800   30.00%   4.72%   34.72%    65.28%
+       20.0m     1600   15.00%   6.11%   21.11%    78.89%
+       30.0m     2400   10.00%   7.50%   17.50%    82.50%
+       60.0m     4800    5.00%  11.67%   16.67%    83.33%
+       2.00h     9600    2.50%  20.00%   22.50%    77.50%
+       4.00h    19200    1.25%  36.67%   37.92%    62.08%
+       8.00h    38400    0.62%  70.00%   70.62%    29.38%
+
+  Rows where write% exceeds 100% are the first-order model outside its
+  validity range (C must be small next to T): they mean 'never do this',
+  not a literal figure.
+
+2. The same job under three checkpoint strategies
+* synchronous, single writer
+    blocking cost per checkpoint : 180.0 s (bytes still take 180.0 s of I/O)
+    optimal interval T*          : 46.5m (3718 steps)
+    overhead at T*               : 6.45% write + 9.79% lost = 16.24%
+    run of 336 useful GPU-h -> 401.2 h wall, 65.2 h wasted ($10,426 across 64 GPUs)
+
+* sharded across 8 ranks
+    blocking cost per checkpoint : 22.5 s (bytes still take 22.5 s of I/O)
+    optimal interval T*          : 16.4m (1315 steps)
+    overhead at T*               : 2.28% write + 5.62% lost = 7.90%
+    run of 336 useful GPU-h -> 364.8 h wall, 28.8 h wasted ($4,610 across 64 GPUs)
+
+* sharded + async (stall 10%)
+    blocking cost per checkpoint : 2.2 s (bytes still take 22.5 s of I/O)
+    optimal interval T*          : 5.2m (416 steps)
+    overhead at T*               : 0.72% write + 4.06% lost = 4.78%
+    run of 336 useful GPU-h -> 352.9 h wall, 16.9 h wasted ($2,697 across 64 GPUs)
+
+3. Sensitivity around the optimum (synchronous case)
+  How much does missing T* cost you?
+    factor off T*   interval    total overhead   penalty vs T*
+    ------------- ----------- ---------------- ---------------
+            0.25x       11.6m           30.77%         +14.52 pp
+            0.50x       23.2m           19.47%          +3.23 pp
+            1.00x       46.5m           16.24%          +0.00 pp
+            2.00x       1.55h           19.47%          +3.23 pp
+            4.00x       3.10h           30.77%         +14.52 pp
+
+  The curve is flat near the optimum: a 2x error costs little, which is
+  why a rough MTBF estimate is good enough to act on.
+
+== throughput_budget: input pipeline delivering less than the GPUs can eat ==
+Training throughput and cost budget - analytic model
+------------------------------------------------------------------------------
+  GPUs                       : 64
+  per-GPU rate               : 120 samples/s
+  scaling efficiency         : 90%
+  compute capacity           : 6,912 samples/s
+  input pipeline capacity    : 5,000 samples/s
+  workload                   : 20,000,000 samples x 8 epochs
+  overlap (prefetch)         : on
+
+1. Scenarios
+* GPU-bound ceiling (loader never starves the GPUs)
+    achieved throughput : 6,912 samples/s (100.0% GPU utilization)
+    time to train       : 6.43 h (0.27 days)
+    cost                : $1,029 (412 GPU-hours)
+
+* Your configuration
+    achieved throughput : 5,000 samples/s (72.3% GPU utilization)
+    time to train       : 8.89 h (0.37 days)
+    cost                : $1,422 (569 GPU-hours)
+
+  Starvation tax: 2.5 extra hours, $393 extra,
+  for the same finished model. That is what 28% idle GPU costs.
+
+2. Sensitivity to input-pipeline capacity
+  Loader capacity as a multiple of what the GPUs can consume:
+    loader/compute   samples/s      util     hours      cost    tax vs ideal
+    -------------- ----------- --------- --------- --------- ---------------
+              0.25       1,728     25.0%      25.7 $   4,115 $         3,086
+              0.50       3,456     50.0%      12.9 $   2,058 $         1,029
+              0.75       5,184     75.0%       8.6 $   1,372 $           343
+              0.90       6,221     90.0%       7.1 $   1,143 $           114
+              1.00       6,912    100.0%       6.4 $   1,029 $             0
+              1.25       6,912    100.0%       6.4 $   1,029 $             0
+              2.00       6,912    100.0%       6.4 $   1,029 $             0
+
+  Note the shape: over-provisioning the loader buys nothing (the GPUs cap
+  the rate), while under-provisioning costs proportionally. Input pipelines
+  should be sized with headroom, because the penalty is one-sided.
+
+== throughput_budget: same job with prefetch disabled ==
+Training throughput and cost budget - analytic model
+------------------------------------------------------------------------------
+  GPUs                       : 64
+  per-GPU rate               : 120 samples/s
+  scaling efficiency         : 90%
+  compute capacity           : 6,912 samples/s
+  input pipeline capacity    : 5,000 samples/s
+  workload                   : 20,000,000 samples x 8 epochs
+  overlap (prefetch)         : OFF
+
+1. Scenarios
+* GPU-bound ceiling (loader never starves the GPUs)
+    achieved throughput : 6,912 samples/s (100.0% GPU utilization)
+    time to train       : 6.43 h (0.27 days)
+    cost                : $1,029 (412 GPU-hours)
+
+* Your configuration
+    achieved throughput : 2,901 samples/s (42.0% GPU utilization)
+    time to train       : 15.32 h (0.64 days)
+    cost                : $2,451 (980 GPU-hours)
+
+  Starvation tax: 8.9 extra hours, $1,422 extra,
+  for the same finished model. That is what 58% idle GPU costs.
+
+2. Sensitivity to input-pipeline capacity
+  Loader capacity as a multiple of what the GPUs can consume:
+    loader/compute   samples/s      util     hours      cost    tax vs ideal
+    -------------- ----------- --------- --------- --------- ---------------
+              0.25       1,382     20.0%      32.2 $   5,144 $         4,115
+              0.50       2,304     33.3%      19.3 $   3,086 $         2,058
+              0.75       2,962     42.9%      15.0 $   2,401 $         1,372
+              0.90       3,274     47.4%      13.6 $   2,172 $         1,143
+              1.00       3,456     50.0%      12.9 $   2,058 $         1,029
+              1.25       3,840     55.6%      11.6 $   1,852 $           823
+              2.00       4,608     66.7%       9.6 $   1,543 $           514
+
+  Without prefetch there is no flat region: utilization keeps improving
+  as the loader gets faster and never reaches 100%, because loading and
+  compute take turns. Overlap is the fix; a faster loader is only a patch.
+
+== hpo_budget: 2048 GPU-hours, three search strategies ==
+Hyperparameter search under a fixed budget - seeded simulation
+------------------------------------------------------------------------------
+  budget            : 2,048 GPU-hours = 32 full runs
+  full run          : 64 GPU-hours
+  search space      : 4 dimensions, 70% of the variance in one of them
+  halving           : eta=3, 4 rungs, early-run noise 0.35
+  repetitions       : 400 (seed 20260729)
+
+  strategy             configs  full runs  distinct values
+                      explored   completed  on the dim that matters
+  ------------------- --------- ----------- -----------------------
+  grid                       32          32                       2
+  random                     32          32                      32
+  successive halving        216           8                     216
+
+  strategy             mean best   median   p10      p90
+  ------------------- ---------- -------- -------- --------
+  grid                     1.477    1.491    0.549    2.396
+  random                   2.032    1.992    1.408    2.612
+  successive halving       2.737    2.700    2.164    3.344
+
+  How to read this
+  - Grid and random spend the identical budget, but grid retries the same
+    values of the dimension that matters, so it effectively samples far
+    fewer distinct settings. That gap widens with --dimensions.
+  - Successive halving explores far more configs for the same money by
+    killing bad ones early. Its risk is --early-noise: if short runs do
+    not rank configs correctly, it discards the eventual winner. Raise
+    --early-noise and watch its advantage disappear.
+  - p10 is the number to defend in a review: it is the outcome when the
+    search gets unlucky, and it is what a one-shot experiment actually is.

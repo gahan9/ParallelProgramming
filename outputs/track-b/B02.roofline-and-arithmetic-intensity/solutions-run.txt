@@ -1,0 +1,27 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm 2>&1 || make -s run 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:32Z
+---
+== 03_place_your_kernel_solution.exe ==
+device      : AMD Instinct GPU (gfx950) (gfx950:sramecc+:xnack-), 256 CUs
+n           : 67108864 floats, 2048 blocks x 256 threads
+
+NOTE: no compute ceiling given, using the placeholder 60000 GFLOP/s.
+      Run ../hip/measure_ceilings.exe and pass its P as argv[1].
+
+ceilings
+  memory roof  B : 4562.5 GB/s     (measured here, coalesced copy)
+  compute roof P : 60000.0 GFLOP/s  (PLACEHOLDER)
+  ridge point    : 13.15 FLOP/byte
+
+kernel              ms       FLOPs       bytes   I (F/B)     GFLOP/s   roof GF/s   % roof verdict         verify
+------------ --------- ----------- ----------- --------- ----------- ----------- -------- --------------- ------
+sum_reduce       0.074   6.763e+07   2.684e+08     0.252       911.0      1149.5    79.3% memory-bound      PASS
+fma_heavy        0.166   8.590e+09   5.369e+08    16.000     51668.3     60000.0    86.1% near the ridge    PASS
+
+sum_reduce achieved 3616.0 GB/s = 79.3% of the copy ceiling.
+That percentage, not its GFLOP/s, is the number to optimize for a
+memory-bound kernel. Read Section 5 of the README for why.
+
+kernels verified : PASSED
+instrumentation  : PASSED

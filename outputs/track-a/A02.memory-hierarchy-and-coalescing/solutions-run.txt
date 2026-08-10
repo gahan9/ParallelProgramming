@@ -1,0 +1,10 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:50Z
+---
+== 01_coalesce_solution.exe ==
+effective BW : 3002.5 GB/s
+result       : PASSED (0 errors)
+
+== 02_bank_conflict_solution.exe ==
+column-sum PASSED (0 errors)

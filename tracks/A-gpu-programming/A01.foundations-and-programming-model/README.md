@@ -412,17 +412,22 @@ flowchart LR
   classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A
 ```
 
-**Representative result** (measured on an MI350X / `gfx950`; absolute numbers vary by GPU, but the
+**Representative result** (measured on **`gfx950`, ROCm 7**; absolute numbers vary by GPU, but the
 *shape* is universal — bandwidth roughly halves each time the stride doubles):
 
 | stride | effective GB/s | useful-byte efficiency |
 |-------:|---------------:|------------------------|
-| 1  | ~3600 | ~100% (coalesced) |
-| 2  | ~1550 | ~50% |
+| 1  | ~3620 | ~100% (coalesced) |
+| 2  | ~1530 | ~50% |
 | 4  | ~760  | ~25% |
 | 8  | ~380  | ~12% |
-| 16 | ~190  | ~6% |
+| 16 | ~191  | ~6% |
 | 32 | ~104  | ~3% |
+
+Full capture: [`outputs/.../run-hip.txt`](../../../outputs/track-a/A01.foundations-and-programming-model/run-hip.txt).
+Reproduce: `git clone https://github.com/gahan9/ParallelProgramming` →
+`cd tracks/A-gpu-programming/A01.foundations-and-programming-model` →
+`make run-hip GPU_ARCH=gfx950`.
 
 **Takeaway:** identical arithmetic, identical thread count — only `idx` changed. Keep the innermost
 index contiguous across threads and the hardware does the coalescing for you; scatter it and you
@@ -446,26 +451,25 @@ one-off look at a trace into a repeatable method for naming a bottleneck.
 
 #### Reading the `rocprofv3` output
 
-Below is a **real** `make profile-hip` run, with machine-specific identifiers replaced by
-placeholders (`<host>` for the node name, `<pid>` for the process id, `<ts>` for timestamps) — a
-good habit before sharing profiler logs, since raw output leaks internal hostnames and paths.
+Below is a **real** `make profile-hip` run on **`gfx950`, ROCm 7**, with machine-specific
+identifiers replaced by placeholders (`<host>`, `<pid>`, `<ts>`) — a good habit before sharing
+profiler logs. Full sanitized capture:
+[`outputs/.../profile-hip.txt`](../../../outputs/track-a/A01.foundations-and-programming-model/profile-hip.txt).
 
 ```text
 $ /opt/rocm/bin/rocprofv3 --summary --sys-trace --output-format csv -d profiling_output -- ./hip/vector_add.exe
-W<ts> <pid> simple_timer.cpp:55] [rocprofv3] tool initialization :: 0.007193 sec
-W<ts> <pid> tool.cpp:3082] HIP (compiler) version 7.14.0 initialized (instance=0)
-W<ts> <pid> tool.cpp:3082] HIP (runtime)  version 7.14.0 initialized (instance=0)
-W<ts> <pid> tool.cpp:3082] HSA version 1.21.0 initialized (instance=0)
+W<ts> <pid> simple_timer.cpp:55] [rocprofv3] tool initialization :: 0.008419 sec
+W<ts> <pid> tool.cpp:3348] HIP (compiler) version ROCm 7 initialized (instance=0)
+W<ts> <pid> tool.cpp:3348] HIP (runtime) version ROCm 7 initialized (instance=0)
+W<ts> <pid> tool.cpp:3348] HSA version (ROCm 7 runtime) initialized (instance=0)
 n = 16777216, block = 256, grid = 65536          <-- your program's own stdout
-kernel time      : 0.986 ms
-effective BW     : 204.1 GB/s
+kernel time      : 0.985 ms
+effective BW     : 204.3 GB/s
 result           : PASSED
-E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_kernel_trace.csv
-E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_hsa_api_trace.csv
-E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_hip_api_trace.csv
-E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_memory_copy_trace.csv
-E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_memory_allocation_trace.csv
-E<ts> <pid> output_stream.cpp:111] Opened result file: profiling_output/<host>/<pid>_agent_info.csv
+W<ts> <pid> output_stream.cpp:110] Opened result file: profiling_output/<host>/<pid>_kernel_trace.csv
+W<ts> <pid> output_stream.cpp:110] Opened result file: profiling_output/<host>/<pid>_hip_api_trace.csv
+W<ts> <pid> output_stream.cpp:110] Opened result file: profiling_output/<host>/<pid>_memory_copy_trace.csv
+...
 
     ROCPROFV3 SUMMARY:
     |                     NAME                     |    DOMAIN     | CALLS | DURATION (nsec) | PERCENT (INC) |

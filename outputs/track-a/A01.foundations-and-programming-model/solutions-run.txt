@@ -1,0 +1,9 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A01.foundations-and-programming-model/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:43Z
+---
+== 01_saxpy_solution.exe ==
+SAXPY PASSED (0 errors)
+
+== 02_race_condition_solution.exe ==
+Histogram PASSED

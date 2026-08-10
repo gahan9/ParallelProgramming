@@ -1,0 +1,238 @@
+# cmd: bash -lc cd 'tracks/C-ml-system-design/C04.production-model-optimization' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:40Z
+---
+== cost_model: 120 qps, the whole optimization ladder priced ==
+Serving cost model - analytic
+------------------------------------------------------------------------------
+  traffic            : 120 qps (315.4M requests/month)
+  work per request   : 600 tokens
+  per-GPU throughput : 2,200 tokens/s at 70% usable headroom
+  GPU price          : $3.20/h ($2,336/GPU/month)
+
+  Multipliers below are placeholders. Replace them with numbers measured
+  on your model, your hardware, at your latency target.
+
+1. Cost per scenario
+  scenario                          GPUs   $/1k req    $/month   saving/mo
+  ------------------------------- ------ ---------- ---------- -----------
+  baseline                            47     0.3481    109,792           -
+  1. exact-match cache                33     0.2444     77,088      32,704
+  2. better batching / runtime        30     0.2222     70,080      39,712
+  3. quantization                     26     0.1926     60,736      49,056
+  4. distilled student                16     0.1185     37,376      72,416
+  cache + batching + quantization     12     0.0889     28,032      81,760
+
+2. Does it pay for itself?
+  scenario                         eng cost  saving/mo  break-even  quality risk
+  ------------------------------- --------- ---------- ----------- -------------------------------
+  1. exact-match cache               12,000     32,704      0.4 mo  none (identical outputs)
+  2. better batching / runtime       18,000     39,712      0.5 mo  none (same weights)
+  3. quantization                    36,000     49,056      0.7 mo  small - needs a task-level eval
+  4. distilled student              120,000     72,416      1.7 mo  real - needs retraining and a full eval
+  cache + batching + quantization    66,000     81,760      0.8 mo  small - the quantization gate still applies
+
+  Break-even uses $6,000 per engineer-week fully loaded.
+  Anything past your planning horizon is a 'no' today, however elegant.
+  Rounding up to whole GPUs is why savings arrive in steps, not smoothly:
+  a 15% throughput win that does not remove a GPU saves nothing.
+
+3. When the answer is 'do not optimize'
+  Sanity checks before you optimize anything
+  - One GPU costs $2,336/month. No optimization can save more
+    than $109,792/month, and the floor is one GPU.
+  - Baseline hardware utilization is 70% of peak (70% spike
+    headroom x 99% packing after rounding to whole GPUs).
+    That gap is not model inefficiency and no model change will recover it -
+    right-size the fleet or revisit the headroom policy first.
+  - The whole serving bill equals 18.3 engineer-weeks per
+    month. If a project costs more engineer-weeks than that, it cannot pay
+    back inside a year even if it makes serving free.
+
+== cascade_analyzer: good confidence signal (gain 3) ==
+Two-tier cascade - analytic model
+------------------------------------------------------------------------------
+  small model : accuracy 0.900, $0.100/1k, 25 ms
+  large model : accuracy 0.960, $2.000/1k, 400 ms (if used alone)
+  confidence  : gain 3 (1.0 = escalate at random)
+  hard-slice  : large-model errors x1 on escalated traffic
+
+1. Sweep the escalation rate
+  escalate   accuracy   errors caught   $/1k req   avg latency   $ vs large-only
+  -------- ---------- --------------- ---------- ------------- -----------------
+        0%     0.9000            0.0%     0.1000          25 ms            1.9000
+        5%     0.9123           14.3%     0.2000          45 ms            1.8000
+       10%     0.9231           27.1%     0.3000          65 ms            1.7000
+       15%     0.9326           38.6%     0.4000          85 ms            1.6000
+       20%     0.9408           48.8%     0.5000         105 ms            1.5000
+       25%     0.9478           57.8%     0.6000         125 ms            1.4000
+       30%     0.9537           65.7%     0.7000         145 ms            1.3000
+       35%     0.9585           72.5%     0.8000         165 ms            1.2000
+       40%     0.9624           78.4%     0.9000         185 ms            1.1000
+       45%     0.9654           83.4%     1.0000         205 ms            1.0000
+       50%     0.9675           87.5%     1.1000         225 ms            0.9000
+       55%     0.9689           90.9%     1.2000         245 ms            0.8000
+       60%     0.9696           93.6%     1.3000         265 ms            0.7000
+       65%     0.9697           95.7%     1.4000         285 ms            0.6000
+       70%     0.9693           97.3%     1.5000         305 ms            0.5000
+       75%     0.9684           98.4%     1.6000         325 ms            0.4000
+       80%     0.9672           99.2%     1.7000         345 ms            0.3000
+       85%     0.9657           99.7%     1.8000         365 ms            0.2000
+       90%     0.9639           99.9%     1.9000         385 ms            0.1000
+       95%     0.9620          100.0%     2.0000         405 ms            0.0000
+      100%     0.9600          100.0%     2.1000         425 ms           -0.1000
+
+  Large model on 100% of traffic: accuracy 0.9600 at $2.000/1k.
+  The cascade also pays the small model on every request, which is why the
+  100% row costs more than large-only. A cascade is only worth it if you
+  stop well short of escalating everything.
+
+  Worth noticing: accuracy PEAKS at 64% escalation (0.9697), above
+  the large model alone. Past that point you are escalating requests the
+  small model already had right, and the large model gets some of them
+  wrong. A good confidence signal beats a bigger model on its own.
+
+2. Cost-optimal operating point
+  escalate 26.8% of traffic
+    blended accuracy : 0.9501 (floor 0.9500)
+    cost             : $0.6360/1k (vs $2.0000 large-only, 68.2% cheaper)
+    average latency  : 132 ms (the escalated 26.8% still waits 425 ms)
+
+  Two things to say in the design review: the tail latency is the
+  cascade's real cost - escalated requests pay BOTH models - and the
+  escalation rate drifts with traffic, so it must be monitored, not set
+  once. Budget for the day the small model's confidence goes stale.
+
+== cascade_analyzer: escalating at random (gain 1) - the cascade collapses ==
+Two-tier cascade - analytic model
+------------------------------------------------------------------------------
+  small model : accuracy 0.900, $0.100/1k, 25 ms
+  large model : accuracy 0.960, $2.000/1k, 400 ms (if used alone)
+  confidence  : gain 1 (1.0 = escalate at random)
+  hard-slice  : large-model errors x1 on escalated traffic
+
+1. Sweep the escalation rate
+  escalate   accuracy   errors caught   $/1k req   avg latency   $ vs large-only
+  -------- ---------- --------------- ---------- ------------- -----------------
+        0%     0.9000            0.0%     0.1000          25 ms            1.9000
+        5%     0.9030            5.0%     0.2000          45 ms            1.8000
+       10%     0.9060           10.0%     0.3000          65 ms            1.7000
+       15%     0.9090           15.0%     0.4000          85 ms            1.6000
+       20%     0.9120           20.0%     0.5000         105 ms            1.5000
+       25%     0.9150           25.0%     0.6000         125 ms            1.4000
+       30%     0.9180           30.0%     0.7000         145 ms            1.3000
+       35%     0.9210           35.0%     0.8000         165 ms            1.2000
+       40%     0.9240           40.0%     0.9000         185 ms            1.1000
+       45%     0.9270           45.0%     1.0000         205 ms            1.0000
+       50%     0.9300           50.0%     1.1000         225 ms            0.9000
+       55%     0.9330           55.0%     1.2000         245 ms            0.8000
+       60%     0.9360           60.0%     1.3000         265 ms            0.7000
+       65%     0.9390           65.0%     1.4000         285 ms            0.6000
+       70%     0.9420           70.0%     1.5000         305 ms            0.5000
+       75%     0.9450           75.0%     1.6000         325 ms            0.4000
+       80%     0.9480           80.0%     1.7000         345 ms            0.3000
+       85%     0.9510           85.0%     1.8000         365 ms            0.2000
+       90%     0.9540           90.0%     1.9000         385 ms            0.1000
+       95%     0.9570           95.0%     2.0000         405 ms            0.0000
+      100%     0.9600          100.0%     2.1000         425 ms           -0.1000
+
+  Large model on 100% of traffic: accuracy 0.9600 at $2.000/1k.
+  The cascade also pays the small model on every request, which is why the
+  100% row costs more than large-only. A cascade is only worth it if you
+  stop well short of escalating everything.
+
+2. Cost-optimal operating point
+  escalate 83.4% of traffic
+    blended accuracy : 0.9500 (floor 0.9500)
+    cost             : $1.7670/1k (vs $2.0000 large-only, 11.6% cheaper)
+    average latency  : 358 ms (the escalated 83.4% still waits 425 ms)
+
+  Two things to say in the design review: the tail latency is the
+  cascade's real cost - escalated requests pay BOTH models - and the
+  escalation rate drifts with traffic, so it must be monitored, not set
+  once. Budget for the day the small model's confidence goes stale.
+== cache_simulator: skewed traffic (zipf 1.0) ==
+Exact-match cache simulator - seeded synthetic trace
+------------------------------------------------------------------------------
+  requests       : 200,000
+  distinct keys  : 20,000
+  zipf exponent  : 1
+  seed           : 20260729
+
+  distinct keys actually seen : 16,865 (84.3% of the key space)
+  top   10 keys hold          : 27.9% of traffic
+  top  100 keys hold          : 49.5% of traffic
+  top 1000 keys hold          : 71.4% of traffic
+
+1. Hit rate and cost vs cache size
+  cache size   % of keys   hit rate   $/1k req   saving vs no cache
+  ---------- ----------- ---------- ---------- --------------------
+          20        0.1%      18.2%     1.6376               18.1%
+         100        0.5%      35.4%     1.2954               35.2%
+         400        2.0%      50.8%     0.9891               50.5%
+       1,000        5.0%      61.3%     0.7797               61.0%
+       2,000       10.0%      69.5%     0.6176               69.1%  <- configured
+       5,000       25.0%      80.4%     0.3994               80.0%
+      10,000       50.0%      88.1%     0.2464               87.7%
+
+2. At production volume
+  hit rate at 2,000 entries : 69.5%
+  monthly cost without cache      : $600,000
+  monthly cost with cache         : $185,282
+  monthly saving                  : $414,718
+
+3. Why this works, and when it stops
+  A cache holding a small slice of the key space captures a large slice of
+  TRAFFIC, because traffic is skewed - that is the whole mechanism. Re-run
+  with --zipf 0 for uniform traffic and watch the hit rate collapse to
+  roughly cache_size / distinct_keys. Before you build a cache, measure the
+  skew of your real request log; the exponent is the entire business case.
+
+  What this model does not capture: staleness (how long a cached answer
+  stays correct), personalisation and privacy (per-user keys destroy the
+  skew, and a shared cache can leak one user's answer to another), and
+  cold-start after every deploy. Those are the reasons real hit rates come
+  in below the simulation, and they belong in the design review.
+
+== cache_simulator: uniform traffic (zipf 0) - skew was the whole business case ==
+Exact-match cache simulator - seeded synthetic trace
+------------------------------------------------------------------------------
+  requests       : 200,000
+  distinct keys  : 20,000
+  zipf exponent  : 0
+  seed           : 20260729
+
+  distinct keys actually seen : 20,000 (100.0% of the key space)
+  top   10 keys hold          : 0.1% of traffic
+  top  100 keys hold          : 0.5% of traffic
+  top 1000 keys hold          : 5.0% of traffic
+
+1. Hit rate and cost vs cache size
+  cache size   % of keys   hit rate   $/1k req   saving vs no cache
+  ---------- ----------- ---------- ---------- --------------------
+          20        0.1%       0.1%     1.9979                0.1%
+         100        0.5%       0.5%     1.9896                0.5%
+         400        2.0%       2.1%     1.9592                2.0%
+       1,000        5.0%       5.0%     1.9002                5.0%
+       2,000       10.0%      10.0%     1.8008               10.0%  <- configured
+       5,000       25.0%      24.7%     1.5094               24.5%
+      10,000       50.0%      48.4%     1.0373               48.1%
+
+2. At production volume
+  hit rate at 2,000 entries : 10.0%
+  monthly cost without cache      : $600,000
+  monthly cost with cache         : $540,240
+  monthly saving                  : $59,760
+
+3. Why this works, and when it stops
+  A cache holding a small slice of the key space captures a large slice of
+  TRAFFIC, because traffic is skewed - that is the whole mechanism. Re-run
+  with --zipf 0 for uniform traffic and watch the hit rate collapse to
+  roughly cache_size / distinct_keys. Before you build a cache, measure the
+  skew of your real request log; the exponent is the entire business case.
+
+  What this model does not capture: staleness (how long a cached answer
+  stays correct), personalisation and privacy (per-user keys destroy the
+  skew, and a shared cache can leak one user's answer to another), and
+  cold-start after every deploy. Those are the reasons real hit rates come
+  in below the simulation, and they belong in the design review.

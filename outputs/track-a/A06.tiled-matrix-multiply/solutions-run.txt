@@ -1,0 +1,26 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A06.tiled-matrix-multiply/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:13Z
+---
+== 01_tiled_matmul_solution.exe ==
+kernel          ms/iter      GFLOP/s  max rel err result  
+------------ ---------- ------------ ------------ --------
+naive             0.057       4725.9     1.56e-06 PASSED  
+tiled             0.021      12753.0     1.56e-06 PASSED  
+
+Both must PASS. The tiled kernel loads each element once per tile
+instead of once per output, raising global-memory intensity from
+0.25 to 8.0 FLOP/byte.
+
+== 02_ragged_dims_solution.exe ==
+TILE = 32. All three shapes must PASS.
+
+A) all dims multiple           512 x 512   k=512    max rel 1.56e-06  PASSED
+B) M,N ragged  K aligned       500 x 260   k=512    max rel 1.39e-06  PASSED
+C) K ragged                    500 x 260   k=377    max rel 1.36e-06  PASSED
+D) tall-skinny, all ragged    1001 x 37    k=129    max rel 7.68e-07  PASSED
+E) K smaller than TILE          65 x 65    k=7      max rel 1.53e-07  PASSED
+
+Cases D and E are the shapes that break most hand-written GEMMs:
+a K shorter than one tile means the very FIRST tile iteration is
+already a fringe iteration.

@@ -1,0 +1,27 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A01.foundations-and-programming-model/exercises' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:50:41Z
+---
+== 01_saxpy.exe ==
+SAXPY FAILED (1048576 errors)
+   (non-zero exit - expected until the TODOs are done)
+
+== 02_race_condition.exe ==
+bin  0: gpu=6 cpu=66051
+bin  1: gpu=6 cpu=66025
+bin  2: gpu=6 cpu=66100
+bin  3: gpu=6 cpu=66076
+bin  4: gpu=6 cpu=66014
+bin  5: gpu=6 cpu=66079
+bin  6: gpu=6 cpu=66101
+bin  7: gpu=6 cpu=66013
+bin  8: gpu=6 cpu=65021
+bin  9: gpu=6 cpu=65047
+bin 10: gpu=6 cpu=64972
+bin 11: gpu=6 cpu=64996
+bin 12: gpu=6 cpu=65058
+bin 13: gpu=6 cpu=64993
+bin 14: gpu=6 cpu=64971
+bin 15: gpu=6 cpu=65059
+Histogram FAILED (data race?)
+   (non-zero exit - expected until the TODOs are done)

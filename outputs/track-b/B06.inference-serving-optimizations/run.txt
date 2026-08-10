@@ -1,0 +1,117 @@
+# cmd: bash -lc cd 'tracks/B-gpu-ml-performance/B06.inference-serving-optimizations' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:39Z
+---
+=== SIMULATED (analytic cost model) -- not measured on hardware ===
+trace: 300 requests, 12.0 req/s Poisson, seed=1234 | max_batch=32, chunk=512 tok | SLO: TTFT <= 1000 ms, TPOT <= 50 ms
+engine model: decode_base=4.7 ms/step, prefill=47 us/token, kv=0.043 us/resident-token, launch=0.3 ms/step
+
+Throughput and latency
+            policy  max_batch  tokens_per_s  requests_per_s  ttft_mean_ms  ttft_p95_ms  tpot_mean_ms  tpot_p95_ms
+------------------  ---------  ------------  --------------  ------------  -----------  ------------  -----------
+            static         32         815.6             4.8       13355.9      32685.3           5.8         6.03
+        continuous         32        1541.0            9.07          41.0        137.4          7.79        10.63
+continuous_chunked         32        1539.3            9.06          58.2        197.6          7.76        10.65
+
+Utilization, jitter and goodput
+            policy  mean_occupancy  slot_idle_pct  padded_slot_waste_pct  gpu_idle_pct  launch_overhead_pct  itl_p99_ms  itl_max_ms  goodput_req_per_s  goodput_pct
+------------------  --------------  -------------  ---------------------  ------------  -------------------  ----------  ----------  -----------------  -----------
+            static            8.65           73.1                   71.0          0.45                  4.4        6.13        6.14              0.384          8.0
+        continuous           11.98           62.9                    0.0          0.86                  4.5       69.93      293.11               9.07        100.0
+continuous_chunked           12.01           62.8                    0.0          0.85                  4.2       29.62       29.82               9.06        100.0
+
+=== KV cache capacity plan (arithmetic, not measured) ===
+model gqa-70b: 70B params, 80 layers, 64 q heads, 8 kv heads, head_dim 128
+gpu mi300x (192 GB = 178.8 GiB) x tp=1 | weights fp16 | kv fp16 | block 16 tok
+
+HBM budget
+                   component       GiB  % of HBM
+----------------------------  --------  --------
+               HBM (per GPU)    178.81     100.0
+        weights (fp16, tp=1)    130.39      72.9
+     activations + workspace      4.00       2.2
+ fragmentation headroom (5%)      2.22       1.2
+KV cache pool (what is left)     42.21      23.6
+
+KV cache costs 320.0 KiB per token per sequence (GQA x8, 8 KV heads/GPU, 80 layers, fp16).
+A full 8192-token context therefore costs 2.50 GiB per sequence.
+
+Max concurrent sequences (mean actual length 2048, max context 8192)
+              allocation   tokens held/seq   GiB/seq  max seqs  wasted GiB/seq  waste %
+------------------------  ----------------  --------  --------  --------------  -------
+contiguous preallocation   8192 (reserved)      2.50        16            1.88     75.0
+  paged, 16-token blocks  2048 (allocated)      0.62        67            0.00      0.0
+
+Paging buys 4.2x the concurrency here, purely by not reserving for a maximum length that most requests never reach.
+Paging's own waste is bounded: at most 15 unused tokens in the last block, i.e. 4.69 MiB per sequence (0.73% of a mean sequence). That bound is the whole argument for paging -- it converts an unbounded reservation waste into a waste you can name.
+
+Effect of KV heads (GQA / MQA)
+attention  kv_heads  KiB/token  GiB @ max ctx  max seqs                
+---------  --------  ---------  -------------  --------  --------------
+      MQA         1       40.0           0.31       540                
+   GQA x8         8      320.0           2.50        67  <-- this model
+   GQA x4        16      640.0           5.00        33                
+   GQA x2        32     1280.0          10.00        16                
+      MHA        64     2560.0          20.00         8                
+
+GQA shrinks the KV cache linearly in KV heads while leaving the query heads (and so most of the model quality) alone. This is why every recent open model ships with GQA.
+
+Effect of KV-cache quantization
+kv dtype  bytes/elem  KiB/token  max seqs  vs current
+--------  ----------  ---------  --------  ----------
+    fp16         2.0      320.0        67       1.00x
+     fp8         1.0      160.0       135       2.01x
+    int4         0.5       80.0       270       4.03x
+
+KV quantization is the cheapest way to buy concurrency once GQA is already in place -- but it is an accuracy decision, not a free one (see B04). Measure task quality, not just perplexity, before shipping fp8 or int4 KV.
+
+Verdict: HBM allows 67 sequences; the TPOT budget allows 64. The binding resource is per-step latency (TPOT SLO), so run at min = 64.
+  Latency-bound on capacity: you have spare HBM. Spend it on prefix caching or a larger prefill budget; raising the batch cap would only break the TPOT SLO.
+=== Speculative decoding: analytic model (arithmetic, not measured) ===
+draft cost c=0.05 target passes, verify overhead v=0.0 per extra position
+
+Operating point: alpha=0.7, k=4
+                   quantity   value
+---------------------------  ------
+     expected tokens / step   2.773
+cost / step (target passes)   1.200
+    speedup vs plain decode  2.311x
+   drafted tokens discarded   55.7%
+   draft share of step cost   16.7%
+
+Speedup vs acceptance rate and draft length
+alpha    k=1    k=2    k=3    k=4    k=5    k=6    k=8   k=12  best k  best speedup
+-----  -----  -----  -----  -----  -----  -----  -----  -----  ------  ------------
+ 0.30  1.24x  1.26x  1.23x  1.19x  1.14x  1.10x  1.02x  0.89x       2         1.26x
+ 0.40  1.33x  1.42x  1.41x  1.37x  1.33x  1.28x  1.19x  1.04x       2         1.42x
+ 0.50  1.43x  1.59x  1.63x  1.61x  1.57x  1.53x  1.43x  1.25x       3         1.63x
+ 0.60  1.52x  1.78x  1.89x  1.92x  1.91x  1.87x  1.77x  1.56x       4         1.92x
+ 0.70  1.62x  1.99x  2.20x  2.31x  2.35x  2.35x  2.28x  2.06x       6         2.35x
+ 0.80  1.71x  2.22x  2.57x  2.80x  2.95x  3.04x  3.09x  2.95x       8         3.09x
+ 0.90  1.81x  2.46x  2.99x  3.41x  3.75x  4.01x  4.38x  4.66x      12         4.66x
+
+Break-even acceptance rate (below this, drafting loses)
+ k  min alpha
+--  ---------
+ 1      0.050
+ 2      0.092
+ 3      0.131
+ 4      0.167
+ 5      0.200
+ 6      0.231
+ 8      0.286
+12      0.375
+
+Sensitivity to verification cost (alpha=0.7, k=4)
+v (per extra position)  cost/step  speedup  verdict
+----------------------  ---------  -------  -------
+                  0.00      1.200    2.31x     pays
+                  0.02      1.280    2.17x     pays
+                  0.05      1.400    1.98x     pays
+                  0.10      1.600    1.73x     pays
+                  0.20      2.000    1.39x     pays
+                  0.50      3.200    0.87x    LOSES
+
+v rises as the batch fills: with enough concurrent sequences the decode step is no longer bandwidth-bound, the spare compute speculation was spending is gone, and the same draft model that helped at batch 1 now costs throughput. Speculative decoding is a *latency* optimization; measure it at your real concurrency, not at batch 1.
+
+Read the sweep left to right: for a weak draft model (low alpha) the best k is small, because every extra draft token is paid for and rarely accepted. Raising k only helps while alpha^k stays meaningful -- the expected-token curve saturates at 1/(1-alpha) while the cost keeps growing linearly in k. That is the whole design rule.

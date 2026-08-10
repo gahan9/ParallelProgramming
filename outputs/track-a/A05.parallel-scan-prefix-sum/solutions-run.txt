@@ -1,0 +1,15 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:08Z
+---
+== 01_exclusive_to_inclusive_solution.exe ==
+n = 256
+given  blelloch exclusive scan : PASSED (0 mismatches)
+TODO 1 exclusive -> inclusive  : PASSED (0 mismatches)
+TODO 2 inclusive -> exclusive  : PASSED (0 mismatches)
+TODO 3 grand total             : PASSED (got 766.0, expected 766.0)
+
+== 02_segmented_scan_solution.exe ==
+segmented inclusive scan: n = 256, 7 segments (head every 37 elements)
+result : PASSED (0 mismatches)
+segment heads (i: value -> scan): 0: 1 -> 1  37: 3 -> 3  74: 5 -> 5  111: 2 -> 2  148: 4 -> 4  185: 1 -> 1  222: 3 -> 3

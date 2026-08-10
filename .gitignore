@@ -159,6 +159,9 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+# Cached run captures (sanitized copies in outputs/ are committed; raw logs are not)
+outputs/_raw/
+
 # mkdocs documentation
 /site
 # Staging root produced by build_docs.py (see the note in mkdocs.yml).

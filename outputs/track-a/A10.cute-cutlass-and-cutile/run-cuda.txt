@@ -1,0 +1,6 @@
+# cmd: bash -lc cd tracks/A-gpu-programming/A10.cute-cutlass-and-cutile && make -s run-cuda 2>&1
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:22Z
+---
+make: nvcc: No such file or directory
+make: *** [Makefile:85: cuda/mma_tensor_core.exe] Error 127

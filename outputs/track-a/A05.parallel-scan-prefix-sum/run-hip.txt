@@ -1,0 +1,44 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A05.parallel-scan-prefix-sum' && make -s run-hip GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:04Z
+---
+== hip/scan.exe ==
+parallel scan: n = 4194304 elements (16.0 MiB), tile = 256 elements
+  hillis-steele: 256 threads/tile (1 elem/thread), 8 steps
+  blelloch     : 128 threads/tile (2 elems/thread), 16 steps (up+down)
+
+Part 1 - single-tile correctness (first 256 elements)
+kernel                                   scan type   result  
+---------------------------------------- ----------- --------
+hillis-steele (ping-pong buffers)        inclusive   PASSED  
+hillis-steele (in-place + register)      inclusive   PASSED  
+blelloch (up-sweep / down-sweep)         exclusive   PASSED  
+
+Part 2 - per-tile scans of the whole array (16384 tiles, same for both)
+kernel                                   time (ms)   GB/s      result  
+---------------------------------------- ----------- --------- --------
+hillis-steele  O(n log n) work           0.018       1898.2    PASSED  
+blelloch       O(n) work                 0.016       2162.8    PASSED  
+
+Part 3 - full exclusive scan of all 4194304 elements (3-phase decomposition)
+recursion levels : 3 (tile sums, then sums of those, ...)
+time             : 0.034 ms
+effective BW     : 987.3 GB/s  (useful bytes only: read n + write n)
+result           : PASSED
+
+The 3-phase scan re-reads and re-writes the output in phase 3, so it moves
+roughly twice the useful bytes above. A single-pass chained scan (decoupled
+look-back, as in rocPRIM/CUB) is what closes that gap - see README S3/S5.
+
+== hip/compaction.exe ==
+stream compaction (keep non-zeros): n = 4194304
+kept (GPU)       : 2796202
+kept (std::copy_if): 2796202
+time             : 0.053 ms  (mark + 3-phase scan + scatter)
+effective BW     : 523.2 GB/s  (useful bytes: read n + write kept)
+result           : PASSED (0 value mismatches)
+
+The flags array and the scan add traffic the 'useful bytes' number ignores,
+so the real cost is well above the copy ceiling per useful byte. Fusing the
+predicate into the scan (single-pass, decoupled look-back) is how rocPRIM/CUB
+get compaction close to a plain copy - see README S5.

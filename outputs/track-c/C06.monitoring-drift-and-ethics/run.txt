@@ -1,0 +1,378 @@
+# cmd: bash -lc cd 'tracks/C-ml-system-design/C06.monitoring-drift-and-ethics' && make -s run
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:41Z
+---
+================ tools/drift_detector.py ================
+====================================================================================
+DRIFT DETECTOR -- seeded demo (SIMULATED DATA, seed 20240729)
+====================================================================================
+Four scenarios that a monitoring dashboard must tell apart. Only one of
+them requires retraining; one of them is not drift at all.
+
+------------------------------------------------------------------------------------
+SCENARIO: No drift
+  Same generating process in both windows. The control case.
+------------------------------------------------------------------------------------
+  feature: session_value
+    reference n = 4000, current n = 4000
+    PSI       : 0.0033  [STABLE]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 9 contributes 0.0009 (ref 10.0% -> cur 9.1%)
+    KS        : D = 0.0127, p = 0.899  [not distinguishable]
+
+  feature: device_type (categorical)
+    chi-square: 0.52 on 2 dof, p = 0.771, Cramer's V = 0.0057  [not distinguishable]
+                Threshold on Cramer's V (effect size), not on p. At production
+                volume p is a function of n and will always be tiny.
+
+  feature: model_score (prediction distribution)
+    reference n = 4000, current n = 4000
+    PSI       : 0.0049  [STABLE]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 5 contributes 0.0021 (ref 10.0% -> cur 8.6%)
+    KS        : D = 0.0120, p = 0.934  [not distinguishable]
+
+  classification (labels available):
+    -> STABLE
+       No measured degradation. Keep monitoring; absence of evidence over a short
+       window is weak evidence of absence, especially with delayed labels.
+  classification (labels NOT yet available (the usual case)):
+    -> NO DRIFT DETECTED
+       Inputs and predictions both stable. Note that concept drift can be invisible
+       here -- P(y|x) can move with P(x) unchanged. Only labels can rule it out.
+
+------------------------------------------------------------------------------------
+SCENARIO: Covariate shift -- P(x) changed
+  An older, higher-value cohort arrived. The relationship is unchanged.
+------------------------------------------------------------------------------------
+  feature: session_value
+    reference n = 4000, current n = 4000
+    PSI       : 0.3631  [MAJOR SHIFT]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 9 contributes 0.2105 (ref 10.0% -> cur 29.5%)
+    KS        : D = 0.2570, p = <1e-12  [DIFFERENT]
+
+  feature: device_type (categorical)
+    chi-square: 258.15 on 2 dof, p = <1e-12, Cramer's V = 0.1270  [DIFFERENT]
+                Threshold on Cramer's V (effect size), not on p. At production
+                volume p is a function of n and will always be tiny.
+
+  feature: model_score (prediction distribution)
+    reference n = 4000, current n = 4000
+    PSI       : 0.3230  [MAJOR SHIFT]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 9 contributes 0.1857 (ref 10.0% -> cur 28.0%)
+    KS        : D = 0.2298, p = <1e-12  [DIFFERENT]
+
+  classification (labels available):
+    -> COVARIATE SHIFT WITH PERFORMANCE IMPACT
+       P(x) moved into a region the model handles badly -- extrapolation, not a
+       changed target function. Importance weighting or targeted data collection in
+       the new region may fix it without a full retrain. Check whether the new
+       region is genuinely out of the training distribution.
+  classification (labels NOT yet available (the usual case)):
+    -> LIKELY COVARIATE SHIFT
+       P(x) moved and the predictions followed, which is what a well-behaved model
+       does under new inputs. Cannot rule out concept drift without labels. Action:
+       check whether the new input region is one the model was trained on; sample
+       and label it if not.
+
+------------------------------------------------------------------------------------
+SCENARIO: Concept drift -- P(y|x) changed
+  Inputs identical; a competitor launched and the same customers now behave differently.
+------------------------------------------------------------------------------------
+  feature: session_value
+    reference n = 4000, current n = 4000
+    PSI       : 0.0080  [STABLE]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 8 contributes 0.0029 (ref 10.0% -> cur 8.4%)
+    KS        : D = 0.0222, p = 0.272  [not distinguishable]
+
+  feature: device_type (categorical)
+    chi-square: 8.63 on 2 dof, p = 0.0134, Cramer's V = 0.0232  [not distinguishable]
+                Threshold on Cramer's V (effect size), not on p. At production
+                volume p is a function of n and will always be tiny.
+
+  feature: model_score (prediction distribution)
+    reference n = 4000, current n = 4000
+    PSI       : 0.0039  [STABLE]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 5 contributes 0.0016 (ref 10.0% -> cur 11.3%)
+    KS        : D = 0.0245, p = 0.179  [not distinguishable]
+
+  classification (labels available):
+    -> CONCEPT DRIFT
+       Same inputs, same predictions, worse outcomes: the relationship P(y|x)
+       itself moved. This is the case that NECESSARILY requires retraining -- no
+       amount of reweighting or recalibration fixes a changed target function.
+       Retrain on data from the new regime.
+  classification (labels NOT yet available (the usual case)):
+    -> NO DRIFT DETECTED
+       Inputs and predictions both stable. Note that concept drift can be invisible
+       here -- P(y|x) can move with P(x) unchanged. Only labels can rule it out.
+
+------------------------------------------------------------------------------------
+SCENARIO: Not drift at all -- a broken pipeline
+  Inputs identical, predictions collapsed: an upstream join is failing and a feature arrives as its default.
+------------------------------------------------------------------------------------
+  feature: session_value
+    reference n = 4000, current n = 4000
+    PSI       : 0.0043  [STABLE]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 3 contributes 0.0014 (ref 10.0% -> cur 11.2%)
+    KS        : D = 0.0135, p = 0.857  [not distinguishable]
+
+  feature: device_type (categorical)
+    chi-square: 0.97 on 2 dof, p = 0.615, Cramer's V = 0.0078  [not distinguishable]
+                Threshold on Cramer's V (effect size), not on p. At production
+                volume p is a function of n and will always be tiny.
+
+  feature: model_score (prediction distribution)
+    reference n = 4000, current n = 4000
+    PSI       : 6.9452  [MAJOR SHIFT]   (>0.10 moderate, >0.25 major -- industry rules of thumb, calibrate on your own data)
+                top bin 4 contributes 1.5764 (ref 10.0% -> cur 84.0%)
+    KS        : D = 0.4833, p = <1e-12  [DIFFERENT]
+
+  classification (labels available):
+    -> SERVING-PATH INCIDENT, NOT DRIFT
+       Inputs unchanged, predictions moved, accuracy fell. The world did not change
+       -- your pipeline did. Check, in order: a model version rollout, a
+       feature-encoding or preprocessing change, an upstream join failing silently
+       to a default value, and a schema change. Retraining would be the wrong
+       response and would bake the bug into the next model.
+  classification (labels NOT yet available (the usual case)):
+    -> INVESTIGATE THE SERVING PATH FIRST
+       Inputs stable but outputs moved means something in the pipeline changed, not
+       the world: a model version rollout, a feature-encoding change, a
+       preprocessing bug, or a silently different default for a missing value. This
+       is an incident, not drift.
+
+====================================================================================
+WHAT THE FOUR SCENARIOS TEACH
+====================================================================================
+  1. Only CONCEPT DRIFT necessarily requires retraining. Covariate shift may be
+     fixable with reweighting or targeted data collection; prior shift is often
+     just a threshold adjustment. Diagnosing before acting saves a training run.
+  2. Concept drift is INVISIBLE to input monitoring. Scenario 3 shows stable
+     inputs and stable predictions while accuracy falls. If your dashboard only
+     watches input distributions, you will never see it.
+  3. Scenario 4 looks like severe drift and is a BUG. Stable inputs plus moved
+     predictions almost always means the serving path changed, not the world.
+     Check deploys and upstream jobs before you schedule a retrain.
+  4. Note how the classification changes when labels are unavailable. That is the
+     delayed-label problem, and it is the normal operating condition.
+
+================ tools/feedback_loop_sim.py ================
+====================================================================================
+FEEDBACK LOOP SIMULATION -- SIMULATED DATA, seed 20240729
+====================================================================================
+  catalogue 400 items | 80 rounds | 300 users/round | 4 slots | model refresh each round
+  Item true click-rates are drawn once from Beta(1.5, 6.0) and never change.
+  NOTHING about the world drifts in this simulation. Every effect you see below
+  is caused by the model training on data its own choices produced.
+
+  exploration epsilon = 0%
+    metric                                round 1   round 80
+    ---------------------------------- ---------- ----------
+    observed CTR                           0.233      0.576
+    catalogue coverage this round            1.0%       1.0%
+    cumulative coverage                      1.0%      40.0%
+    impression Gini (1 = winner-take-all)     0.990      0.796
+    top-10 items' impression share         100.0%      53.1%
+    mean TRUE quality of shown items       0.230      0.575
+    items never shown, of 400                 240
+    of the true top 10, discovered            3/10
+    oracle best-slate quality              0.618
+
+    coverage over time  [                                        ]
+    observed CTR        [:: -.-=------.::-==-=--::-=-------++++++]
+
+  exploration epsilon = 2%
+    metric                                round 1   round 80
+    ---------------------------------- ---------- ----------
+    observed CTR                           0.213      0.557
+    catalogue coverage this round            6.2%       5.5%
+    cumulative coverage                      6.2%      99.2%
+    impression Gini (1 = winner-take-all)     0.989      0.919
+    top-10 items' impression share          98.8%      74.5%
+    mean TRUE quality of shown items       0.230      0.567
+    items never shown, of 400                   3
+    of the true top 10, discovered           10/10
+    oracle best-slate quality              0.618
+
+    coverage over time  [                                       .]
+    observed CTR        [:--=--=++=+*++*+*+++=**+*****++**+******]
+
+  exploration epsilon = 10%
+    metric                                round 1   round 80
+    ---------------------------------- ---------- ----------
+    observed CTR                           0.211      0.579
+    catalogue coverage this round           23.0%      30.2%
+    cumulative coverage                     23.0%     100.0%
+    impression Gini (1 = winner-take-all)     0.973      0.862
+    top-10 items' impression share          92.6%      71.8%
+    mean TRUE quality of shown items       0.226      0.569
+    items never shown, of 400                   0
+    of the true top 10, discovered           10/10
+    oracle best-slate quality              0.618
+
+    coverage over time  [:::::::-::::::::::::::::::::::::::::::::]
+    observed CTR        [:--=-==:-=++++++++++++++++++++++++++++++]
+
+====================================================================================
+SIDE BY SIDE
+====================================================================================
+  epsilon       final CTR     coverage         Gini  never shown   top-10 found
+  ------------ ---------- ------------ ------------ ------------ --------------
+  0%                0.576        40.0%        0.796          240           3/10
+  2%                0.557        99.2%        0.919            3          10/10
+  10%               0.579       100.0%        0.862            0          10/10
+
+WHAT THIS SHOWS
+------------------------------------------------------------------------------------
+  1. The greedy loop never showed 240 of 400 items. For those items the model's
+     estimate averages 0.500 while their true click-rate averages 0.210, and the
+     best one it never showed has a true rate of 0.644. The model is not wrong
+     about them -- it is UNINFORMED, and it has no mechanism to become informed.
+  2. Observed CTR is not a warning signal. It is measured only on items the model
+     chose, so a narrowing model can look like an improving one. This is why CTR
+     alone is a dangerous production metric for a recommender.
+  3. Coverage is the metric that moves: 40.0% greedy vs 100.0% at the largest
+     exploration rate here. It does not appear on any standard service dashboard,
+     and it is not a 'model quality' metric in the usual sense. You have to decide
+     to measure it.
+     Read Gini carefully, though -- it is NOT a coverage proxy. Exploration can
+     RAISE it, because sprinkling one impression each across hundreds of tail items
+     is itself an unequal distribution. Coverage and long-tail share answer the
+     question you actually care about; Gini answers a different one.
+  4. In THIS run exploration did not even cost short-term CTR: 0.579 at 10%
+     exploration versus 0.576 for the greedy loop. The greedy policy locked onto
+     a suboptimal set early and could never discover it had done so, which is
+     the whole failure mode. Do not generalise the sign of this result -- with a
+     different seed or a stronger prior, exploration usually does cost a little.
+     Generalise the mechanism, not the number.
+
+  COUNTERMEASURES this simulation is an argument for:
+    * Exploration: epsilon-greedy, Thompson sampling, or an explicit random slate
+      slot. Thompson sampling explores far more efficiently than epsilon-greedy;
+      epsilon is used here because it is the clearest to reason about.
+    * LOG THE PROPENSITY of every impression. Without it you cannot compute an
+      unbiased off-policy estimate later, and you will not be able to answer
+      'would the other model have done better?' from logs alone.
+    * Keep a small randomized holdout population, permanently unaffected by the
+      model, as ground truth for what unbiased behaviour looks like.
+    * Monitor catalogue coverage and long-tail impression share as first-class
+      production metrics, with alerts, not as an annual analysis.
+
+================ tools/fairness_metrics.py ================
+====================================================================================
+GROUP FAIRNESS METRICS AND THEIR CONFLICTS
+  data: synthetic, seed 20240729 (SIMULATED DATA)
+====================================================================================
+
+SCENARIO 1 -- one threshold for everyone (threshold = 0.50)
+  The default. Often called 'fairness through unawareness'; note that it
+  equalizes the DECISION RULE, not any outcome.
+
+  per-group outcomes
+    group            n   thresh     base     sel     TPR      FPR     PPV      acc
+    ------------------------------------------------------------------------------
+    A             6000    0.500    0.407   0.382   0.664    0.188   0.708    0.752
+    B             3000    0.500    0.250   0.173   0.457    0.078   0.661    0.806
+
+    cross-group differences (max - min)    
+      demographic parity difference            0.2087
+      equal-opportunity difference (TPR)       0.2067
+      false-positive-rate difference           0.1098
+      equalized-odds difference                0.2067
+      precision (PPV) difference               0.0470
+      accuracy difference                      0.0538
+
+  Calibration by group -- mean predicted score vs observed positive rate
+    group         bin     mean score    observed rate        n
+    ----------------------------------------------------------
+    A               0          0.096            0.101     1707
+    A               1          0.294            0.275     1418
+    A               2          0.499            0.502     1147
+    A               3          0.700            0.678      998
+    A               4          0.889            0.858      730
+    A                                         ECE = 0.0138
+    B               0          0.078            0.085     1548
+    B               1          0.287            0.265      710
+    B               2          0.493            0.460      402
+    B               3          0.693            0.650      220
+    B               4          0.885            0.858      120
+    B                                         ECE = 0.0173
+
+SCENARIO 2 -- equalize TPR across groups (EQUAL OPPORTUNITY, target TPR = 0.561)
+  'Among those who truly qualify, the same share are approved in every group.'
+
+  per-group outcomes with per-group thresholds
+    group            n   thresh     base     sel     TPR      FPR     PPV      acc
+    ------------------------------------------------------------------------------
+    A             6000    0.582    0.407   0.305   0.560    0.130   0.746    0.744
+    B             3000    0.418    0.250   0.234   0.561    0.125   0.599    0.796
+
+    cross-group differences (max - min)    
+      demographic parity difference            0.0707
+      equal-opportunity difference (TPR)       0.0017
+      false-positive-rate difference           0.0050
+      equalized-odds difference                0.0050
+      precision (PPV) difference               0.1476
+      accuracy difference                      0.0528
+
+SCENARIO 3 -- equalize selection rate (DEMOGRAPHIC PARITY, target = 0.277)
+  'The same share of each group is approved, regardless of outcome.'
+
+  per-group outcomes with per-group thresholds
+    group            n   thresh     base     sel     TPR      FPR     PPV      acc
+    ------------------------------------------------------------------------------
+    A             6000    0.612    0.407   0.277   0.518    0.112   0.761    0.738
+    B             3000    0.365    0.250   0.277   0.625    0.161   0.564    0.786
+
+    cross-group differences (max - min)    
+      demographic parity difference            0.0000
+      equal-opportunity difference (TPR)       0.1071
+      false-positive-rate difference           0.0493
+      equalized-odds difference                0.1071
+      precision (PPV) difference               0.1968
+      accuracy difference                      0.0478
+
+====================================================================================
+THE TENSION, SIDE BY SIDE
+====================================================================================
+  criterion enforced          DP diff    EO diff   FPR diff   PPV diff   accuracy
+  -------------------------------------------------------------------------------
+  1. shared threshold          0.2087     0.2067     0.1098     0.0470     0.7698
+  2. equal opportunity         0.0707     0.0017     0.0050     0.1476     0.7611
+  3. demographic parity        0.0000     0.1071     0.0493     0.1968     0.7538
+
+READ THE DIAGONAL. Each row drives ONE column to (near) zero and moves the
+others. Enforcing equal opportunity (row 2) zeroes the EO column and generally
+worsens demographic parity and precision parity; enforcing demographic parity
+(row 3) zeroes the DP column and moves TPR apart. There is no row that zeroes
+every column, and that is not a limitation of this search -- it is the
+impossibility result.
+
+WHY -- the base rates differ: A = 0.407, B = 0.250
+  For a calibrated score with unequal base rates, you cannot simultaneously
+  equalize false-positive and false-negative rates AND keep calibration within
+  groups, except when the base rates are equal or the classifier is perfect
+  (Chouldechova 2017; Kleinberg, Mullainathan & Raghavan 2016).
+
+WHAT TO DO WITH THIS
+------------------------------------------------------------------------------------
+  1. Pick the criterion from the DECISION, not from the dashboard. Ask: who
+     bears the cost of each error type here?
+       * A false positive that costs the INDIVIDUAL (wrongful denial, wrongful
+         flag) argues for equalizing false-positive rates.
+       * A false negative that denies an OPPORTUNITY (loan, interview, treatment)
+         argues for equal opportunity -- equal TPR.
+       * A legally-defined protected decision may impose demographic parity
+         regardless of what you would choose. This is where you involve counsel;
+         this tool cannot and does not tell you what the law requires.
+  2. WRITE DOWN the choice and the reasoning, in the model card, before you
+     measure. Choosing the criterion after seeing which one passes is the
+     fairness equivalent of peeking.
+  3. Report the cost. Row 2 and row 3 both change overall accuracy and change
+     who is affected. Present that to the accountable owner as a tradeoff, not
+     as a compliance checkbox.
+  4. Check whether the disparity is upstream. Different base rates and different
+     score noise across groups often come from measurement or representation
+     bias in the data, and fixing THAT beats any post-hoc threshold adjustment.
+  5. Per-group thresholds are themselves a consequential choice: in some
+     jurisdictions and domains, using group membership in the decision rule is
+     restricted. Again: counsel, not this tool.

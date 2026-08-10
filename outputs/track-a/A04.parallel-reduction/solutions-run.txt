@@ -1,0 +1,20 @@
+# cmd: bash -lc cd 'tracks/A-gpu-programming/A04.parallel-reduction/solutions' && make -s run GPU_ARCH=gfx950 HIP_PATH=/opt/rocm
+# gpu_arch: gfx950
+# captured: 2026-08-10T06:51:02Z
+---
+== 01_max_reduce_solution.exe ==
+A: mixed signs, n = 1048576                    expected     100.000000  got     100.000000  PASSED
+B: all negative, n = 1000003 (identity!)       expected      -1.000000  got      -1.000000  PASSED
+C: single element, n = 1                       expected     -42.500000  got     -42.500000  PASSED
+
+0 of 3 cases failed.
+
+== 02_fix_sync_solution.exe ==
+n = 4194304, grid = 16384, 20 trials
+reference (fp64) : 2076178.509063
+run-to-run       : identical every trial
+worst rel error  : 2.863e-09
+result           : PASSED (0/20 trials outside tolerance)
+
+With both barriers the answer is reproducible run to run, and the
+residual ~1e-7 error is float summation order versus fp64 - not a bug.
