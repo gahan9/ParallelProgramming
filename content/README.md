@@ -145,7 +145,7 @@ Each pack has a `long-form.md` (shot-by-shot YouTube script with chapters and a 
 and a `shorts.md` (three vertical scripts). Build the next pack by copying
 [`STORYBOARD_TEMPLATE.md`](STORYBOARD_TEMPLATE.md).
 
-**All 24 curriculum modules are authored, but only these two have content packs.** That is deliberate:
+**All 30 curriculum modules are authored, but only these two have content packs.** That is deliberate:
 a pack needs a *measured* number to lead with, so the next candidates are the modules whose labs
 produce the most striking result once you have run them on your own GPU — A04 (the reduction ladder's
 stage-1-to-stage-9 spread), A06 (naive vs tiled GEMM), A07 (the poisoned row printing `nan`), and

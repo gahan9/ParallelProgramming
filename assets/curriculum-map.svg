@@ -1,11 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-labelledby="t d">
-<title id="t">The 24 modules across three tracks</title>
-<desc id="d">Three rows of module chips. Track A, GPU programming, has ten modules from foundations through to CuTe. Track B, ML performance, has seven from accelerator architecture through to distributed sharding. Track C, ML system design, has seven from problem framing through to capstone case studies. Curved lines show the three cross-track dependencies: A01 feeds B01, A07 feeds B05, and B06 feeds C04.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" width="1200" height="660" role="img" aria-labelledby="t d">
+<title id="t">The 30 modules across four tracks</title>
+<desc id="d">Four rows of module chips. Track A, GPU programming, has ten modules from foundations through to CuTe. Track B, ML performance, has seven from accelerator architecture through to distributed sharding. Track C, ML system design, has seven from problem framing through to capstone case studies. Track D, distributed and cluster computing, has six from scaling limits through message passing, GPU collectives, interconnects and topology to real systems at scale. Curved lines show the four cross-track dependencies: A01 feeds B01, A07 feeds B05, B06 feeds C04, and B01 feeds D01.</desc>
 
 <!--
   Orientation map for the whole curriculum. Row LENGTH encodes module count, so Track A
   being visibly longer is information rather than layout. Chip pitch is 81px
   (68 wide + 13 gap); to add a module, extend the row and update the count at its end.
+  Row pitch is 130px; to add a track, extend the viewBox by 130 and move the footer.
 
   Deliberately not a dependency graph - CURRICULUM.md has the full Mermaid DAG. This
   answers a different question: "how much is there, and where am I?"
@@ -32,12 +33,12 @@
   @media (prefers-reduced-motion: reduce) { .beacon { animation: none; opacity: .8 } }
 </style>
 
-<rect class="ground" width="1200" height="520"/>
+<rect class="ground" width="1200" height="660"/>
 <rect class="rule" width="1200" height="4"/>
 
-<text class="eyebrow" x="56" y="52">24 MODULES &#183; ~164 HOURS &#183; ALL AUTHORED</text>
-<text class="head"    x="54" y="92">Three tracks, one arc</text>
-<text class="sub"     x="56" y="118">Write kernels, then reason about speed, then ship systems. Start at A01 and branch when you know why.</text>
+<text class="eyebrow" x="56" y="52">30 MODULES &#183; ~203 HOURS &#183; ALL AUTHORED</text>
+<text class="head"    x="54" y="92">Four tracks, one arc</text>
+<text class="sub"     x="56" y="118">Write kernels, reason about speed, ship systems, then scale past one node. Start at A01 and branch when you know why.</text>
 
 <defs>
   <marker id="dm" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
@@ -103,16 +104,35 @@
 <text class="tmeta" x="806" y="422">7 &#183; 47 h</text>
 <text class="arc" x="240" y="456">framing &#8594; data &#8594; training &#8594; optimization &#8594; deployment &#8594; monitoring &#8594; capstones</text>
 
+<!-- ============ TRACK D ============ -->
+<rect x="56" y="530" width="4" height="34" fill="#DB2777"/>
+<text class="tname" x="72" y="546" fill="#DB2777">Track D</text>
+<text class="tmeta" x="72" y="561">distributed</text>
+
+<g fill="#DB2777">
+  <rect class="chip" x="240" y="530" width="68" height="34"/><rect class="chip" x="321" y="530" width="68" height="34"/>
+  <rect class="chip" x="402" y="530" width="68" height="34"/><rect class="chip" x="483" y="530" width="68" height="34"/>
+  <rect class="chip" x="564" y="530" width="68" height="34"/><rect class="chip" x="645" y="530" width="68" height="34"/>
+</g>
+<g class="cid" fill="#3B0A22">
+  <text x="274" y="552">D01</text><text x="355" y="552">D02</text><text x="436" y="552">D03</text><text x="517" y="552">D04</text>
+  <text x="598" y="552">D05</text><text x="679" y="552">D06</text>
+</g>
+<text class="tmeta" x="725" y="552">6 &#183; 39 h</text>
+<text class="arc" x="240" y="586">scaling limits &#8594; MPI &#8594; collectives &#8594; the wire &#8594; topology &#8594; real systems</text>
+
 <!-- ============ cross-track dependencies ============ -->
 <g class="dep" marker-end="url(#dm)">
   <path d="M 274 174 V 262"/>
   <path d="M 760 174 C 760 220, 598 220, 598 262"/>
   <path d="M 679 304 C 679 350, 517 350, 517 392"/>
+  <path d="M 274 304 C 185 330, 185 500, 274 522"/>
 </g>
 <text class="deplbl" x="284" y="222">GPU literacy</text>
 <text class="deplbl" x="620" y="228">fused softmax &#8594; attention perf</text>
 <text class="deplbl" x="540" y="358">serving &#8594; what to optimize</text>
+<text class="deplbl" x="100" y="478">hardware &#8594; fabric</text>
 
-<text class="tiny" x="56" y="492">Row length is module count. Dashed lines are the three cross-track dependencies &#8212; everything else within a row is sequential.</text>
-<text class="tiny" x="56" y="508">Full dependency graph, learning paths and hour estimates: CURRICULUM.md</text>
+<text class="tiny" x="56" y="622">Row length is module count. Dashed lines are the four cross-track dependencies &#8212; everything else within a row is sequential.</text>
+<text class="tiny" x="56" y="638">Full dependency graph, learning paths and hour estimates: CURRICULUM.md</text>
 </svg>

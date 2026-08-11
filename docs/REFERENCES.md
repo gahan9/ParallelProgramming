@@ -250,6 +250,136 @@ NVIDIA Collective Communication Library. Retrieved **8 Aug 2026**.
 
 ---
 
+## Interconnects, collectives and cluster scale
+
+The sources behind Track D. Where B07 asks *how to split a model*, these ask *what the wire costs*
+and *where it stops scaling*.
+
+### Amdahl's law (Amdahl, 1967)
+
+*Validity of the single processor approach to achieving large scale computing capabilities.*
+AFIPS '67 (Spring), pp. 483–485. The origin of the fixed-problem speedup ceiling: if a fraction `s`
+of the work is serial, no processor count beats `1/s`.
+DOI [10.1145/1465482.1465560](https://doi.org/10.1145/1465482.1465560).
+
+### Reevaluating Amdahl's law (Gustafson, 1988)
+
+*Communications of the ACM* 31(5). The rebuttal that matters in practice: real workloads grow the
+problem with the machine, so the serial fraction shrinks rather than staying fixed. Weak scaling.
+DOI [10.1145/42411.42415](https://doi.org/10.1145/42411.42415).
+
+### The Hockney alpha-beta model (Hockney, 1994)
+
+*The communication challenge for MPP: Intel Paragon and Meiko CS-2.* *Parallel Computing*
+20(3):389–398. The linear message-cost model `T(m) = alpha + m*beta` that every collective cost
+derivation in this track builds on, and the source of the latency/bandwidth crossover at
+`m* = alpha/beta`.
+DOI [10.1016/S0167-8191(06)80021-9](https://doi.org/10.1016/S0167-8191(06)80021-9).
+
+### LogP (Culler et al., 1993)
+
+*LogP: towards a realistic model of parallel computation.* PPoPP '93. Adds per-message **overhead**
+and the injection **gap** to the alpha-beta picture — the reason a node cannot simply issue messages
+back-to-back at link rate.
+DOI [10.1145/155332.155333](https://doi.org/10.1145/155332.155333).
+
+### Collective algorithms in MPICH (Thakur, Rabenseifner and Gropp, 2005)
+
+*Optimization of Collective Communication Operations in MPICH.* *International Journal of High
+Performance Computing Applications* 19(1):49–66. The canonical account of why a collective library
+switches algorithm by message size and process count — recursive doubling for short messages,
+reduce-scatter plus all-gather for long ones.
+DOI [10.1177/1094342005051521](https://doi.org/10.1177/1094342005051521).
+
+### Bandwidth-optimal all-reduce (Patarasuk and Yuan, 2009)
+
+*Bandwidth optimal all-reduce algorithms for clusters of workstations.* *Journal of Parallel and
+Distributed Computing* 69(2):117–124. Derives the `2(N-1)/N` lower bound on data movement and gives
+the ring algorithm that meets it. This is the paper behind "ring all-reduce is bandwidth-optimal".
+DOI [10.1016/j.jpdc.2008.09.002](https://doi.org/10.1016/j.jpdc.2008.09.002).
+
+### Horovod (Sergeev and Del Balso, 2018)
+
+*Horovod: fast and easy distributed deep learning in TensorFlow.* The work that brought ring
+all-reduce from HPC into mainstream deep learning.
+arXiv [1802.05799](https://arxiv.org/abs/1802.05799).
+
+### Fat-trees (Leiserson, 1985)
+
+*Fat-trees: universal networks for hardware-efficient supercomputing.* *IEEE Transactions on
+Computers* 34(10):892–901. The topology nearly every AI cluster still uses, and the proof that
+bandwidth can be scaled independently of processor count.
+DOI [10.1109/TC.1985.6312192](https://doi.org/10.1109/TC.1985.6312192).
+
+### Dragonfly topology (Kim et al., 2008)
+
+*Technology-Driven, Highly-Scalable Dragonfly Topology.* ISCA '08, pp. 77–88. High-radix groups as
+virtual routers, so a minimally routed packet crosses at most one global channel. The topology
+behind Slingshot and several exascale systems.
+DOI [10.1109/ISCA.2008.19](https://doi.org/10.1109/ISCA.2008.19).
+
+### Tofu 6D mesh/torus interconnect (Ajima et al., 2009)
+
+*Tofu: A 6D Mesh/Torus Interconnect for Exascale Computers.* *Computer* 42(11):36–40. The
+fault-tolerant torus used by the K computer and, in its later TofuD form, by Fugaku.
+DOI [10.1109/MC.2009.370](https://doi.org/10.1109/MC.2009.370).
+
+### Slingshot interconnect analysis (De Sensi et al., 2020)
+
+*An In-Depth Analysis of the Slingshot Interconnect.* SC '20. An independent measurement study of
+the fabric used by Frontier, El Capitan, Aurora and LUMI, including congestion behaviour.
+arXiv [2008.08886](https://arxiv.org/abs/2008.08886).
+
+### MPI Standard (MPI Forum)
+
+The specification itself — the normative source for communicator semantics, collective operations
+and their completion guarantees. Retrieved **11 Aug 2026**.
+<https://www.mpi-forum.org/docs/>
+
+### Open MPI (project)
+
+The open-source MPI implementation used in this track's labs. Retrieved **11 Aug 2026**.
+<https://www.open-mpi.org/>
+
+### OSU Micro-Benchmarks (Ohio State University)
+
+The standard latency and bandwidth micro-benchmarks for MPI, including GPU-aware variants.
+Retrieved **11 Aug 2026**.
+<https://mvapich.cse.ohio-state.edu/benchmarks/>
+
+### nccl-tests and rccl-tests (NVIDIA, AMD)
+
+The reference correctness and bus-bandwidth harnesses for GPU collectives. Whatever a module claims
+about collective throughput should be reproducible with these. Retrieved **11 Aug 2026**.
+<https://github.com/NVIDIA/nccl-tests> · <https://github.com/ROCm/rccl-tests>
+
+### GPUDirect RDMA (NVIDIA)
+
+The zero-copy path that lets a NIC read and write GPU memory without staging through the host.
+Retrieved **11 Aug 2026**.
+<https://docs.nvidia.com/cuda/gpudirect-rdma/>
+
+### Slurm Workload Manager (SchedMD)
+
+Scheduler documentation, including the topology-aware plugins that decide rank placement.
+Retrieved **11 Aug 2026**.
+<https://slurm.schedmd.com/documentation.html>
+
+### TOP500 and Green500
+
+The system-specification and energy-efficiency rankings used for every reference system in D06.
+Specs and rankings change each list; cite the list edition. Retrieved **11 Aug 2026**.
+<https://top500.org> · <https://green500.org>
+
+### ACM Gordon Bell Prize (ACM)
+
+The award record for real-application performance at scale — the source for the case studies in
+D06. Retrieved **11 Aug 2026** (ACM answers `403` to automated requests; the link is correct in a
+browser).
+<https://awards.acm.org/bell>
+
+---
+
 ## Precision, quantization and efficiency
 
 ### Mixed Precision Training (Micikevicius et al., 2017)
@@ -403,14 +533,15 @@ citation; CI runs `--check` and fails if it is stale.
 | [CUDA C++ Best Practices Guide (NVIDIA)](#cuda-c-best-practices-guide-nvidia) | A01, A02, A03, A04, A05, A06, A07, A10, B02, B03 |
 | [HIP Programming Guide (AMD)](#hip-programming-guide-amd) | A02, A03, A05, A06, A07 |
 | [HIP Programming Model (AMD)](#hip-programming-model-amd) | A01, A03, A04, A08 |
-| [AMD GPU architecture specifications (AMD)](#amd-gpu-architecture-specifications-amd) | A02, A03, B01 |
+| [ROCm documentation portal (AMD)](#rocm-documentation-portal-amd) | D03, D04 |
+| [AMD GPU architecture specifications (AMD)](#amd-gpu-architecture-specifications-amd) | A02, A03, B01, D04 |
 | [Triton documentation and tutorials (Triton project)](#triton-documentation-and-tutorials-triton-project) | A01, A05, A06, A07, A08, A09 |
 | [Roofline (Williams et al., 2009)](#roofline-williams-et-al-2009) | A01, A02, A04, A05, A06, A08, A10, B01, B02, B03, B05 |
 | [Little's Law (Little, 1961)](#littles-law-little-1961) | A03, B01, C05 |
-| [NVIDIA Hopper Architecture Whitepaper (NVIDIA)](#nvidia-hopper-architecture-whitepaper-nvidia) | A10, B01 |
+| [NVIDIA Hopper Architecture Whitepaper (NVIDIA)](#nvidia-hopper-architecture-whitepaper-nvidia) | A10, B01, D04 |
 | [AMD CDNA architecture (AMD)](#amd-cdna-architecture-amd) | A01, A02 |
-| [AMD CDNA 3 whitepaper (AMD)](#amd-cdna-3-whitepaper-amd) | A03, A06, B01, B04 |
-| [AMD Instinct cluster design reference (AMD)](#amd-instinct-cluster-design-reference-amd) | B01, B07 |
+| [AMD CDNA 3 whitepaper (AMD)](#amd-cdna-3-whitepaper-amd) | A03, A06, B01, B04, D04, D06 |
+| [AMD Instinct cluster design reference (AMD)](#amd-instinct-cluster-design-reference-amd) | B01, B07, D04, D05, D06 |
 | [Optimizing Parallel Reduction in CUDA (Harris)](#optimizing-parallel-reduction-in-cuda-harris) | A04 |
 | [How to Access Global Memory Efficiently in CUDA C/C++ Kernels (Harris)](#how-to-access-global-memory-efficiently-in-cuda-cc-kernels-harris) | A02 |
 | [Parallel Prefix Sum with CUDA (Harris, Sengupta and Owens)](#parallel-prefix-sum-with-cuda-harris-sengupta-and-owens) | A05 |
@@ -428,16 +559,35 @@ citation; CI runs `--check` and fails if it is stale.
 | [Orca: continuous batching (Yu et al., 2022)](#orca-continuous-batching-yu-et-al-2022) | B06, C07 |
 | [Scaling laws for neural language models (Kaplan et al., 2020)](#scaling-laws-for-neural-language-models-kaplan-et-al-2020) | B05, C03 |
 | [Training compute-optimal large language models (Hoffmann et al., 2022)](#training-compute-optimal-large-language-models-hoffmann-et-al-2022) | B05, C03 |
-| [The Llama 3 herd of models (Grattafiori et al., 2024)](#the-llama-3-herd-of-models-grattafiori-et-al-2024) | B05, B07, C03 |
+| [The Llama 3 herd of models (Grattafiori et al., 2024)](#the-llama-3-herd-of-models-grattafiori-et-al-2024) | B05, B07, C03, D03, D06 |
 | [vLLM (project)](#vllm-project) | B06, C05, C07 |
 | [SGLang (project)](#sglang-project) | B06, C05, C07 |
-| [Megatron-LM (Shoeybi et al., 2019)](#megatron-lm-shoeybi-et-al-2019) | B07, C03 |
-| [ZeRO (Rajbhandari et al., 2020)](#zero-rajbhandari-et-al-2020) | B07, C03 |
+| [Megatron-LM (Shoeybi et al., 2019)](#megatron-lm-shoeybi-et-al-2019) | B07, C03, D03, D06 |
+| [ZeRO (Rajbhandari et al., 2020)](#zero-rajbhandari-et-al-2020) | B07, C03, D03, D06 |
 | [GPipe (Huang et al., 2019)](#gpipe-huang-et-al-2019) | B07 |
-| [PyTorch FSDP (PyTorch)](#pytorch-fsdp-pytorch) | B07, C03 |
-| [RCCL (AMD)](#rccl-amd) | A04, B07 |
-| [NCCL (NVIDIA)](#nccl-nvidia) | A04, B07 |
-| [Mixed Precision Training (Micikevicius et al., 2017)](#mixed-precision-training-micikevicius-et-al-2017) | B04, B07 |
+| [PyTorch FSDP (PyTorch)](#pytorch-fsdp-pytorch) | B07, C03, D03 |
+| [RCCL (AMD)](#rccl-amd) | A04, B07, D02, D03, D04 |
+| [NCCL (NVIDIA)](#nccl-nvidia) | A04, B07, D02, D03, D04 |
+| [Amdahl's law (Amdahl, 1967)](#amdahls-law-amdahl-1967) | D01, D02, D05, D06 |
+| [Reevaluating Amdahl's law (Gustafson, 1988)](#reevaluating-amdahls-law-gustafson-1988) | D01, D02, D06 |
+| [The Hockney alpha-beta model (Hockney, 1994)](#the-hockney-alpha-beta-model-hockney-1994) | D01, D02, D03, D04, D05, D06 |
+| [LogP (Culler et al., 1993)](#logp-culler-et-al-1993) | D01, D02, D03, D04, D05 |
+| [Collective algorithms in MPICH (Thakur, Rabenseifner and Gropp, 2005)](#collective-algorithms-in-mpich-thakur-rabenseifner-and-gropp-2005) | D01, D02, D03, D05, D06 |
+| [Bandwidth-optimal all-reduce (Patarasuk and Yuan, 2009)](#bandwidth-optimal-all-reduce-patarasuk-and-yuan-2009) | D01, D02, D03, D05, D06 |
+| [Horovod (Sergeev and Del Balso, 2018)](#horovod-sergeev-and-del-balso-2018) | D01, D02, D03 |
+| [Fat-trees (Leiserson, 1985)](#fat-trees-leiserson-1985) | D04, D05, D06 |
+| [Dragonfly topology (Kim et al., 2008)](#dragonfly-topology-kim-et-al-2008) | D04, D05, D06 |
+| [Tofu 6D mesh/torus interconnect (Ajima et al., 2009)](#tofu-6d-meshtorus-interconnect-ajima-et-al-2009) | D05, D06 |
+| [Slingshot interconnect analysis (De Sensi et al., 2020)](#slingshot-interconnect-analysis-de-sensi-et-al-2020) | D04, D05, D06 |
+| [MPI Standard (MPI Forum)](#mpi-standard-mpi-forum) | D02, D03 |
+| [Open MPI (project)](#open-mpi-project) | D02 |
+| [OSU Micro-Benchmarks (Ohio State University)](#osu-micro-benchmarks-ohio-state-university) | D02, D04, D05 |
+| [nccl-tests and rccl-tests (NVIDIA, AMD)](#nccl-tests-and-rccl-tests-nvidia-amd) | D02, D03, D04, D05 |
+| [GPUDirect RDMA (NVIDIA)](#gpudirect-rdma-nvidia) | D03, D04 |
+| [Slurm Workload Manager (SchedMD)](#slurm-workload-manager-schedmd) | D05, D06 |
+| [TOP500 and Green500](#top500-and-green500) | D04, D05, D06 |
+| [ACM Gordon Bell Prize (ACM)](#acm-gordon-bell-prize-acm) | D05, D06 |
+| [Mixed Precision Training (Micikevicius et al., 2017)](#mixed-precision-training-micikevicius-et-al-2017) | B04, B07, D06 |
 | [FP8 Formats for Deep Learning (Micikevicius et al., 2022)](#fp8-formats-for-deep-learning-micikevicius-et-al-2022) | B04, C07 |
 | [OCP 8-bit Floating Point Specification (OFP8)](#ocp-8-bit-floating-point-specification-ofp8) | B04 |
 | [LLM.int8() (Dettmers et al., 2022)](#llmint8-dettmers-et-al-2022) | B04, C04 |
@@ -458,5 +608,5 @@ citation; CI runs `--check` and fails if it is stale.
 | [ROCm compute and systems profilers (AMD)](#rocm-compute-and-systems-profilers-amd) | A03, B02, B03 |
 | [ROCm workload optimization guide (AMD)](#rocm-workload-optimization-guide-amd) | B01 |
 
-**Not yet cited from any module (4):** ROCm documentation portal (AMD); Google C++ Style Guide; Conventional Comments; Clean Code (Martin, 2008). These are here as background reading, not as support for a claim.
+**Not yet cited from any module (3):** Google C++ Style Guide; Conventional Comments; Clean Code (Martin, 2008). These are here as background reading, not as support for a claim.
 <!-- END GENERATED: reference-index -->

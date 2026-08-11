@@ -408,3 +408,162 @@ on. A leading cause of models that look good offline and fail live.
 
 **Taught in** [C02](../tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md) ·
 **Source** [Hidden Technical Debt in Machine Learning Systems](REFERENCES.md#hidden-technical-debt-in-machine-learning-systems-sculley-et-al-2015)
+
+---
+
+## Distributed and cluster computing
+
+### Strong scaling and weak scaling
+
+Two different questions. **Strong scaling** fixes the problem and adds processors: does it finish
+faster? **Weak scaling** grows the problem *with* the processor count: does time-per-unit-work stay
+flat? Almost every disappointing scaling result comes from measuring one and hoping for the other.
+
+**Taught in** [D01 §2](../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#2-first-principles)
+
+### Amdahl's law and Gustafson's law
+
+Amdahl: with a fixed problem, a serial fraction `s` caps speedup at `1/s` no matter how many
+processors you add. Gustafson: real workloads grow with the machine, so `s` shrinks and the ceiling
+lifts. They are not contradictory — they answer the strong- and weak-scaling questions respectively.
+
+**Taught in** [D01 §2](../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#2-first-principles) ·
+**Source** [Amdahl 1967](REFERENCES.md#amdahls-law-amdahl-1967) ·
+[Gustafson 1988](REFERENCES.md#reevaluating-amdahls-law-gustafson-1988)
+
+### The alpha-beta model
+
+The standard cost model for one message: `T(m) = alpha + m*beta`, where `alpha` is fixed startup
+latency and `beta` is per-byte transfer cost. Messages below `m* = alpha/beta` are latency-bound and
+should be **fused**; above it they are bandwidth-bound and fusion buys nothing.
+
+**Taught in** [D01 §3](../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#3-deep-dive) ·
+**Source** [Hockney 1994](REFERENCES.md#the-hockney-alpha-beta-model-hockney-1994) ·
+[LogP](REFERENCES.md#logp-culler-et-al-1993)
+
+### MPI (Message Passing Interface)
+
+The standard for programming distributed-memory machines: independent processes with separate
+address spaces that cooperate by sending explicit messages. It is a *specification*; Open MPI and
+MPICH are implementations.
+
+**Taught in** [D02](../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md) ·
+**Source** [MPI Standard](REFERENCES.md#mpi-standard-mpi-forum)
+
+### Rank and communicator
+
+A **rank** is one process's index within a group. A **communicator** is the group itself plus its
+communication context, so a collective on one communicator cannot be confused with a collective on
+another. `MPI_COMM_WORLD` is every process in the job.
+
+**Taught in** [D02 §3](../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md#3-deep-dive)
+
+### Collective operation
+
+A communication in which *every* rank in a communicator participates — broadcast, reduce,
+all-reduce, all-gather, reduce-scatter, all-to-all. Collectives are where distributed performance is
+won or lost, because every one of them is a synchronization point.
+
+**Taught in** [D02 §3](../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md#3-deep-dive) ·
+**Source** [Collective algorithms in MPICH](REFERENCES.md#collective-algorithms-in-mpich-thakur-rabenseifner-and-gropp-2005)
+
+### All-reduce
+
+Combine a value across all ranks and give every rank the result. The single most important
+collective in deep learning: it is how gradients are averaged in data-parallel training.
+
+**Taught in** [D02 §3](../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md#3-deep-dive) ·
+[B07](../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md)
+
+### Ring all-reduce
+
+An all-reduce arranged as a ring: a reduce-scatter pass then an all-gather pass, `2(N-1)` steps
+total, each rank sending `1/N` of the buffer per step. It moves the theoretical minimum number of
+bytes, which is why every collective library uses it for large messages — but its step count grows
+with `N`, so it is latency-poor for small ones.
+
+**Taught in** [D03 §2](../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md#2-first-principles) ·
+**Source** [Patarasuk and Yuan 2009](REFERENCES.md#bandwidth-optimal-all-reduce-patarasuk-and-yuan-2009) ·
+[Horovod](REFERENCES.md#horovod-sergeev-and-del-balso-2018)
+
+### algbw and busbw
+
+Two ways to report collective bandwidth. **Algorithm bandwidth** is just `bytes / time`. **Bus
+bandwidth** scales that by the algorithm's unavoidable traffic factor — for ring all-reduce,
+`2(N-1)/N` — so the number can be compared against the hardware link rate. Quoting algbw where busbw
+is meant is the most common way collective benchmarks mislead.
+
+**Taught in** [D03 §3](../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md#3-deep-dive) ·
+**Source** [nccl-tests and rccl-tests](REFERENCES.md#nccl-tests-and-rccl-tests-nvidia-amd)
+
+### RDMA and GPUDirect
+
+**RDMA** lets a network adapter read and write a remote machine's memory without involving its CPU.
+**GPUDirect RDMA** (NVIDIA) and its ROCm equivalent extend that to GPU memory, so a gradient can go
+from one GPU's HBM to another's without ever being staged in host RAM.
+
+**Taught in** [D04 §3](../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#3-deep-dive) ·
+**Source** [GPUDirect RDMA](REFERENCES.md#gpudirect-rdma-nvidia)
+
+### NVLink, xGMI and Infinity Fabric
+
+Scale-**up** links: they connect GPUs *inside* a node at bandwidths far above PCIe. NVLink and
+NVSwitch are NVIDIA's; **xGMI** is the AMD inter-GPU link, part of the broader Infinity Fabric
+family. These are the fast tier that tensor parallelism must stay inside.
+
+**Taught in** [D04 §3](../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#3-deep-dive) ·
+[B01 §3](../tracks/B-gpu-ml-performance/B01.accelerator-architecture/README.md#3-deep-dive)
+
+### InfiniBand, RoCE and Slingshot
+
+Scale-**out** fabrics: they connect nodes to each other. InfiniBand is the traditional HPC choice,
+RoCE carries the same RDMA semantics over Ethernet (and needs careful flow-control tuning), and
+Slingshot is HPE's Ethernet-compatible dragonfly fabric used by several exascale systems.
+
+**Taught in** [D04 §3](../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#3-deep-dive) ·
+**Source** [Slingshot analysis](REFERENCES.md#slingshot-interconnect-analysis-de-sensi-et-al-2020)
+
+### Fat-tree, dragonfly and torus
+
+The three network shapes worth knowing. A **fat-tree** keeps bandwidth constant as you climb toward
+the root, so any node can talk to any node at full rate. A **dragonfly** uses high-radix groups to
+cut expensive long cables, at the price of adaptive routing. A **torus** wires neighbours directly,
+which is cheap and superb for nearest-neighbour work but costly for global collectives.
+
+**Taught in** [D05 §3](../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md#3-deep-dive) ·
+**Source** [Fat-trees](REFERENCES.md#fat-trees-leiserson-1985) ·
+[Dragonfly](REFERENCES.md#dragonfly-topology-kim-et-al-2008) ·
+[Tofu](REFERENCES.md#tofu-6d-meshtorus-interconnect-ajima-et-al-2009)
+
+### Bisection bandwidth
+
+Cut the network in half through its narrowest point; the bandwidth crossing that cut is the
+bisection bandwidth. It is the ceiling on any communication pattern where roughly half the nodes
+talk to the other half — all-to-all, and therefore mixture-of-experts routing.
+
+**Taught in** [D05 §2](../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md#2-first-principles)
+
+### Oversubscription
+
+Building a network with less uplink bandwidth than downlink — a 2:1 oversubscribed switch can serve
+only half its hosts at full rate simultaneously. It saves real money and is invisible until a
+collective saturates the uplinks, at which point scaling stops.
+
+**Taught in** [D05 §3](../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md#3-deep-dive)
+
+### Rail-optimized network
+
+Giving each GPU in a node its own NIC, and wiring the *n*-th GPU of every node onto the same switch
+("rail"). A ring or all-reduce step then stays within one rail instead of contending for a shared
+uplink.
+
+**Taught in** [D05 §3](../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md#3-deep-dive)
+
+### Straggler
+
+The slowest rank in a synchronous job. Because a collective is a barrier, every other rank waits for
+it, so one degraded GPU sets the pace for the whole cluster. Stragglers are why measured scaling
+falls short of modelled scaling.
+
+**Taught in** [D01 §3](../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#3-deep-dive) ·
+[C03](../tracks/C-ml-system-design/C03.training-systems/README.md)

@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480" role="img" aria-labelledby="t d">
+<title id="t">Where scaling curves bend: Amdahl ceilings and the communication turn</title>
+<desc id="d">A log-log plot of speedup against rank count. A dashed diagonal marks ideal linear speedup. Two Amdahl curves, for one percent and five percent serial fractions, rise and then flatten permanently against horizontal ceilings at one hundred times and twenty times. A third curve, for a communication-bound workload, rises only to about eight times near one hundred and twenty-eight ranks and then turns downward, so that adding ranks past that point makes the job slower rather than faster. The lesson is that the ceiling is set by the serial fraction, but the downturn is set by communication, and they are different failures.</desc>
+
+<!--
+  Module D01. Mermaid cannot draw a curve or an asymptote, which is why this is hand-authored SVG.
+
+  Axis mapping, if you re-plot:
+    x(N) = 140 + 75   * log2(N)      decades marked at 1, 8, 64, 512, 4096
+    y(S) = 360 - 22.5 * log2(S)      marked at 1, 4, 16, 64, 256, 1024, 4096
+
+  Curve definitions - all are MODELS, computed from the formulas in D01, not measurements:
+    ideal          S = N
+    Amdahl(s)      S = 1 / (s + (1-s)/N),  ceiling 1/s
+    comm-bound     T(N) = 300/N + 20 + 2*log2(N) ms against a 300 ms serial baseline
+                   (an illustrative shape, not a measured workload - D01 section 2.4
+                   derives the same effect with a bandwidth-dominated collective)
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #DB2777; }
+  .eyebrow  { fill: #DB2777; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .axis     { stroke: #334155; stroke-width: 1.2; }
+  .grid     { stroke: #1B2436; stroke-width: 1; }
+  .tick     { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .axlbl    { fill: #94A3B8; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .3px; }
+  .ideal    { stroke: #64748B; stroke-width: 1.6; fill: none; stroke-dasharray: 5 5; }
+  .curve    { fill: none; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+  .c1       { stroke: #6366F1; }
+  .c5       { stroke: #0891B2; }
+  .ccomm    { stroke: #F59E0B; }
+  .ceil     { stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
+  .lbl      { font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; }
+  .num      { font: 700 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .turn     { fill: #F59E0B; stroke: #0F172A; stroke-width: 2; }
+
+  .pulse { animation: p 3s ease-in-out infinite; }
+  @keyframes p { 0%,100% { r: 6 } 50% { r: 9 } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none } }
+</style>
+
+<rect class="ground" width="1200" height="480"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE D01 &#183; TWO DIFFERENT WALLS, TWO DIFFERENT FIXES</text>
+<text class="head"    x="54" y="92">The ceiling is Amdahl. The downturn is the network.</text>
+<text class="sub"     x="56" y="118">A serial fraction flattens the curve. Communication bends it back down &#8212; more ranks, less speed.</text>
+
+<!-- grid + axes -->
+<g class="grid">
+  <line x1="365" y1="90" x2="365" y2="360"/><line x1="590" y1="90" x2="590" y2="360"/>
+  <line x1="815" y1="90" x2="815" y2="360"/>
+  <line x1="140" y1="315" x2="1040" y2="315"/><line x1="140" y1="270" x2="1040" y2="270"/>
+  <line x1="140" y1="225" x2="1040" y2="225"/><line x1="140" y1="180" x2="1040" y2="180"/>
+  <line x1="140" y1="135" x2="1040" y2="135"/>
+</g>
+<g class="axis">
+  <line x1="140" y1="360" x2="1040" y2="360"/>
+  <line x1="140" y1="90"  x2="140"  y2="360"/>
+</g>
+
+<g class="tick">
+  <text x="136" y="378">1</text><text x="358" y="378">8</text><text x="580" y="378">64</text>
+  <text x="802" y="378">512</text><text x="1022" y="378">4096</text>
+  <text x="122" y="364">1</text><text x="122" y="319">4</text><text x="116" y="274">16</text>
+  <text x="116" y="229">64</text><text x="110" y="184">256</text><text x="104" y="139">1024</text>
+  <text x="104" y="94">4096</text>
+</g>
+<text class="axlbl" x="520" y="400">ranks (log scale)</text>
+<text class="axlbl" x="56"  y="76" >speedup</text>
+
+<!-- ideal -->
+<line class="ideal" x1="140" y1="360" x2="1040" y2="90"/>
+<text class="lbl" x="905" y="118" fill="#64748B" transform="rotate(-16.7 905 118)">ideal linear</text>
+
+<!-- Amdahl s = 1% : ceiling 100x -->
+<line class="ceil" x1="140" y1="210.5" x2="1040" y2="210.5" stroke="#6366F1"/>
+<path class="curve c1" d="M 140 360 L 215 337 L 290 316 L 365 295 L 440 274 L 515 257 L 590 241 L 665 230 L 740 222 L 815 216 L 890 214 L 965 212 L 1040 211"/>
+<text class="lbl num" x="1048" y="208" fill="#6366F1">100&#215;</text>
+<text class="lbl" x="1048" y="224" fill="#6366F1">s = 1%</text>
+
+<!-- Amdahl s = 5% : ceiling 20x -->
+<line class="ceil" x1="140" y1="262.8" x2="1040" y2="262.8" stroke="#0891B2"/>
+<path class="curve c5" d="M 140 360 L 215 341 L 290 324 L 365 302 L 440 287 L 515 277 L 590 271 L 665 268 L 740 266 L 815 264 L 890 263.5 L 965 263 L 1040 263"/>
+<text class="lbl num" x="1048" y="260" fill="#0891B2">20&#215;</text>
+<text class="lbl" x="1048" y="276" fill="#0891B2">s = 5%</text>
+
+<!-- communication-bound: rises, peaks, turns down -->
+<path class="curve ccomm" d="M 140 360 L 215 342 L 290 324 L 365 310 L 440 300 L 515 294 L 590 292 L 665 291.5 L 740 292 L 815 293 L 890 295 L 965 296 L 1040 298"/>
+<circle class="turn pulse" cx="665" cy="291.5" r="6"/>
+<text class="lbl" x="600" y="333" fill="#F59E0B">communication-bound</text>
+<text class="tiny" x="600" y="349">peaks near 128 ranks, then falls</text>
+
+<!-- callouts -->
+<rect x="150" y="104" width="290" height="66" rx="4" fill="#111C2E" stroke="#1E293B"/>
+<text class="lbl" x="166" y="126" fill="#F8FAFC">Read the gap, not the curve</text>
+<text class="tiny" x="166" y="145">At 4096 ranks the s = 1% code reaches 98&#215;</text>
+<text class="tiny" x="166" y="161">of a possible 4096&#215;. That is 2.4% efficiency.</text>
+
+<text class="tiny" x="56" y="432">Amdahl curves are exact for the stated serial fraction. The communication curve is an illustrative shape from the model in D01 section 2.4,</text>
+<text class="tiny" x="56" y="450">not a measured workload &#8212; its peak moves with message size, fabric and compute per rank. Run tools/scaling_model.py for your own numbers.</text>
+</svg>

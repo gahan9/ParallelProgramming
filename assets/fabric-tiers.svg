@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 470" width="1200" height="470" role="img" aria-labelledby="t d">
+<title id="t">The bandwidth cliff from on-package memory to the network</title>
+<desc id="d">Five horizontal bars on a logarithmic bandwidth axis running from one gigabyte per second to ten thousand. On-package high bandwidth memory occupies the far right, around one to eight thousand gigabytes per second. A scale-up GPU to GPU link sits roughly one order of magnitude lower, at one hundred to nine hundred. Then comes a cliff: PCIe, a scale-out RDMA network adapter, and conventional datacenter Ethernet all cluster one to two further orders of magnitude down, between about one and sixty-five gigabytes per second. The lesson is that leaving the package costs roughly a factor of ten and leaving the node costs roughly another factor of ten, so the organizing rule of distributed GPU computing is to keep traffic in the fastest tier that can hold it. Because the axis is logarithmic, each tick is ten times the one before, so the drawn gaps understate the real ratios.</desc>
+
+<!--
+  Module D04. Mermaid draws every box the same size, which is exactly the lie this
+  graphic exists to correct: the tiers differ by orders of magnitude, and the whole
+  point is that the difference is enormous.
+
+  Axis mapping, if you re-plot:
+    x(B) = 210 + 185 * log10(B),  B in GB/s one direction
+    decades marked at 1, 10, 100, 1000, 10000  ->  x = 210, 395, 580, 765, 950
+
+  EVERY RANGE HERE IS AN ILLUSTRATIVE ORDER OF MAGNITUDE spanning several generations
+  of hardware from both vendors. None of it is a datasheet quote for any specific part,
+  and it must not be cited as one. D04 gives sourced, dated figures; B01 section 3.5
+  measures the intra-node links on your own machine.
+
+  The axis is LOGARITHMIC and the graphic says so on its face - a bar twice as long is
+  a hundred times the bandwidth, not twice. See assets/README.md rule 3.
+-->
+
+<style>
+  .ground  { fill: #0F172A; }
+  .rule    { fill: #DB2777; }
+  .eyebrow { fill: #DB2777; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head    { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub     { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .axis    { stroke: #334155; stroke-width: 1.2; }
+  .grid    { stroke: #1B2436; stroke-width: 1; }
+  .tick    { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .axlbl   { fill: #94A3B8; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .3px; }
+  .tname   { fill: #E2E8F0; font: 600 13px Inter, "Segoe UI", system-ui, sans-serif; }
+  .trange  { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .zone    { font: 700 11.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .6px; }
+  .tiny    { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .cliff   { stroke: #F59E0B; stroke-width: 1.4; stroke-dasharray: 5 4; }
+
+  .bar     { rx: 3; }
+  .onpkg   { fill: #10B981; }
+  .scaleup { fill: #0891B2; }
+  .pcie    { fill: #6366F1; }
+  .net     { fill: #F59E0B; }
+  .eth     { fill: #92400E; }
+
+  .breathe { animation: b 3.4s ease-in-out infinite; }
+  @keyframes b { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) { .breathe { animation: none; opacity: .9 } }
+</style>
+
+<rect class="ground" width="1200" height="470"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE D04 &#183; LOG SCALE &#183; EACH TICK IS 10&#215; THE LAST</text>
+<text class="head"    x="54" y="92">Leaving the package costs 10&#215;. Leaving the node costs 10&#215; again.</text>
+<text class="sub"     x="56" y="118">Which is the entire reason distributed GPU work is organised around keeping traffic in the fastest tier that will hold it.</text>
+
+<!-- grid -->
+<g class="grid">
+  <line x1="395" y1="150" x2="395" y2="368"/><line x1="580" y1="150" x2="580" y2="368"/>
+  <line x1="765" y1="150" x2="765" y2="368"/><line x1="950" y1="150" x2="950" y2="368"/>
+</g>
+<g class="axis"><line x1="210" y1="368" x2="1000" y2="368"/></g>
+<g class="tick">
+  <text x="204" y="386">1</text><text x="386" y="386">10</text><text x="568" y="386">100</text>
+  <text x="750" y="386">1000</text><text x="932" y="386">10000</text>
+</g>
+<text class="axlbl" x="560" y="408">GB/s, one direction (logarithmic)</text>
+
+<!-- the cliff marker -->
+<line class="cliff" x1="562" y1="150" x2="562" y2="368"/>
+<text class="zone" x="572" y="166" fill="#F59E0B">THE CLIFF</text>
+<text class="tiny" x="572" y="182">inside the node</text>
+<text class="tiny" x="450" y="166">on the wire</text>
+
+<!-- ================= tiers ================= -->
+
+<!-- HBM on-package: 1000 - 8000 GB/s -->
+<text class="tname"  x="56" y="216">HBM (on package)</text>
+<text class="trange" x="56" y="232">~1000-8000</text>
+<rect class="bar onpkg breathe" x="765" y="200" width="167" height="22"/>
+<text class="tiny" x="940" y="216">the number every kernel is measured against</text>
+
+<!-- scale-up GPU-GPU link -->
+<text class="tname"  x="56" y="254">Scale-up GPU link</text>
+<text class="trange" x="56" y="270">~100-900 &#183; NVLink, xGMI</text>
+<rect class="bar scaleup" x="580" y="238" width="177" height="22"/>
+<text class="tiny" x="765" y="254">tensor parallelism must stay in here</text>
+
+<!-- PCIe -->
+<text class="tname"  x="56" y="292">PCIe x16 (Gen4/Gen5)</text>
+<text class="trange" x="56" y="308">~25-65</text>
+<rect class="bar pcie" x="469" y="276" width="76" height="22"/>
+<text class="tiny" x="556" y="292">the hidden bottleneck between GPU and NIC</text>
+
+<!-- scale-out RDMA NIC -->
+<text class="tname"  x="56" y="330">Scale-out RDMA NIC</text>
+<text class="trange" x="56" y="346">~12-50 &#183; InfiniBand, RoCE</text>
+<rect class="bar net" x="410" y="314" width="114" height="22"/>
+<text class="tiny" x="556" y="330">gradient all-reduce crosses this</text>
+
+<!-- conventional ethernet -->
+<text class="tname"  x="56" y="368">Datacenter Ethernet</text>
+<text class="trange" x="56" y="384">~1-12 &#183; TCP, no RDMA</text>
+<rect class="bar eth" x="210" y="352" width="200" height="22"/>
+<text class="tiny" x="556" y="368">where distributed training goes to die</text>
+
+<!-- footer -->
+<text class="tiny" x="56" y="434">Ranges are ILLUSTRATIVE orders of magnitude spanning several hardware generations and both vendors &#8212; not a datasheet quote for any part.</text>
+<text class="tiny" x="56" y="452">Because the axis is logarithmic the drawn gaps understate the ratios: HBM to network is roughly 100&#215;, not the 2&#215; the bars suggest. D04 gives sourced figures.</text>
+</svg>

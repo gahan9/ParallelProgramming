@@ -118,6 +118,26 @@ for mod in "${C_MODULES[@]}"; do
   fi
 done
 
+# ---- Track D (stdlib Python models; D02/D03/D04 also have MPI/HIP labs) ----
+D_MODULES=(
+  D01.scaling-limits-and-communication-cost
+  D02.message-passing-and-mpi
+  D03.gpu-collectives-nccl-and-rccl
+  D04.interconnects-and-rdma
+  D05.topology-and-scale-boundaries
+  D06.real-systems-at-scale
+)
+
+for mod in "${D_MODULES[@]}"; do
+  base="tracks/D-distributed-computing/$mod"
+  [[ -f "$base/Makefile" ]] || continue
+  if grep -q '^run-hip:' "$base/Makefile" 2>/dev/null; then
+    run_capture "track-d/${mod}/run-hip" bash -lc "cd '$base' && $MAKE run-hip GPU_ARCH=$GPU_ARCH HIP_PATH=$HIP_PATH"
+  elif grep -q '^run:' "$base/Makefile" 2>/dev/null; then
+    run_capture "track-d/${mod}/run" bash -lc "cd '$base' && $MAKE run"
+  fi
+done
+
 # ---- Profile sample (A01 vector_add) ----
 run_capture "track-a/A01.foundations-and-programming-model/profile-hip" bash -lc \
   "cd tracks/A-gpu-programming/A01.foundations-and-programming-model && $MAKE profile-hip GPU_ARCH=$GPU_ARCH HIP_PATH=$HIP_PATH"

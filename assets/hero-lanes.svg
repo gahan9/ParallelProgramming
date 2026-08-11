@@ -44,7 +44,7 @@
 <text class="eyebrow" x="56" y="96">PARALLEL PROGRAMMING</text>
 <text class="title"   x="54" y="156">GPU + ML Expert Tutor</text>
 <text class="sub"     x="56" y="192">Layman-clear, expert-deep. Every claim reproducible.</text>
-<text class="meta"    x="56" y="236">24 modules &#183; 3 tracks &#183; ~164 hours</text>
+<text class="meta"    x="56" y="236">30 modules &#183; 4 tracks &#183; ~203 hours</text>
 
 <!-- Vendor pills: small labels only, never a background (docs/BRAND.md) -->
 <rect class="amd" x="56" y="256" width="46" height="18" rx="3"/>

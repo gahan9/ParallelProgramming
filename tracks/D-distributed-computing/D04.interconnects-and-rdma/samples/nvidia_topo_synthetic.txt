@@ -1,0 +1,25 @@
+SYNTHETIC EXAMPLE OF THE `nvidia-smi topo -m` OUTPUT FORMAT.
+Hand-written to exercise tools/topology_report.py. NOT captured from any machine, and
+not a description of any product. No hostname, user, serial or address appears here
+because nothing here came from a real system. See samples/README.md.
+
+The shape it illustrates: two islands of two GPUs, each island paired with one adapter
+on its own socket, and no path between the islands except the inter-socket link.
+
+	GPU0	GPU1	GPU2	GPU3	mlx5_0	mlx5_1	CPU Affinity	NUMA Affinity	GPU NUMA ID
+GPU0	 X 	NV4	SYS	SYS	PIX	SYS	0-31	0		N/A
+GPU1	NV4	 X 	SYS	SYS	PIX	SYS	0-31	0		N/A
+GPU2	SYS	SYS	 X 	NV4	SYS	PIX	32-63	1		N/A
+GPU3	SYS	SYS	NV4	 X 	SYS	PIX	32-63	1		N/A
+mlx5_0	PIX	PIX	SYS	SYS	 X 	SYS
+mlx5_1	SYS	SYS	PIX	PIX	SYS	 X 
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks

@@ -93,7 +93,7 @@ The planner and deck hardcode the module list, hour estimates, and depths. The s
    belongs on a learning path.
 3. `live/flashcards.html` — add cards to `CARDS`, reusing an entry from the `S` source table or adding
    one. A card without a real source does not belong in the deck.
-4. `live/slides.html` — only if the headline counts (24 modules, ~164 hours) change.
+4. `live/slides.html` — only if the headline counts (30 modules, ~203 hours) change.
 5. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
    use inside the editor.
 

@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" role="img" aria-labelledby="t d">
+<title id="t">Ring all-reduce: reduce-scatter then all-gather</title>
+<desc id="d">Three panels showing four ranks, each holding four chunks of a buffer. In the start panel every cell holds only its own rank's partial value. After the reduce-scatter phase, which takes three steps, each rank holds one fully reduced chunk on the diagonal and nothing else complete. After the all-gather phase, which takes another three steps, every rank holds all four fully reduced chunks. The total is six steps for four ranks, that is two times N minus one, and each step moves only one quarter of the buffer, so each rank sends about two buffers in total no matter how many ranks there are. A footer contrasts this with a naive broadcast-everything scheme whose traffic grows with rank count.</desc>
+
+<!--
+  Module D03, also linked from D02 and B07. Mermaid is static and equal-sized, so it can
+  neither show these three states as a SEQUENCE nor show that the traffic stays constant.
+
+  Layout: three 4x4 grids. Row = rank, column = chunk.
+    cell 30 x 22, pitch 34 x 26. Panel origins at x = 80, 460, 840.
+  Fill encodes how many rank contributions a cell holds:
+    .p1 one (own partial)   .p2 two   .p3 three   .full all four (fully reduced)
+  The animated cue steps 1 -> 2 -> 3 across the panels. The static state is complete
+  without it: each panel is labelled, so a reader who never sees motion loses nothing.
+-->
+
+<style>
+  .ground  { fill: #0F172A; }
+  .rule    { fill: #DB2777; }
+  .eyebrow { fill: #DB2777; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head    { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub     { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .panel   { fill: none; stroke: #1E293B; }
+  .phead   { font: 700 13px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .5px; }
+  .steps   { fill: #94A3B8; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .rlbl    { fill: #64748B; font: 400 10.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .tiny    { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .lbl     { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .verdict { font: 700 15px Inter, "Segoe UI", system-ui, sans-serif; }
+
+  .p1   { fill: #172033; stroke: #223049; stroke-width: 1; }
+  .p2   { fill: #0E4A5B; }
+  .p3   { fill: #0891B2; opacity: .65; }
+  .full { fill: #10B981; }
+
+  /* The cue walks the three panels so the order reads as an order. */
+  .cue1 { animation: c 4.5s steps(1, end) infinite; }
+  .cue2 { animation: c 4.5s steps(1, end) infinite; animation-delay: 1.5s; }
+  .cue3 { animation: c 4.5s steps(1, end) infinite; animation-delay: 3s; }
+  @keyframes c { 0%, 33.2% { opacity: 1 } 33.3%, 100% { opacity: 0 } }
+  @media (prefers-reduced-motion: reduce) { .cue1, .cue2, .cue3 { animation: none; opacity: .55 } }
+</style>
+
+<rect class="ground" width="1200" height="500"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE D03 &#183; 2(N-1) STEPS, BUT ONLY 2 BUFFERS OF TRAFFIC</text>
+<text class="head"    x="54" y="92">A ring all-reduce never sends the whole buffer</text>
+<text class="sub"     x="56" y="118">Each step ships one chunk to one neighbour. That is why the bytes stay flat as ranks grow &#8212; and why the steps do not.</text>
+
+<defs><rect id="C" width="30" height="22" rx="2"/></defs>
+
+<!-- ============ PANEL 1: START ============ -->
+<rect class="panel" x="80" y="150" width="290" height="190" rx="4"/>
+<rect class="cue1" x="80" y="150" width="4" height="190" fill="#DB2777"/>
+<text class="phead" x="100" y="176" fill="#94A3B8">START</text>
+<text class="steps" x="100" y="194">every rank has its own partial</text>
+
+<g class="rlbl">
+  <text x="86" y="228">R0</text><text x="86" y="254">R1</text>
+  <text x="86" y="280">R2</text><text x="86" y="306">R3</text>
+</g>
+<g>
+  <use href="#C" class="p1" x="116" y="210"/><use href="#C" class="p1" x="150" y="210"/><use href="#C" class="p1" x="184" y="210"/><use href="#C" class="p1" x="218" y="210"/>
+  <use href="#C" class="p1" x="116" y="236"/><use href="#C" class="p1" x="150" y="236"/><use href="#C" class="p1" x="184" y="236"/><use href="#C" class="p1" x="218" y="236"/>
+  <use href="#C" class="p1" x="116" y="262"/><use href="#C" class="p1" x="150" y="262"/><use href="#C" class="p1" x="184" y="262"/><use href="#C" class="p1" x="218" y="262"/>
+  <use href="#C" class="p1" x="116" y="288"/><use href="#C" class="p1" x="150" y="288"/><use href="#C" class="p1" x="184" y="288"/><use href="#C" class="p1" x="218" y="288"/>
+</g>
+<text class="tiny" x="116" y="326">chunk A  B  C  D</text>
+
+<!-- ============ PANEL 2: AFTER REDUCE-SCATTER ============ -->
+<rect class="panel" x="460" y="150" width="290" height="190" rx="4"/>
+<rect class="cue2" x="460" y="150" width="4" height="190" fill="#DB2777"/>
+<text class="phead" x="480" y="176" fill="#0891B2">AFTER REDUCE-SCATTER &#183; 3 steps</text>
+<text class="steps" x="480" y="194">each rank owns one complete chunk</text>
+
+<g class="rlbl">
+  <text x="466" y="228">R0</text><text x="466" y="254">R1</text>
+  <text x="466" y="280">R2</text><text x="466" y="306">R3</text>
+</g>
+<g>
+  <use href="#C" class="full" x="496" y="210"/><use href="#C" class="p2" x="530" y="210"/><use href="#C" class="p3" x="564" y="210"/><use href="#C" class="p2" x="598" y="210"/>
+  <use href="#C" class="p2" x="496" y="236"/><use href="#C" class="full" x="530" y="236"/><use href="#C" class="p2" x="564" y="236"/><use href="#C" class="p3" x="598" y="236"/>
+  <use href="#C" class="p3" x="496" y="262"/><use href="#C" class="p2" x="530" y="262"/><use href="#C" class="full" x="564" y="262"/><use href="#C" class="p2" x="598" y="262"/>
+  <use href="#C" class="p2" x="496" y="288"/><use href="#C" class="p3" x="530" y="288"/><use href="#C" class="p2" x="564" y="288"/><use href="#C" class="full" x="598" y="288"/>
+</g>
+<text class="tiny" x="496" y="326">the green diagonal is the whole result, scattered</text>
+
+<!-- ============ PANEL 3: AFTER ALL-GATHER ============ -->
+<rect class="panel" x="840" y="150" width="290" height="190" rx="4"/>
+<rect class="cue3" x="840" y="150" width="4" height="190" fill="#DB2777"/>
+<text class="phead" x="860" y="176" fill="#10B981">AFTER ALL-GATHER &#183; 3 more steps</text>
+<text class="steps" x="860" y="194">every rank has every chunk</text>
+
+<g class="rlbl">
+  <text x="846" y="228">R0</text><text x="846" y="254">R1</text>
+  <text x="846" y="280">R2</text><text x="846" y="306">R3</text>
+</g>
+<g>
+  <use href="#C" class="full" x="876" y="210"/><use href="#C" class="full" x="910" y="210"/><use href="#C" class="full" x="944" y="210"/><use href="#C" class="full" x="978" y="210"/>
+  <use href="#C" class="full" x="876" y="236"/><use href="#C" class="full" x="910" y="236"/><use href="#C" class="full" x="944" y="236"/><use href="#C" class="full" x="978" y="236"/>
+  <use href="#C" class="full" x="876" y="262"/><use href="#C" class="full" x="910" y="262"/><use href="#C" class="full" x="944" y="262"/><use href="#C" class="full" x="978" y="262"/>
+  <use href="#C" class="full" x="876" y="288"/><use href="#C" class="full" x="910" y="288"/><use href="#C" class="full" x="944" y="288"/><use href="#C" class="full" x="978" y="288"/>
+</g>
+<text class="tiny" x="876" y="326">done &#183; 6 steps total for N = 4</text>
+
+<!-- flow arrows between panels -->
+<text class="steps" x="392" y="252" fill="#DB2777">&#8594;</text>
+<text class="steps" x="772" y="252" fill="#DB2777">&#8594;</text>
+
+<!-- ============ accounting strip ============ -->
+<rect x="80" y="364" width="1050" height="1" fill="#1E293B"/>
+
+<text class="verdict" x="80" y="396" fill="#10B981">bytes per rank = 2m(N-1)/N, which is about 2m for any useful N</text>
+<text class="lbl"     x="80" y="418">Ranks 4, 400 or 4000: each still sends roughly two copies of the buffer. This is provably the least any</text>
+<text class="lbl"     x="80" y="436">algorithm can move &#8212; so the ring wins on large messages and cannot be beaten on bandwidth.</text>
+
+<text class="verdict" x="80" y="466" fill="#F59E0B">steps = 2(N-1), which grows without bound</text>
+<text class="tiny"    x="80" y="486">So on small messages the ring is the wrong choice and a log-step algorithm wins. A collective library decides per call. See D03 section 3.</text>
+</svg>

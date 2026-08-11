@@ -1,0 +1,32 @@
+# SYNTHETIC EXAMPLE OF THE `ib_write_bw` OUTPUT FORMAT.
+# Hand-written to exercise tools/parse_ib_bw.py. NOT captured from any fabric, and not a
+# specification for any adapter. Every bandwidth figure below is a ROUND INVENTED number
+# chosen to make the shape of a sweep visible -- a per-message floor at the small end, a
+# flat ceiling at the large end, and a knee between them. Do not quote any of it.
+# The peak and average columns are equal here because the gap between them is a property
+# of a real run, and inventing one would be inventing a measurement.
+# See samples/README.md.
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : mlx5_0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 4096[B]
+ Link type       : IB
+ Max inline data : 0[B]
+ rdma_cm QPs	 : OFF
+ Data ex. method : Ethernet
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 2          1000           0.20               0.20                 12.500000
+ 8          1000           0.80               0.80                 12.500000
+ 64         1000           6.40               6.40                 12.500000
+ 512        1000           51.20              51.20                12.500000
+ 4096       1000           100.00             100.00               3.051758
+ 32768      1000           180.00             180.00               0.686646
+ 262144     1000           200.00             200.00               0.095367
+ 2097152    1000           200.00             200.00               0.011921
+ 8388608    1000           200.00             200.00               0.002980
+---------------------------------------------------------------------------------------

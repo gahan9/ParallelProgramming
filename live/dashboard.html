@@ -172,7 +172,7 @@
 <header>
   <h1>Study planner</h1>
   <p class="sub">
-    Twenty-four modules across three tracks, dual-vendor (AMD ROCm/HIP and NVIDIA CUDA) with a
+    Thirty modules across four tracks, dual-vendor (AMD ROCm/HIP and NVIDIA CUDA) with a
     portable Triton path. Pick the goal that matches why you are here, then tick modules off as you
     finish them. Your progress is saved in this browser only.
   </p>
@@ -197,7 +197,7 @@
 <h2>3 · Progress by track</h2>
 <div class="bars" id="bars"></div>
 
-<h2>All 24 modules</h2>
+<h2>All 30 modules</h2>
 <div id="allTracks"></div>
 
 <div class="toolbar">
@@ -233,7 +233,8 @@
   var TRACKS = {
     A: { name: "Track A — GPU Programming",  color: "#0891B2", dir: "A-gpu-programming" },
     B: { name: "Track B — ML Performance",   color: "#6366F1", dir: "B-gpu-ml-performance" },
-    C: { name: "Track C — ML System Design", color: "#F59E0B", dir: "C-ml-system-design" }
+    C: { name: "Track C — ML System Design", color: "#F59E0B", dir: "C-ml-system-design" },
+    D: { name: "Track D — Distributed Computing", color: "#DB2777", dir: "D-distributed-computing" }
   };
 
   // id, title, track, hours, depth, folder (relative to tracks/<dir>/)
@@ -263,7 +264,14 @@
     ["C04", "Production model optimization",          "C",  7, 3, "C04.production-model-optimization"],
     ["C05", "Deployment & serving architecture",      "C",  6, 3, "C05.deployment-and-serving-architecture"],
     ["C06", "Monitoring, drift & ethics",             "C",  6, 3, "C06.monitoring-drift-and-ethics"],
-    ["C07", "Capstone case studies",                  "C", 10, 4, "C07.capstone-case-studies"]
+    ["C07", "Capstone case studies",                  "C", 10, 4, "C07.capstone-case-studies"],
+
+    ["D01", "Scaling limits & communication cost",    "D",  6, 2, "D01.scaling-limits-and-communication-cost"],
+    ["D02", "Message passing (MPI / Open MPI)",       "D",  7, 3, "D02.message-passing-and-mpi"],
+    ["D03", "GPU collectives (NCCL / RCCL)",          "D",  7, 3, "D03.gpu-collectives-nccl-and-rccl"],
+    ["D04", "Interconnects & RDMA",                   "D",  6, 3, "D04.interconnects-and-rdma"],
+    ["D05", "Topology & scale boundaries",            "D",  7, 4, "D05.topology-and-scale-boundaries"],
+    ["D06", "Real systems at scale",                  "D",  6, 4, "D06.real-systems-at-scale"]
   ].map(function (r) {
     return { id: r[0], title: r[1], track: r[2], hours: r[3], depth: r[4], folder: r[5] };
   });
@@ -281,11 +289,14 @@
     { id: "design", label: "Design production ML systems",
       why: "You want to take an ML product from problem framing to a monitored, deployed system. Track C in order, pulling in the two performance modules you cannot design without.",
       ids: ["A01","C01","C02","C03","B04","C04","B06","C05","C06","C07"] },
+    { id: "cluster", label: "Scale across nodes",
+      why: "You want to run across many nodes and know where it will stop scaling. GPU literacy and the hardware first, then all of Track D, with the two ML modules that show the consequences.",
+      ids: ["A01","B01","D01","D02","D03","D04","D05","D06","B07","C03"] },
     { id: "interview", label: "Interview soon",
       why: "You want the highest-signal topics across all three areas: the canonical kernels, the performance fundamentals interviewers probe, and end-to-end design.",
       ids: ["A01","A04","A06","A07","B02","B05","B06","C01","C04","C07"] },
     { id: "everything", label: "Everything, in order",
-      why: "The full curriculum in dependency order. About 164 hours if you do the labs and the drills.",
+      why: "The full curriculum in dependency order. About 203 hours if you do the labs and the drills.",
       ids: M.map(function (m) { return m.id; }) }
   ];
 

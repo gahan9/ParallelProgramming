@@ -79,6 +79,7 @@
   .card { border-left: 4px solid var(--primary); padding: .2rem 0 .2rem 1rem; }
   .card.b { border-left-color: var(--accent); }
   .card.c { border-left-color: var(--highlight); }
+  .card.d { border-left-color: #DB2777; }
   .card h3 { margin: 0 0 .4rem; font-size: clamp(1rem, 1.5vw, 1.2rem); color: var(--deep); }
   .slide.dark .card h3 { color: var(--surface); }
   .card p { font-size: clamp(.84rem, 1.1vw, 1rem); margin: 0; max-width: 34ch; }
@@ -140,7 +141,7 @@
     <h1>GPU + ML Expert&nbsp;Tutor</h1>
     <p class="lead">
       From "what is a GPU thread" to designing, profiling, and shipping production ML systems on
-      AMD and NVIDIA hardware. 24 modules, three tracks, every claim reproducible.
+      AMD and NVIDIA hardware. 30 modules, four tracks, every claim reproducible.
     </p>
     <p><span class="pill amd">AMD ROCm / HIP</span> &nbsp; <span class="pill nv">NVIDIA CUDA</span>
        &nbsp; <span class="mono" style="color:#67E8F9">+ portable Triton</span></p>
@@ -167,9 +168,9 @@
   <!-- 3 · Scale -->
   <section class="slide">
     <p class="eyebrow">What you get</p>
-    <p class="huge">24</p>
+    <p class="huge">30</p>
     <p class="huge-note">
-      modules across three tracks — roughly <strong>164 learner-hours</strong> if you do the labs and
+      modules across four tracks — roughly <strong>203 learner-hours</strong> if you do the labs and
       the drills, not just the reading. Every module ships runnable code, exercises, and worked
       solutions.
     </p>
@@ -177,10 +178,10 @@
     <div class="num">03</div>
   </section>
 
-  <!-- 4 · The three tracks -->
+  <!-- 4 · The four tracks -->
   <section class="slide dark">
     <p class="eyebrow">Structure</p>
-    <h2>Three tracks, one arc</h2>
+    <h2>Four tracks, one arc</h2>
     <div class="cols">
       <div class="card">
         <h3>A · Write kernels</h3>
@@ -197,8 +198,13 @@
         <p>Framing, data, training, optimization, deployment, monitoring, two capstones.
            7 modules.</p>
       </div>
+      <div class="card d">
+        <h3>D · Scale across nodes</h3>
+        <p>Scaling limits, MPI, NCCL and RCCL, RDMA and fabrics, topology, and where real
+           systems stop scaling. 6 modules.</p>
+      </div>
     </div>
-    <div class="foot">Parallel Programming · Tracks A / B / C</div>
+    <div class="foot">Parallel Programming · Tracks A / B / C / D</div>
     <div class="num">04</div>
   </section>
 

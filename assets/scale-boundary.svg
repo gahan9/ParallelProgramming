@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480" role="img" aria-labelledby="t d">
+<title id="t">What binds at each scale, from one node to one hundred thousand ranks</title>
+<desc id="d">A logarithmic axis of rank count divided into five regimes, each with a different binding constraint. From one to eight ranks the intra-node links bind, and the first symptom is a tensor-parallel all-reduce saturating the GPU to GPU links. From eight to sixty-four ranks inter-node bandwidth binds and communication stops hiding behind compute. From sixty-four to about a thousand, topology and oversubscription bind, and physical placement starts to change results. From a thousand to ten thousand, the latency term and rank-to-rank variance bind, so small collectives degrade and stragglers become a permanent tax. Above ten thousand ranks the failure rate and bisection bandwidth bind: mean time between failures drops below the job length, and all-to-all patterns collapse. The mitigation for each regime is different, so scaling up is not one problem repeated but five different problems in sequence.</desc>
+
+<!--
+  Module D06, the capstone artifact of Track D. Also the visual form of D01 section 6.4.
+
+  Axis mapping, if you re-plot:
+    x(N) = 140 + 170 * log10(N)   decades at 1, 10, 100, 1k, 10k, 100k
+                                  ->  x = 140, 310, 480, 650, 820, 990
+
+  Regime boundaries are APPROXIMATE and workload-dependent. They are drawn as a ladder
+  because the ORDER is robust - you always meet the links before the topology, and the
+  topology before the failure rate - not because the crossings sit at exact rank counts.
+  A communication-light workload pushes every boundary right; a chatty one pulls them left.
+-->
+
+<style>
+  .ground  { fill: #0F172A; }
+  .rule    { fill: #DB2777; }
+  .eyebrow { fill: #DB2777; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head    { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub     { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .axis    { stroke: #334155; stroke-width: 1.2; }
+  .tick    { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .axlbl   { fill: #94A3B8; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .3px; }
+  .binds   { fill: #F8FAFC; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .symp    { fill: #94A3B8; font: 400 11.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .mit     { fill: #10B981; font: 400 11.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .mod     { fill: #64748B; font: 700 10.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .8px; }
+  .tiny    { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .band    { rx: 3; }
+  .sep     { stroke: #0F172A; stroke-width: 2; }
+
+  .creep { animation: cr 5s ease-in-out infinite; }
+  @keyframes cr { 0%,100% { opacity: .35 } 50% { opacity: .9 } }
+  @media (prefers-reduced-motion: reduce) { .creep { animation: none; opacity: .8 } }
+</style>
+
+<rect class="ground" width="1200" height="480"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">TRACK D CAPSTONE &#183; FIVE PROBLEMS, NOT ONE PROBLEM FIVE TIMES</text>
+<text class="head"    x="54" y="92">Scaling up does not fail once. It fails differently at every decade.</text>
+<text class="sub"     x="56" y="118">The constraint that binds at 8 ranks is not the one that binds at 8000, so the fix that worked before will not work again.</text>
+
+<!-- the ladder -->
+<g>
+  <rect class="band" x="140"   y="160" width="153.5" height="46" fill="#10B981" opacity=".85"/>
+  <rect class="band" x="293.5" y="160" width="153.5" height="46" fill="#0891B2" opacity=".85"/>
+  <rect class="band" x="447"   y="160" width="204.7" height="46" fill="#6366F1" opacity=".85"/>
+  <rect class="band" x="651.7" y="160" width="204.7" height="46" fill="#DB2777" opacity=".85"/>
+  <rect class="band creep" x="856.4" y="160" width="153.6" height="46" fill="#F59E0B"/>
+</g>
+<g class="sep">
+  <line x1="293.5" y1="160" x2="293.5" y2="206"/><line x1="447" y1="160" x2="447" y2="206"/>
+  <line x1="651.7" y1="160" x2="651.7" y2="206"/><line x1="856.4" y1="160" x2="856.4" y2="206"/>
+</g>
+
+<!-- axis -->
+<g class="axis"><line x1="140" y1="222" x2="1010" y2="222"/></g>
+<g class="tick">
+  <text x="134" y="240">1</text><text x="302" y="240">10</text><text x="470" y="240">100</text>
+  <text x="638" y="240">1k</text><text x="810" y="240">10k</text><text x="976" y="240">100k</text>
+</g>
+<text class="axlbl" x="530" y="264">ranks (logarithmic)</text>
+
+<!-- regime detail rows -->
+<text class="mod"  x="150" y="300">1 - 8</text>
+<text class="binds" x="150" y="320">Intra-node links</text>
+<text class="symp"  x="150" y="338">TP all-reduce saturates</text>
+<text class="symp"  x="150" y="354">the GPU-to-GPU links</text>
+<text class="mit"   x="150" y="376">keep TP inside the node</text>
+<text class="mod"   x="150" y="396">D04</text>
+
+<text class="mod"  x="310" y="300">8 - 64</text>
+<text class="binds" x="310" y="320">Inter-node bandwidth</text>
+<text class="symp"  x="310" y="338">collectives stop hiding</text>
+<text class="symp"  x="310" y="354">behind compute</text>
+<text class="mit"   x="310" y="376">overlap and bucket</text>
+<text class="mod"   x="310" y="396">D03</text>
+
+<text class="mod"  x="466" y="300">64 - 1k</text>
+<text class="binds" x="466" y="320">Topology</text>
+<text class="symp"  x="466" y="338">placement changes your</text>
+<text class="symp"  x="466" y="354">results run to run</text>
+<text class="mit"   x="466" y="376">rails, topology-aware ranks</text>
+<text class="mod"   x="466" y="396">D05</text>
+
+<text class="mod"  x="670" y="300">1k - 10k</text>
+<text class="binds" x="670" y="320">Latency and variance</text>
+<text class="symp"  x="670" y="338">small collectives degrade,</text>
+<text class="symp"  x="670" y="354">one slow rank taxes all</text>
+<text class="mit"   x="670" y="376">hierarchical collectives</text>
+<text class="mod"   x="670" y="396">D05 &#183; D01</text>
+
+<text class="mod"  x="874" y="300">10k +</text>
+<text class="binds" x="874" y="320">Failures and bisection</text>
+<text class="symp"  x="874" y="338">MTBF falls below the</text>
+<text class="symp"  x="874" y="354">length of the job</text>
+<text class="mit"   x="874" y="376">async checkpoint, no</text>
+<text class="mit"   x="874" y="392">global all-to-all</text>
+<text class="mod"   x="874" y="412">D06 &#183; C03</text>
+
+<!-- footer -->
+<text class="tiny" x="56" y="446">Boundaries are approximate and workload-dependent: a communication-light job pushes every one of them right, a chatty one pulls them left.</text>
+<text class="tiny" x="56" y="464">What is robust is the ORDER &#8212; links, then bandwidth, then topology, then latency and variance, then failure. Run tools/scale_boundary.py for your case.</text>
+</svg>

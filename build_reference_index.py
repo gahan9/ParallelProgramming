@@ -35,7 +35,7 @@ END = "<!-- END GENERATED: reference-index -->"
 NON_SOURCE_SECTIONS = {"How to cite into this page", "What gets a date, and what does not",
                        "Where each source is cited"}
 
-MODULE_DIR = re.compile(r"^(?P<id>[ABC]\d{2})\.")
+MODULE_DIR = re.compile(r"^(?P<id>[A-D]\d{2})\.")
 LINK_TO_REFS = re.compile(r"\]\(([^)\s]*REFERENCES\.md)#([^)\s]+)\)")
 
 

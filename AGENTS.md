@@ -10,21 +10,21 @@ progress tracker), [docs/MODULE_TEMPLATE.md](docs/MODULE_TEMPLATE.md) (the conte
 
 ## What this is
 
-A GPU + ML teaching curriculum: 24 modules across three tracks, dual-vendor (AMD ROCm/HIP and
+A GPU + ML teaching curriculum: 30 modules across four tracks, dual-vendor (AMD ROCm/HIP and
 NVIDIA CUDA) with a portable Triton path. Every module explains a concept twice - a plain-language
 analogy, then expert depth - with runnable labs, cited sources, and an honest tradeoffs section.
 
-## Current state (as of 2026-08-08)
+## Current state (as of 2026-08-11)
 
 | Thing | State |
 |---|---|
-| Modules | **24 / 24 authored.** A01-A10, B01-B07, C01-C07. All 9 sections, labs, exercises, solutions |
+| Modules | **30 / 30 authored.** A01-A10, B01-B07, C01-C07, D01-D06. All 9 sections, labs, exercises, solutions |
 | Docs site | Published, `--strict`, warning-free: <https://gahan9.github.io/ParallelProgramming/> |
-| Cross-references | All 24 modules linked to each other, to `docs/GLOSSARY.md` (62 `###` terms) and to `docs/REFERENCES.md` (62 anchored sources, 58 cited). 1957 relative links, all resolving. Contract lives in `docs/MODULE_TEMPLATE.md` |
+| Cross-references | All 30 modules linked to each other, to `docs/GLOSSARY.md` (65 `###` terms) and to `docs/REFERENCES.md` (81 anchored sources). 2744 relative links across 223 files, all resolving. Contract lives in `docs/MODULE_TEMPLATE.md` |
 | Read-aloud | `docs/javascripts/read-aloud.js` + matching CSS, injected site-wide via `extra_javascript`. Browser `speechSynthesis`, no dependency. Skips code blocks and collapsed `<details>`; rewrites technical vocabulary before speaking |
-| Site UX | `navigation.tabs` + `prune` so a module page's sidebar shows only its own track, not all 24. `docs/javascripts/panel-toggle.js` hides the nav and TOC panels (persisted in `localStorage`); `docs/javascripts/gfm-alerts.js` upgrades GitHub `> [!NOTE]` blockquotes into Material admonitions, which keeps the source readable on both surfaces. Dark mode verified in a real browser, both schemes |
+| Site UX | `navigation.tabs` + `prune` so a module page's sidebar shows only its own track, not all 30. `docs/javascripts/panel-toggle.js` hides the nav and TOC panels (persisted in `localStorage`); `docs/javascripts/gfm-alerts.js` upgrades GitHub `> [!NOTE]` blockquotes into Material admonitions, which keeps the source readable on both surfaces. Dark mode verified in a real browser, both schemes |
 | Live pages | `live/` - study planner, 49 cited recall cards (with a `L`isten control), 14-slide deck. Self-contained HTML |
-| Infographics | `assets/` - 6 hand-authored SVGs for what Mermaid cannot express |
+| Infographics | `assets/` - 10 hand-authored SVGs for what Mermaid cannot express. GIF is deliberately refused; the SVGs are already animated and `assets/README.md` documents a derive-never-commit export path |
 | Content studio | `content/` - video/Shorts scripts. Packs exist for A01 and A02 only |
 | Cursor canvas | `canvases/curriculum-dashboard.canvas.tsx` (outside the repo, in the Cursor project dir) |
 | Git | `main` clean and pushed; every workflow run green |
@@ -37,13 +37,14 @@ AGENTS.md                        this file
 build_docs.py                    stages the publishable files into _docs/ (see Traps)
 check_links.py                   resolves every relative link + anchor on both surfaces (Traps #8)
 build_reference_index.py         regenerates the "cited by" table in docs/REFERENCES.md
-mkdocs.yml                       site config; nav lists all 24 modules
+mkdocs.yml                       site config; nav lists all 30 modules
 docs/                            SETUP, MODULE_TEMPLATE, BRAND, GLOSSARY, REFERENCES
 docs/javascripts/                read-aloud, panel-toggle, gfm-alerts (all vanilla, no deps)
 docs/stylesheets/brand.css       brand tokens + the Mermaid dark-mode pins (Traps #12)
 tracks/A-gpu-programming/        A01-A10 (+ legacy 01/02/03 raw examples, superseded by A01)
 tracks/B-gpu-ml-performance/     B01-B07
 tracks/C-ml-system-design/       C01-C07 (design track: no GPU code, stdlib-only Python tools)
+tracks/D-distributed-computing/  D01-D06 (below the ML layer: MPI, collectives, fabric, topology)
 assets/                          SVG infographics + their system doc
 live/                            dashboard.html, flashcards.html, slides.html
 content/                         video scripts + brand overlay spec
@@ -173,11 +174,27 @@ Both surfaces matter equally: the curriculum is read on GitHub *and* on the docs
 this machine. Every `.cpp`, `.cu`, and Triton kernel is hand-reviewed only. The Python tools and the
 docs build *are* verified. Be explicit about that boundary in any summary.
 
+Track D sharpens the boundary rather than moving it, and is worth stating precisely:
+- **D02's MPI C code is the one exception that was actually compiled.** All ten `.c`/`.h` files
+  build warning-free under `-Wall -Wextra` against genuine Open MPI 5.0.10 headers via a `zig cc`
+  cross-compile. Compiled, *not run*: there is no `mpirun` here, so the deadlock lab's runtime
+  behaviour is reasoned, not observed.
+- D03's RCCL/NCCL and D04's peer-copy sources are hand-reviewed only, like the rest. They were
+  checked mechanically for the things a reviewer looks for (no unchecked runtime call, a
+  `GetLastError` after every launch, a bounds guard in every kernel, a free for every allocation)
+  but never compiled.
+- **Every Python tool in Track D was executed**, under `python -S -I`, with the exact invocations
+  its module documents plus bad-input cases. That is real verification and can be claimed.
+- No multi-node measurement of any kind exists. Every inter-node figure is an analytic model and
+  says so in its own output banner.
+
 Known likely first-build friction:
 - HIP's `warpSize` stopped being `constexpr` in ROCm 7.0, and `__AMDGCN_WAVEFRONT_SIZE__` is
   deprecated (A04 documents this).
 - B04's optional native-fp8 cross-check is behind `__has_include` with a `-DB04_NO_NATIVE_FP8`
   escape hatch; it is the most likely place a build breaks.
+- D03/D04 link against RCCL or NCCL, which the other GPU modules do not; a missing `-lrccl` or a
+  header path is the likely first failure there.
 - Makefiles are Linux-targeted (`rm -rf`); `make` is not installed here, so no recipe has been run.
 
 ## Domain facts worth not re-deriving
@@ -205,6 +222,8 @@ Known likely first-build friction:
 3. **More infographics.** `assets/README.md` lists the four strongest candidates: the reduction tree
    collapsing over log2(n) rounds (A04), tile reuse (A06), naive-vs-fused attention traffic (A09),
    and the prefill/decode intensity split (B05). Rule: only if Mermaid genuinely cannot express it.
+   Track D's `ring-allreduce.svg` is written so **B07 can link it too** - it is not yet linked from
+   there, and doing so is a two-line change.
 4. **Bump Node 20 actions.** CI warns that `checkout@v4`, `configure-pages@v5`, `setup-python@v5`,
    and `upload-artifact@v4` are being forced onto Node 24. Nothing is broken; it is upkeep.
 5. **Legacy cleanup.** `tracks/A-gpu-programming/01.hello_world/Makefile` still calls bare
@@ -228,3 +247,4 @@ Rough effort record, kept because the operator asks for usage tracking.
 | 2026-08-09 | Reconciled the two 2026-08-08 sessions and pushed both. The Pages deploy had been red for a day: splitting a half-finished tree into commits left `docs/REFERENCES.md`'s generated index describing citations that were not in the same commit, and `build_reference_index.py --check` failed the build exactly as designed - but nobody looked at the run. Landing the rest of the rollout fixed it |
 | 2026-08-08 | Docs-site UX pass in a parallel session: found that `md_in_html` had been silently publishing all 24 Section 9 answer blocks as raw Markdown (Traps #11); pinned the Mermaid dark-mode variables (Traps #12); added `navigation.tabs`/`prune`, the nav+TOC toggles and the GFM-alert upgrader. Its `??? note` collapsibles then broke the syllabus tables on GitHub, migrated to `<details markdown="1">` |
 | 2026-08-10 | Output cache on `gfx950`/ROCm 7: `scripts/collect_outputs.sh` + `sanitize_output.py`, 46 sanitized artifacts under `outputs/`, SETUP §6 + MODULE_TEMPLATE hook; A01/A02 exercise headers refreshed |
+| 2026-08-11 | **Track D added (D01-D06, ~24k lines).** Distributed computing *below* the ML layer, since B07/C03 already own sharding and fault tolerance: Amdahl/Gustafson/Hockney alpha-beta, MPI, NCCL/RCCL, RDMA and the fabric tiers, topology, and a scale-boundary capstone. 20 new sources (every DOI web-verified against the publisher before it was written), 17 glossary terms, 4 new animated SVGs, fourth track colour `#DB2777`. Authored D01 by hand as the gold standard, then five parallel subagents for D02-D06 and six more for the labs - one died on a network stall and was simply relaunched. Two subagents caught real arithmetic errors in prose they were implementing against (D01's `m*` crossover claim was backwards; D05's block-mapping rail claim was wrong), which is the argument for making every table reproducible by a tool rather than asserting it |

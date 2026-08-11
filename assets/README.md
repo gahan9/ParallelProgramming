@@ -109,10 +109,33 @@ argument — they should look like readings, not like copy.
 | `coalescing.svg` | A02 | Discarded bytes | 8 lanes ? 1 line vs 8 lines |
 | `divergence.svg` | A03 | THEN/ELSE antiphase | Cost is the sum, not the max |
 | `roofline.svg` | B02 | Vector-add pulse | Log-log, 5 kernels plotted |
+| `scaling-walls.svg` | D01 | Turning-point pulse | Log-log; Amdahl ceilings vs the communication downturn |
+| `ring-allreduce.svg` | D03 | Three-panel phase cue | Start, after reduce-scatter, after all-gather |
+| `fabric-tiers.svg` | D04 | HBM breathe | Log bandwidth axis; the on-package-to-wire cliff |
+| `scale-boundary.svg` | D06 | Failure-band creep | Which constraint binds at each decade of rank count |
 
 Candidates worth adding, all with something Mermaid can't express: the reduction tree collapsing over
 log?(n) rounds (A04), tile reuse in shared memory (A06), naive-vs-fused HBM traffic for attention
 (A09), and the prefill/decode arithmetic-intensity split (B05).
+
+## If you need a GIF
+
+You do not, and this repo will not commit one — see [Why SVG and not GIF](#why-svg-and-not-gif)
+above. These files are already animated, so an animated SVG *is* the editable GIF.
+
+When an external surface genuinely cannot take SVG (PowerPoint, some social embeds), **derive one,
+never commit it**. The SVG stays the single source of truth:
+
+```bash
+# render the animation to frames, then assemble - requires a headless browser + ffmpeg
+# (neither is a repo dependency; this is a one-off export, not part of any build)
+ffmpeg -framerate 25 -i frame_%04d.png -vf "split[a][b];[a]palettegen[p];[b][p]paletteuse" out.gif
+```
+
+Committing generated GIFs would put unreviewable binaries in the tree and add a second artifact to
+regenerate on every content edit. If that ever changes, it needs **two** edits or it resolves on
+GitHub and 404s on the site: add `.gif` to `PUBLISH_SUFFIXES` in `../build_docs.py` *and* add a glob
+to `.github/workflows/pages.yml`.
 
 ## Publishing notes
 

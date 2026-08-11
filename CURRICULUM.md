@@ -3,7 +3,7 @@
 This is the master index for the GPU + ML Expert Tutor. It lists every module, the dependencies
 between them, recommended learning paths, and a live progress + effort tracker.
 
-**All 24 modules are authored.** Every one carries the full nine-section README, runnable labs, and
+**All 30 modules are authored.** Every one carries the full nine-section README, runnable labs, and
 `exercises/` + `solutions/`. Status columns below are kept so future additions have a place to land.
 
 ---
@@ -16,7 +16,7 @@ between them, recommended learning paths, and a live progress + effort tracker.
 
 ---
 
-![The 24 modules across three tracks](assets/curriculum-map.svg)
+![The 30 modules across four tracks](assets/curriculum-map.svg)
 
 ## Dependency graph
 
@@ -50,6 +50,16 @@ flowchart TD
   C04 --> C05[C05 Deployment]
   C05 --> C06[C06 Monitoring and ethics]
   C06 --> C07[C07 Capstones]
+
+  A01 --> D01[D01 Scaling limits]
+  D01 --> D02[D02 MPI]
+  D01 --> D03[D03 NCCL and RCCL]
+  D02 --> D03
+  D03 --> D04[D04 The wire]
+  B01 --> D04
+  D04 --> D05[D05 Topology]
+  D05 --> D06[D06 Real systems]
+  B07 --> D03
 ```
 
 ---
@@ -107,6 +117,20 @@ syllabus, but click a header to fold away the tracks you are not currently using
 | [C07](tracks/C-ml-system-design/C07.capstone-case-studies/) | Capstone case studies (LLM serving; recsys) | **DONE** | 10 | 4 |
 
 </details>
+<details markdown="1" open>
+<summary>Track D — Distributed & Cluster Computing (6 modules)</summary>
+
+
+| ID | Module | Status | Est. hours | Depth |
+|----|--------|--------|-----------:|:-----:|
+| [D01](tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/) | Scaling limits & the cost of talking | **DONE** | 6 | 2 |
+| [D02](tracks/D-distributed-computing/D02.message-passing-and-mpi/) | Message passing (MPI / Open MPI) | **DONE** | 7 | 3 |
+| [D03](tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/) | GPU collectives (NCCL / RCCL) | **DONE** | 7 | 3 |
+| [D04](tracks/D-distributed-computing/D04.interconnects-and-rdma/) | The wire: RDMA, NVLink, xGMI, InfiniBand | **DONE** | 6 | 3 |
+| [D05](tracks/D-distributed-computing/D05.topology-and-scale-boundaries/) | Topology & the scale boundary | **DONE** | 7 | 4 |
+| [D06](tracks/D-distributed-computing/D06.real-systems-at-scale/) | Real systems at scale (case studies) | **DONE** | 6 | 4 |
+
+</details>
 ---
 
 ## Recommended learning paths
@@ -121,21 +145,25 @@ flowchart TD
   GOAL -->|Write fast kernels| P1["Path 1 Kernel Engineer"]
   GOAL -->|Optimize ML| P2["Path 2 ML Performance"]
   GOAL -->|Production systems| P3["Path 3 ML System Design"]
+  GOAL -->|Scale across nodes| P5["Path 5 Cluster and HPC"]
   GOAL -->|Interview soon| P4["Path 4 Full spectrum"]
 
   P1 --> P1M["A01→A02→A03→A04→A05→A06→A07→A08→A09<br/>+ B01→B02→B03 early"]
   P2 --> P2M["A01→A03→A06→A07<br/>then B01→B07"]
   P3 --> P3M["C01→C07 + B04 B06 as needed<br/>do A01 once for GPU literacy"]
+  P5 --> P5M["A01 · B01 · D01→D02→D03→D04→D05→D06<br/>+ B07 C03 for the ML consequences"]
   P4 --> P4M["A01 A04 A06 A07 · B02 B05 B06 · C01 C04 C07<br/>then backfill depth"]
 
   classDef trackA fill:#0891B2,stroke:#0F172A,color:#fff
   classDef trackB fill:#6366F1,stroke:#0F172A,color:#fff
   classDef trackC fill:#F59E0B,stroke:#0F172A,color:#0F172A
+  classDef trackD fill:#DB2777,stroke:#0F172A,color:#fff
   classDef neutral fill:#F8FAFC,stroke:#0891B2,color:#0F172A
   class GOAL neutral
   class P1,P1M trackA
   class P2,P2M trackB
   class P3,P3M trackC
+  class P5,P5M trackD
   class P4,P4M neutral
 ```
 
@@ -149,6 +177,11 @@ Supplement with `B01 → B02 → B03` early, so you can measure what you write.
 ### Path 3 — "I want to design production ML systems" (ML System Design)
 `C01 → C02 → C03 → C04 → C05 → C06 → C07`, pulling in `B04`, `B06` when you hit optimization
 and serving decisions. Do `A01` once for GPU literacy.
+
+### Path 5 — "I need this to run on more than one node" (Cluster & HPC)
+`A01` for GPU literacy and `B01` for the hardware, then `D01 → D02 → D03 → D04 → D05 → D06`.
+Pull in `B07` and `C03` once you reach D03, for the ML-specific consequences of everything Track D
+teaches at the systems level.
 
 ### Path 4 — "I'm interviewing broadly, soon" (Full-spectrum)
 `A01 → A04 → A06 → A07` (core kernels) · `B02 → B05 → B06` (perf fundamentals) ·
@@ -184,6 +217,12 @@ mindmap
       B06 inference
       B07 sharding
       C03 C05
+    Distributed systems
+      D01 scaling limits
+      D02 MPI
+      D03 collectives
+      D04 interconnects
+      D05 topology
     Communication
       Section 1 analogies
       Section 9 drills
@@ -201,6 +240,8 @@ The role competencies map onto modules as follows, so you can target your prep:
 | Perf bottleneck & tradeoff analysis | B01, B02, B03 |
 | Roofline & accelerator architecture | B01, B02 |
 | Inference serving, transformer arch, sharding | B05, B06, B07 |
+| Message passing, collectives, interconnects | D02, D03, D04 |
+| Cluster topology and scale limits | D01, D05, D06 |
 | End-to-end ML system design | C01–C07 |
 | Explaining complex ideas to any audience | Every Section 1 (Layman analogy) |
 
@@ -211,7 +252,7 @@ The role competencies map onto modules as follows, so you can target your prep:
 Update this table as modules are completed. It is the single source of truth for "what's done."
 Collapsed by default — this is history, not something you need open while picking a path.
 
-**Totals:** **24 of 24 modules DONE** · ~164 est. learner-hours authored.
+**Totals:** **30 of 30 modules DONE** · ~203 est. learner-hours authored.
 
 <details markdown="1">
 <summary>Progress tracker — full history (6 entries)</summary>
@@ -225,6 +266,7 @@ Collapsed by default — this is history, not something you need open while pick
 | 2026-07-29 | A08–A10 | Triton foundations, FlashAttention-style fused attention, CuTe/CUTLASS/cuTile (NVIDIA-only) | 25 |
 | 2026-07-29 | B01–B07 | Full ML performance track: architecture, roofline, profiling, precision, transformer perf, serving, sharding | 46 |
 | 2026-07-29 | C01–C07 | Full ML system design track: framing, data, training, optimization, deployment, monitoring, capstones | 47 |
+| 2026-08-11 | D01–D06 | New Track D: scaling limits, MPI, GPU collectives, interconnects/RDMA, topology, and the scale-boundary capstone | 39 |
 
 Hour counts are the sum of the per-module estimates in the tables above; they are deliberate
 over-estimates for a learner who does the labs and the drills rather than only reading.
@@ -253,6 +295,7 @@ Also collapsed by default, for the same reason.
 | 2026-07-29 | Modules B01–B07 | Track B completed: ~25,900 lines. Hardware figures web-verified with retrieval dates; all analytic tools stdlib-only. |
 | 2026-07-29 | Modules C01–C07 | Track C completed: ~24,900 lines. Every design claim anchored to a runnable stdlib tool. |
 | 2026-07-29 | Wire-up | Status tables, MkDocs nav for all 24 modules, track READMEs, canvas flags; repo-wide relative-link check (0 broken). |
+| 2026-08-11 | Track D | Six modules on distributed computing below the ML layer: Amdahl/Gustafson/alpha-beta, MPI, NCCL/RCCL, RDMA and fabrics, topology, public case studies. 20 new cited sources, 17 glossary terms, 4 new infographics, fourth track colour. |
 
 </details>
 ### Verification standard applied throughout

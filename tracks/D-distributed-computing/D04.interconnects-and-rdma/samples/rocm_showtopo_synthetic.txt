@@ -1,0 +1,40 @@
+SYNTHETIC EXAMPLE OF THE `rocm-smi --showtopo` OUTPUT FORMAT.
+Hand-written to exercise tools/topology_report.py. NOT captured from any machine, and
+not a description of any product. No hostname, user, serial or address appears here
+because nothing here came from a real system. See samples/README.md.
+
+The shape it illustrates: the same two-island node as the NVIDIA sample, expressed in
+the vocabulary ROCm has for it -- a link TYPE per pair and nothing finer. The Numa Nodes
+section at the bottom is what lets the report call the PCIE pairs cross-socket; delete
+that section and re-run to see the tool fall back to the conservative pcie-host reading
+and say in place that it did.
+
+============================ ROCm System Management Interface ============================
+================================ Weight between two GPUs =================================
+       GPU0         GPU1         GPU2         GPU3
+GPU0   0            15           40           40
+GPU1   15           0            40           40
+GPU2   40           40           0            15
+GPU3   40           40           15           0
+================================= Hops between two GPUs ==================================
+       GPU0         GPU1         GPU2         GPU3
+GPU0   0            1            2            2
+GPU1   1            0            2            2
+GPU2   2            2            0            1
+GPU3   2            2            1            0
+=============================== Link Type between two GPUs ===============================
+       GPU0         GPU1         GPU2         GPU3
+GPU0   0            XGMI         PCIE         PCIE
+GPU1   XGMI         0            PCIE         PCIE
+GPU2   PCIE         PCIE         0            XGMI
+GPU3   PCIE         PCIE         XGMI         0
+======================================= Numa Nodes =======================================
+GPU[0]		: (Topology) Numa Node: 0
+GPU[0]		: (Topology) Numa Affinity: 0
+GPU[1]		: (Topology) Numa Node: 0
+GPU[1]		: (Topology) Numa Affinity: 0
+GPU[2]		: (Topology) Numa Node: 1
+GPU[2]		: (Topology) Numa Affinity: 1
+GPU[3]		: (Topology) Numa Node: 1
+GPU[3]		: (Topology) Numa Affinity: 1
+================================== End of ROCm SMI Log ===================================

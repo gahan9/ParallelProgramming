@@ -39,7 +39,7 @@ theme:
   features:
     # Tracks become a top-level tab strip instead of sitting in the always-visible left
     # rail. This is the single biggest fix for "too nested": the sidebar for any page
-    # now shows only the current track's modules, not all 24 modules across 3 tracks.
+    # now shows only the current track's modules, not all 30 modules across 4 tracks.
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
@@ -234,6 +234,32 @@ nav:
           - Recommender Design: tracks/C-ml-system-design/C07.capstone-case-studies/designs/recommender.md
           - Exercises: tracks/C-ml-system-design/C07.capstone-case-studies/exercises/README.md
           - Solutions: tracks/C-ml-system-design/C07.capstone-case-studies/solutions/README.md
+  - Track D — Distributed Computing:
+      - Overview: tracks/D-distributed-computing/README.md
+      - D01 · Scaling Limits & Communication Cost:
+          - Module: tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md
+          - Exercises: tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/exercises/README.md
+          - Solutions: tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/solutions/README.md
+      - D02 · Message Passing with MPI:
+          - Module: tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md
+          - Exercises: tracks/D-distributed-computing/D02.message-passing-and-mpi/exercises/README.md
+          - Solutions: tracks/D-distributed-computing/D02.message-passing-and-mpi/solutions/README.md
+      - D03 · GPU Collectives (NCCL & RCCL):
+          - Module: tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md
+          - Exercises: tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/exercises/README.md
+          - Solutions: tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/solutions/README.md
+      - D04 · Interconnects & RDMA:
+          - Module: tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md
+          - Exercises: tracks/D-distributed-computing/D04.interconnects-and-rdma/exercises/README.md
+          - Solutions: tracks/D-distributed-computing/D04.interconnects-and-rdma/solutions/README.md
+      - D05 · Topology & Scale Boundaries:
+          - Module: tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md
+          - Exercises: tracks/D-distributed-computing/D05.topology-and-scale-boundaries/exercises/README.md
+          - Solutions: tracks/D-distributed-computing/D05.topology-and-scale-boundaries/solutions/README.md
+      - D06 · Real Systems at Scale:
+          - Module: tracks/D-distributed-computing/D06.real-systems-at-scale/README.md
+          - Exercises: tracks/D-distributed-computing/D06.real-systems-at-scale/exercises/README.md
+          - Solutions: tracks/D-distributed-computing/D06.real-systems-at-scale/solutions/README.md
   - Content Studio:
       - Overview: content/README.md
       - Storyboard Template: content/STORYBOARD_TEMPLATE.md

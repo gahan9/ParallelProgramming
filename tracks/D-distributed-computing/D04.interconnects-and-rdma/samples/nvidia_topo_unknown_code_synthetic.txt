@@ -1,0 +1,16 @@
+SYNTHETIC EXAMPLE OF AN UNFAMILIAR LINK CODE.
+Hand-written to exercise the one behaviour tools/topology_report.py must never get
+wrong: a code it does not recognize is reported as `unknown`, not approximated to the
+nearest class it does know. NOT captured from any machine, and `QQ9` is not a real
+nvidia-smi code -- it stands in for whatever a future tool version prints that this
+curriculum has not seen. See samples/README.md.
+
+	GPU0	GPU1	GPU2	CPU Affinity	NUMA Affinity
+GPU0	 X 	NV4	QQ9	0-31	0
+GPU1	NV4	 X 	QQ9	0-31	0
+GPU2	QQ9	QQ9	 X 	32-63	1
+
+Legend:
+
+  X    = Self
+  NV#  = Connection traversing a bonded set of # NVLinks

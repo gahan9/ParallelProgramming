@@ -1,4 +1,4 @@
-![GPU + ML Expert Tutor — 24 modules, 3 tracks, AMD and NVIDIA](assets/hero-lanes.svg)
+![GPU + ML Expert Tutor — 30 modules, 4 tracks, AMD and NVIDIA](assets/hero-lanes.svg)
 
 # GPU + ML Expert Tutor
 
@@ -70,12 +70,12 @@ Each **module** is a self-contained folder with a `README.md` (9 fixed sections)
 
 ---
 
-## The three tracks
+## The four tracks
 
-![The 24 modules across three tracks](assets/curriculum-map.svg)
+![The 30 modules across four tracks](assets/curriculum-map.svg)
 
 Row length is module count, so Track A's ten modules read as visibly longer than the seven in each of
-B and C. The dashed lines are the only three cross-track dependencies.
+B and C, or the six in D. The dashed lines are the cross-track dependencies.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#F8FAFC', 'primaryBorderColor': '#0891B2', 'lineColor': '#64748B'}}}%%
@@ -98,16 +98,26 @@ flowchart LR
     C3["Monitor + capstones"]
   end
 
+  subgraph D["Track D · Scale out · #DB2777"]
+    D1["Scaling limits"]
+    D2["MPI + collectives"]
+    D3["Fabric + topology"]
+  end
+
   A --> B
   B --> C
   A -.-> C
+  B --> D
+  D -.-> C
 
   classDef trackA fill:#0891B2,stroke:#0F172A,color:#fff
   classDef trackB fill:#6366F1,stroke:#0F172A,color:#fff
   classDef trackC fill:#F59E0B,stroke:#0F172A,color:#0F172A
+  classDef trackD fill:#DB2777,stroke:#0F172A,color:#fff
   class A1,A2,A3 trackA
   class B1,B2,B3 trackB
   class C1,C2,C3 trackC
+  class D1,D2,D3 trackD
 ```
 
 ### Track A — GPU Programming Languages
@@ -125,6 +135,13 @@ and **model sharding**.
 Learn to *architect* real systems. Problem framing and metrics, data pipelines, distributed
 training, production model optimization (quantization, distillation, caching), deployment and
 A/B testing, monitoring and drift, plus **end-to-end capstone case studies**.
+
+### Track D — Distributed & Cluster Computing
+Learn where it *stops* scaling. Below the ML abstractions: Amdahl and Gustafson at cluster scale,
+the alpha-beta message cost model, **MPI**, the GPU collectives libraries (**NCCL** and **RCCL**),
+**RDMA** and the interconnect tiers (NVLink, xGMI, InfiniBand, RoCE, Slingshot), network topology
+(fat-tree, dragonfly, torus), and a capstone that tests all of it against publicly documented
+exascale systems.
 
 A **Coding & Algorithms** interview thread (data structures, edge cases, clean code, plus GPU
 parallel-algorithm drills) is woven into every module's Section 9 rather than living in a
