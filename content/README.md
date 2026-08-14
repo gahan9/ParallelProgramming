@@ -61,10 +61,19 @@ content/
 ├── README.md                  <- this guide
 ├── STORYBOARD_TEMPLATE.md     <- copy this per module
 ├── BRAND_OVERLAY.md           <- lower-thirds, title cards, code theme, captions
+├── medium/PLAN.md             <- Medium publication starter plan (long-form text channel)
+├── social/                    <- LinkedIn / Shorts / Medium packs + HISTORY chain
+│   ├── HISTORY.md             <- recurrent post tracker (update every pack)
+│   └── NNN-<slug>/            <- feed-length cut of a measured idea
 └── <module-id>-<slug>/
     ├── long-form.md           <- 8-12 min YouTube script (shot-by-shot)
     └── shorts.md              <- 3 vertical Shorts/Reels scripts
 ```
+
+Social packs are authored with the
+[`linkedin-shorts-maker`](../.cursor/skills/linkedin-shorts-maker/SKILL.md) skill.
+See [`social/README.md`](social/README.md) and always update [`social/HISTORY.md`](social/HISTORY.md).
+Long-form text publishing follows [`medium/PLAN.md`](medium/PLAN.md).
 
 ---
 
