@@ -162,6 +162,11 @@ venv.bak/
 # Cached run captures (sanitized copies in outputs/ are committed; raw logs are not)
 outputs/_raw/
 
+# Derived media from scripts/export_visual.sh. The animated SVGs in assets/ are the
+# source of truth; a GIF or MP4 is a throwaway copy for a surface that cannot embed
+# SVG, so it is regenerated rather than committed. See assets/README.md.
+exports/
+
 # mkdocs documentation
 /site
 # Staging root produced by build_docs.py (see the note in mkdocs.yml).

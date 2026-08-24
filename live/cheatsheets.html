@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference — GPU + ML Expert Tutor</title>
+<meta name="description" content="Track, concept and module cheatsheets for the Parallel Programming GPU and ML curriculum. Searchable, printable, and every fact cited to the module that derives it.">
+<!--
+  Self-contained reference sheets. No framework, no CDN, no build step - same
+  constraints as dashboard.html, flashcards.html and slides.html.
+
+  Three decisions worth knowing before you edit:
+
+  1. THIS IS NOT A SECOND FLASHCARD DECK. flashcards.html asks you a question and
+     makes you attempt an answer; this page answers a question you already have,
+     mid-lab, without making you re-read a 900-line module. Reference and recall are
+     different activities and merging them would make both worse. The two link to
+     each other instead.
+
+  2. THE CONTENT IS NOT IN THIS FILE. It lives in data/reference.json so the facts
+     have exactly one home and can be checked mechanically (every bullet must carry
+     a cite). The cost of that choice is that a browser will not fetch() a local file
+     over file:// - see the fallback panel below, which says so plainly and gives the
+     one-line fix rather than failing silently.
+
+  3. THE RAIL IS THE SIGNATURE, AND IT IS LOAD-BEARING. Thirty lanes, one per module,
+     coloured by track - the same "a square is a unit" device the infographics in
+     assets/ use. Filtering dims the lanes that drop out, so the rail always answers
+     "how much of the curriculum am I looking at right now". It is not decoration:
+     clicking a lane jumps to that module.
+
+  State: localStorage under ppc.sheets.v1 (pinned sheets only). Nothing is uploaded.
+-->
+<style>
+  :root {
+    --primary:   #0891B2;
+    --deep:      #0F172A;
+    --accent:    #6366F1;
+    --highlight: #F59E0B;
+    --success:   #10B981;
+    --surface:   #F8FAFC;
+    --muted:     #64748B;
+    --trackd:    #DB2777;
+
+    --bg:     var(--deep);
+    --raised: #1B2436;
+    --sunk:   #131C2E;
+    --fg:     var(--surface);
+    --dim:    #94A3B8;
+    --rule:   #2C3A52;
+
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+
+  /* ---- shared nav across the live pages ---- */
+  .top { border-top: 4px solid var(--primary); margin: 0 -1.25rem; }
+  nav.bar {
+    max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+    display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline;
+  }
+  nav.bar .brand {
+    font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--primary); margin-right: auto;
+  }
+  nav.bar a {
+    font-size: .84rem; text-decoration: none; color: var(--dim);
+    border-bottom: 1px solid transparent; padding-bottom: 2px;
+  }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 1.2rem 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 64ch; margin: 0 0 .3rem; }
+  .cite-lede { color: var(--muted); font-size: .84rem; max-width: 68ch; margin: .5rem 0 0; }
+
+  h2.sec { font-size: .78rem; letter-spacing: .13em; text-transform: uppercase; color: var(--muted);
+           margin: 2.4rem 0 .8rem; font-weight: 700; }
+  h2.sec .n { color: var(--dim); font-weight: 400; letter-spacing: .04em; margin-left: .5rem; }
+
+  /* ---- the rail: thirty lanes, one per module ---- */
+  .railwrap { margin: 1.5rem 0 .3rem; }
+  .rail { display: flex; flex-wrap: wrap; gap: 4px; }
+  .lane {
+    width: 20px; height: 20px; border-radius: 3px; border: 0; padding: 0; cursor: pointer;
+    opacity: 1; transition: opacity .12s linear, transform .12s linear;
+  }
+  .lane:hover { transform: translateY(-2px); }
+  .lane:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .lane.dim { opacity: .16; }
+  .railnote { font: 400 11.5px var(--mono); color: var(--muted); margin: .55rem 0 0; }
+  .railnote b { color: var(--fg); font-weight: 700; }
+
+  /* ---- controls ---- */
+  .controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: 1.4rem 0 .2rem; }
+  .search {
+    flex: 1 1 260px; min-width: 200px;
+    font: inherit; font-size: .92rem; color: var(--fg);
+    background: var(--sunk); border: 1px solid var(--rule); border-radius: 6px;
+    padding: .55rem .85rem;
+  }
+  .search::placeholder { color: var(--muted); }
+  .search:focus { outline: none; border-color: var(--primary); }
+  .pills { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .pills button {
+    font: inherit; font-size: .8rem; cursor: pointer; color: var(--dim);
+    background: var(--sunk); border: 1px solid var(--rule); border-radius: 999px;
+    padding: .34rem .8rem;
+  }
+  .pills button:hover { border-color: var(--primary); color: var(--fg); }
+  .pills button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .pills button[aria-pressed="true"] { color: #06212A; font-weight: 700; }
+  .pills button[data-track="all"][aria-pressed="true"] { background: var(--primary); border-color: var(--primary); }
+  .pills button[data-track="A"][aria-pressed="true"] { background: var(--primary); border-color: var(--primary); }
+  .pills button[data-track="B"][aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pills button[data-track="C"][aria-pressed="true"] { background: var(--highlight); border-color: var(--highlight); }
+  .pills button[data-track="D"][aria-pressed="true"] { background: var(--trackd); border-color: var(--trackd); color: #fff; }
+
+  .tabs { display: flex; gap: .35rem; margin: 1rem 0 0; border-bottom: 1px solid var(--rule); }
+  .tabs button {
+    font: inherit; font-size: .87rem; cursor: pointer; color: var(--dim);
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    padding: .5rem .9rem; margin-bottom: -1px;
+  }
+  .tabs button:hover { color: var(--fg); }
+  .tabs button:focus-visible { outline: 2px solid var(--surface); outline-offset: -2px; }
+  .tabs button[aria-selected="true"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+  .tabs .cnt { font: 400 11px var(--mono); color: var(--muted); margin-left: .4rem; }
+
+  /* ---- sheets ---- */
+  .sheets { display: grid; gap: .9rem; margin-top: 1.1rem; }
+  .sheets.two { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  .sheets.mods { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+  .sheet {
+    background: var(--raised); border: 1px solid var(--rule); border-left: 4px solid var(--primary);
+    border-radius: 0 6px 6px 0; padding: 1.1rem 1.25rem 1rem;
+  }
+  .sheet.tA { border-left-color: var(--primary); }
+  .sheet.tB { border-left-color: var(--accent); }
+  .sheet.tC { border-left-color: var(--highlight); }
+  .sheet.tD { border-left-color: var(--trackd); }
+
+  .sheet .head { display: flex; justify-content: space-between; align-items: flex-start; gap: .8rem; }
+  .sheet h3 { margin: 0; font-size: 1.05rem; letter-spacing: -.015em; line-height: 1.3; }
+  .sheet h3 a { color: var(--fg); text-decoration: none; }
+  .sheet h3 a:hover { color: var(--primary); }
+  .sheet .sub { margin: .2rem 0 0; font-size: .84rem; color: var(--dim); }
+  .sheet .kicker { font: 700 10.5px var(--mono); letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+
+  .pin {
+    font: inherit; font-size: .72rem; cursor: pointer; flex: 0 0 auto;
+    background: var(--sunk); color: var(--muted); border: 1px solid var(--rule);
+    border-radius: 999px; padding: .18rem .6rem;
+  }
+  .pin:hover { border-color: var(--primary); color: var(--fg); }
+  .pin:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .pin[aria-pressed="true"] { background: #0B3B45; border-color: var(--primary); color: #7DD3FC; }
+
+  .facts { margin: .85rem 0 0; padding: 0; list-style: none; }
+  .facts li { position: relative; padding: 0 0 0 1rem; margin: 0 0 .6rem; font-size: .91rem; color: #DDE3EC; }
+  .facts li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px;
+                      border-radius: 1px; background: var(--primary); }
+  .sheet.tB .facts li::before { background: var(--accent); }
+  .sheet.tC .facts li::before { background: var(--highlight); }
+  .sheet.tD .facts li::before { background: var(--trackd); }
+  .facts .cite { display: inline-block; margin-left: .35rem; font: 400 11px var(--mono); white-space: nowrap; }
+  .facts .cite a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--rule); }
+  .facts .cite a:hover { color: var(--primary); border-bottom-color: var(--primary); }
+
+  .meta { margin: .9rem 0 0; padding-top: .75rem; border-top: 1px dashed var(--rule);
+          font: 400 11.5px var(--mono); color: var(--muted);
+          display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: baseline; }
+  .meta a { color: var(--primary); text-decoration: none; }
+  .meta a:hover { text-decoration: underline; }
+  .modchips { display: flex; flex-wrap: wrap; gap: .25rem; }
+  .modchips a {
+    font: 700 10.5px var(--mono); color: var(--dim); text-decoration: none;
+    border: 1px solid var(--rule); border-radius: 3px; padding: .05rem .35rem;
+  }
+  .modchips a:hover { border-color: var(--primary); color: var(--fg); }
+
+  .thumb { display: block; width: 100%; margin: .9rem 0 0; border-radius: 4px; border: 1px solid var(--rule); }
+
+  /* module tier is a denser card: a one-liner plus its facts, no ornament */
+  .sheet.mod { padding: .85rem 1rem .8rem; }
+  .sheet.mod h3 { font-size: .95rem; }
+  .sheet.mod .facts { margin-top: .6rem; }
+  .sheet.mod .facts li { font-size: .855rem; margin-bottom: .45rem; }
+
+  .empty { color: var(--dim); background: var(--sunk); border: 1px solid var(--rule);
+           border-radius: 6px; padding: 1.4rem 1.5rem; margin-top: 1.1rem; }
+  .empty h3 { margin: 0 0 .4rem; font-size: 1rem; color: var(--fg); }
+  .empty p { margin: 0 0 .6rem; font-size: .9rem; }
+  .empty code { font-family: var(--mono); font-size: .86em; color: #7DD3FC;
+                background: var(--deep); border: 1px solid var(--rule); border-radius: 3px; padding: .1rem .4rem; }
+  .empty.err { border-left: 4px solid var(--highlight); }
+
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+  noscript p { border-left: 4px solid var(--highlight); padding-left: .9rem; color: var(--dim); }
+
+  @media (max-width: 620px) {
+    .sheets.two, .sheets.mods { grid-template-columns: 1fr; }
+    .lane { width: 16px; height: 16px; }
+  }
+
+  /* ---- print: one sheet per landscape page, ink-friendly ----
+     Learners screenshot or print these for interview prep, so the printed artefact
+     has to stand alone: dark chrome off, citations spelled out as visible URLs. */
+  @media print {
+    @page { size: landscape; margin: 14mm; }
+    body { background: #fff; color: #0F172A; padding: 0; }
+    .top, .controls, .tabs, .railwrap, .pin, footer, noscript, .lede, .cite-lede { display: none !important; }
+    .wrap { max-width: none; }
+    h1 { font-size: 18pt; margin: 0 0 6pt; }
+    h2.sec { color: #64748B; margin: 12pt 0 6pt; }
+    .sheets { display: block; }
+    .sheet {
+      background: #fff; border: 1px solid #CBD5E1; border-left: 3pt solid #0891B2;
+      break-inside: avoid; page-break-inside: avoid; margin: 0 0 10pt; padding: 10pt 12pt;
+    }
+    .sheet.cluster { break-after: page; page-break-after: always; }
+    .sheet h3 a, .facts li { color: #0F172A; }
+    .facts .cite a { color: #475569; }
+    .facts .cite a::after { content: " (" attr(href) ")"; font-size: 7pt; color: #94A3B8; }
+    .thumb { max-height: 42mm; object-fit: contain; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="dashboard.html">Planner</a>
+    <a href="flashcards.html">Recall</a>
+    <a href="cheatsheets.html" aria-current="page">Reference</a>
+    <a href="slides.html">Deck</a>
+    <a href="../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <h1>Reference</h1>
+  <p class="lede">
+    The lookup surface. When you are mid-lab and cannot remember whether a wavefront is 32 or 64,
+    or what the ridge point actually divides, this answers it without making you re-read the module.
+  </p>
+  <p class="cite-lede">
+    Every fact carries a link to the module section or glossary entry that derives it. Nothing here
+    is restated from memory, and where a number appears it is the module's number. If a sheet and its
+    source disagree, the source wins. Testing yourself is a different job &mdash; that is
+    <a href="flashcards.html">the recall cards</a>.
+  </p>
+
+  <div class="railwrap">
+    <div class="rail" id="rail" role="group" aria-label="All thirty modules, coloured by track"></div>
+    <p class="railnote" id="railnote"></p>
+  </div>
+
+  <div class="controls">
+    <input class="search" id="q" type="search" autocomplete="off" spellcheck="false"
+           placeholder="Search facts, modules, concepts - try &quot;coalescing&quot;, &quot;ridge&quot;, or &quot;fp8&quot;"
+           aria-label="Search every sheet">
+    <div class="pills" id="pills" role="group" aria-label="Filter by track"></div>
+  </div>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="Sheet tier"></div>
+
+  <div id="out"></div>
+
+  <noscript>
+    <p>
+      This page builds its sheets with JavaScript. With it disabled, read
+      <a href="../CURRICULUM.md">CURRICULUM.md</a> for the module index and
+      <a href="../docs/GLOSSARY.md">the glossary</a> for the definitions &mdash; both need nothing but a
+      browser.
+    </p>
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Three tiers, three questions.</strong> A <em>track</em> sheet answers "what does this
+      part of the curriculum own, and what do I need before starting it". A <em>concept</em> sheet
+      answers "what do I need to hold in my head about memory, or collectives, or precision" &mdash;
+      it crosses modules, because the concepts do. A <em>module</em> card answers "what was the one
+      idea in A04 again".
+    </p>
+    <p>
+      <strong>Print it.</strong> <kbd>Ctrl-P</kbd> gives one concept sheet per landscape page with the
+      citation URLs spelled out, so the printout stands on its own away from the browser.
+    </p>
+    <p>
+      Facts live in <code>data/reference.json</code>, not in this file, so they have one home and can
+      be checked mechanically. Pinned sheets are remembered in <code>localStorage</code> under
+      <code>ppc.sheets.v1</code>; nothing is uploaded and there is no account.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY   = "ppc.sheets.v1";
+  var TRACKS = ["A", "B", "C", "D"];
+  var COLOR = { A: "#0891B2", B: "#6366F1", C: "#F59E0B", D: "#DB2777" };
+  var TIERS = [
+    { id: "clusters", label: "Concepts" },
+    { id: "tracks",   label: "Tracks" },
+    { id: "modules",  label: "Modules" }
+  ];
+
+  var out      = document.getElementById("out");
+  var railEl   = document.getElementById("rail");
+  var railNote = document.getElementById("railnote");
+  var pillsEl  = document.getElementById("pills");
+  var tabsEl   = document.getElementById("tabs");
+  var qEl      = document.getElementById("q");
+
+  var DATA = null;
+  var tier = TIERS[0].id;
+  var track = "all";
+  var query = "";
+  var pinned = load();
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(pinned)); } catch (e) { /* private mode */ }
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  /* Searchable text for a sheet: everything a reader might type. The three tiers do
+     not have identical shapes, so every optional field is probed rather than assumed -
+     a missing key must narrow the search, never throw and blank the page. */
+  function haystack(s) {
+    var parts = [s.id, s.title, s.sub, s.one_liner, s.owns, s.prereq];
+    if (Array.isArray(s.bullets)) {
+      s.bullets.forEach(function (b) { parts.push(b.text, b.cite && b.cite.label); });
+    }
+    if (Array.isArray(s.modules)) { parts.push(s.modules.join(" ")); }
+    return parts.filter(Boolean).join(" ").toLowerCase();
+  }
+
+  function matches(s) {
+    if (track !== "all" && s.track !== track) { return false; }
+    if (!query) { return true; }
+    return haystack(s).indexOf(query) !== -1;
+  }
+
+  /* ---- the rail: one lane per module, dimmed when it falls out of the filter ---- */
+  function buildRail() {
+    railEl.innerHTML = "";
+    DATA.modules.forEach(function (m) {
+      var b = document.createElement("button");
+      b.className = "lane";
+      b.style.background = COLOR[m.track];
+      b.dataset.id = m.track;
+      b.dataset.mod = m.id;
+      b.title = m.id + " " + m.title;
+      b.setAttribute("aria-label", m.id + " " + m.title);
+      b.addEventListener("click", function () {
+        track = "all";
+        query = "";
+        qEl.value = "";
+        tier = "modules";
+        render();
+        var card = document.getElementById("sheet-" + m.id);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          card.style.transition = "box-shadow .2s";
+          card.style.boxShadow = "0 0 0 2px " + COLOR[m.track];
+          setTimeout(function () { card.style.boxShadow = ""; }, 1400);
+        }
+      });
+      railEl.appendChild(b);
+    });
+  }
+
+  function paintRail() {
+    var live = 0;
+    Array.prototype.forEach.call(railEl.children, function (b) {
+      var m = DATA.modules.filter(function (x) { return x.id === b.dataset.mod; })[0];
+      var on = matches(m);
+      b.classList.toggle("dim", !on);
+      if (on) { live++; }
+    });
+    var scope = track === "all" ? "" : " in Track " + track;
+    railNote.innerHTML = "<b>" + live + "</b> of " + DATA.modules.length +
+      " modules match" + esc(scope) + (query ? ' &middot; searching "' + esc(query) + '"' : "") +
+      " &middot; click a lane to jump to its card";
+  }
+
+  /* ---- controls ---- */
+  function buildPills() {
+    var defs = [{ t: "all", label: "All tracks" }].concat(TRACKS.map(function (t) {
+      var meta = DATA.tracks.filter(function (x) { return x.id === t; })[0];
+      return { t: t, label: t + " \u00b7 " + meta.title };
+    }));
+    defs.forEach(function (d) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.dataset.track = d.t;
+      b.textContent = d.label;
+      b.setAttribute("aria-pressed", String(d.t === track));
+      b.addEventListener("click", function () { track = d.t; render(); });
+      pillsEl.appendChild(b);
+    });
+  }
+
+  function buildTabs() {
+    TIERS.forEach(function (t) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.id = "tab-" + t.id;
+      b.setAttribute("role", "tab");
+      b.dataset.tier = t.id;
+      b.innerHTML = esc(t.label) + '<span class="cnt"></span>';
+      b.addEventListener("click", function () { tier = t.id; render(); });
+      tabsEl.appendChild(b);
+    });
+  }
+
+  function paintControls() {
+    Array.prototype.forEach.call(pillsEl.children, function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.track === track));
+    });
+    Array.prototype.forEach.call(tabsEl.children, function (b) {
+      b.setAttribute("aria-selected", String(b.dataset.tier === tier));
+      var n = DATA[b.dataset.tier].filter(matches).length;
+      b.querySelector(".cnt").textContent = n;
+    });
+  }
+
+  /* ---- rendering ---- */
+  function factList(bullets) {
+    return '<ul class="facts">' + bullets.map(function (b) {
+      return "<li>" + esc(b.text) +
+        '<span class="cite"><a href="' + esc(b.cite.href) + '">' + esc(b.cite.label) + "</a></span></li>";
+    }).join("") + "</ul>";
+  }
+
+  function pinBtn(id) {
+    var on = !!pinned[id];
+    return '<button class="pin" type="button" data-pin="' + esc(id) + '" aria-pressed="' + on + '">' +
+      (on ? "pinned" : "pin") + "</button>";
+  }
+
+  function clusterCard(c) {
+    var mods = (Array.isArray(c.modules) ? c.modules : []).map(function (id) {
+      var m = DATA.modules.filter(function (x) { return x.id === id; })[0];
+      return '<a href="' + esc(m ? m.href : "#") + '">' + esc(id) + "</a>";
+    }).join("");
+    var links = [];
+    if (c.concept) { links.push('<a href="' + esc(c.concept) + '">interactive version</a>'); }
+    links.push('<a href="flashcards.html?track=' + c.track + '">test this</a>');
+    return '<article class="sheet cluster t' + c.track + '" id="sheet-' + esc(c.id) + '">' +
+      '<div class="head"><div>' +
+        '<p class="kicker">Track ' + c.track + " &middot; concept</p>" +
+        "<h3>" + esc(c.title) + "</h3>" +
+        '<p class="sub">' + esc(c.sub) + "</p>" +
+      "</div>" + pinBtn(c.id) + "</div>" +
+      factList(c.bullets) +
+      (c.svg ? '<img class="thumb" src="' + esc(c.svg) + '" alt="Infographic for ' + esc(c.title) + '" loading="lazy">' : "") +
+      '<div class="meta"><span class="modchips">' + mods + "</span><span>" + links.join(" &middot; ") + "</span></div>" +
+      "</article>";
+  }
+
+  function trackCard(t) {
+    var n = DATA.modules.filter(function (m) { return m.track === t.id; }).length;
+    return '<article class="sheet t' + t.id + '" id="sheet-track-' + t.id + '">' +
+      '<div class="head"><div>' +
+        '<p class="kicker">Track ' + t.id + " &middot; " + n + " modules &middot; ~" + t.hours + " hours</p>" +
+        '<h3><a href="' + esc(t.href) + '">' + esc(t.title) + "</a></h3>" +
+        '<p class="sub">' + esc(t.owns) + "</p>" +
+      "</div>" + pinBtn("track-" + t.id) + "</div>" +
+      factList(t.bullets) +
+      '<div class="meta"><span>Before you start: ' + esc(t.prereq) + "</span></div>" +
+      "</article>";
+  }
+
+  function moduleCard(m) {
+    return '<article class="sheet mod t' + m.track + '" id="sheet-' + esc(m.id) + '">' +
+      '<div class="head"><div>' +
+        '<p class="kicker">' + esc(m.id) + " &middot; " + m.hours + "h &middot; depth " + m.depth + "</p>" +
+        '<h3><a href="' + esc(m.href) + '">' + esc(m.title) + "</a></h3>" +
+        '<p class="sub">' + esc(m.one_liner) + "</p>" +
+      "</div>" + pinBtn(m.id) + "</div>" +
+      factList(m.bullets) +
+      "</article>";
+  }
+
+  function render() {
+    paintRail();
+    paintControls();
+
+    var items = DATA[tier].filter(matches);
+    /* Pinned first, otherwise source order - which is already the order a reader
+       would meet the material in. */
+    items.sort(function (a, b) {
+      var pa = pinned[a.id] || pinned["track-" + a.id] ? 0 : 1;
+      var pb = pinned[b.id] || pinned["track-" + b.id] ? 0 : 1;
+      return pa - pb;
+    });
+
+    if (!items.length) {
+      out.innerHTML = '<div class="empty"><h3>Nothing matches</h3><p>No ' + tier +
+        " sheet mentions " + (query ? '"' + esc(query) + '"' : "that") +
+        ". Try a broader term, or clear the track filter.</p></div>";
+      return;
+    }
+
+    var body, cls;
+    if (tier === "clusters")     { cls = "two";  body = items.map(clusterCard).join(""); }
+    else if (tier === "tracks")  { cls = "two";  body = items.map(trackCard).join(""); }
+    else                         { cls = "mods"; body = items.map(moduleCard).join(""); }
+
+    var label = TIERS.filter(function (t) { return t.id === tier; })[0].label;
+    out.innerHTML = '<h2 class="sec">' + esc(label) +
+      '<span class="n">' + items.length + " sheet" + (items.length === 1 ? "" : "s") + "</span></h2>" +
+      '<div class="sheets ' + cls + '">' + body + "</div>";
+
+    Array.prototype.forEach.call(out.querySelectorAll("[data-pin]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.dataset.pin;
+        if (pinned[id]) { delete pinned[id]; } else { pinned[id] = 1; }
+        save();
+        render();
+      });
+    });
+  }
+
+  var searchTimer = null;
+  qEl.addEventListener("input", function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      query = qEl.value.trim().toLowerCase();
+      render();
+    }, 90);
+  });
+
+  /* "/" focuses search, the convention every docs site uses. Escape clears it. */
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement !== qEl) { e.preventDefault(); qEl.focus(); }
+    if (e.key === "Escape" && document.activeElement === qEl) { qEl.value = ""; query = ""; render(); }
+  });
+
+  function start(data) {
+    DATA = data;
+    buildRail();
+    buildPills();
+    buildTabs();
+    render();
+  }
+
+  /* A browser will not fetch() a sibling file over file://, so say exactly that and
+     give the fix, rather than rendering an empty page and letting the reader guess. */
+  function failed() {
+    out.innerHTML = '<div class="empty err"><h3>Could not load the reference data</h3>' +
+      "<p>The sheets live in <code>data/reference.json</code>, and browsers block reading a local " +
+      "file from a page opened with <code>file://</code>. Two ways round it:</p>" +
+      '<p>Use the published site, or serve this folder over HTTP from the repository root:</p>' +
+      "<p><code>python -m http.server 8000</code> then open " +
+      "<code>http://localhost:8000/live/cheatsheets.html</code></p>" +
+      '<p>The other live pages carry their data inline, so ' +
+      '<a href="dashboard.html">the planner</a> and <a href="flashcards.html">the recall cards</a> ' +
+      "work from a local file either way.</p></div>";
+  }
+
+  if (!window.fetch) { failed(); return; }
+  fetch("data/reference.json", { cache: "no-cache" })
+    .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
+    .then(start)
+    .catch(failed);
+}());
+</script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 492" width="1200" height="492" role="img" aria-labelledby="t d">
+<title id="t">A reduction tree collapsing sixteen lanes over four rounds</title>
+<desc id="d">Five rows of sixteen lanes. The top row has all sixteen lanes active. Each round below it halves the number of active lanes: eight, then four, then two, then one, while the lanes that have already contributed sit idle. The total number of additions is fifteen either way, but a sequential sum needs fifteen steps in a row where the tree needs four rounds. A panel on the right contrasts work against depth at sixteen values and at one million values, where the tree is about fifty-two thousand times shallower. Only fifteen of the sixty-four lane slots do useful work, which is the idle cost the module's algorithm cascade removes.</desc>
+
+<!--
+  brief:
+    id: reduction-tree
+    module: A04
+    track: A
+    visual_job: sequence
+    signature_device: lane_grid
+    motion_teaches: true
+    motion_claim: "the rounds happen one after another, and each one darkens half the array"
+    numbers: derived - W = n-1 additions, D = log2(n) rounds; see A04 section 2
+    static_fallback: "every round is drawn; the cue bar only says which one is current"
+
+  Mermaid already draws the reduction TREE in A04 section 3 and draws it well. What it
+  cannot do is show the rounds happening in sequence, or show the lane array going dark
+  as it collapses - and the darkening is the part that motivates stage 7. That is the
+  only reason this file exists.
+
+  Third meaning for the lane grid, consistent with divergence.svg: solid cyan is a lane
+  doing work this round, dim slate is a lane that is present but idle.
+-->
+
+<style>
+  .ground  { fill: #0F172A; }
+  .rule    { fill: #0891B2; }
+  .eyebrow { fill: #0891B2; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head    { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub     { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .panel   { fill: none; stroke: #1E293B; stroke-width: 1; }
+  .phead   { font: 700 13.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .5px; }
+  .step    { fill: #CBD5E1; font: 700 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .6px; }
+  .sfac    { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .live    { fill: #0891B2; font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .tiny    { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .lbl     { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .num     { fill: #F8FAFC; font: 700 13px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .col     { fill: #64748B; font: 700 10.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1px; }
+  .win     { fill: #10B981; font: 700 13px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .verdict { font: 700 15px Inter, "Segoe UI", system-ui, sans-serif; }
+
+  .on  { fill: #0891B2; }
+  .off { fill: #172033; stroke: #223049; stroke-width: 1; }
+
+  /* Four rounds, one after another. The sequence IS the lesson: a still ladder
+     cannot say "these happen in turn", which is the misconception A04 fixes. */
+  .c1 { animation: cue 5.6s steps(1, end) infinite; }
+  .c2 { animation: cue 5.6s steps(1, end) infinite; animation-delay: 1.4s; }
+  .c3 { animation: cue 5.6s steps(1, end) infinite; animation-delay: 2.8s; }
+  .c4 { animation: cue 5.6s steps(1, end) infinite; animation-delay: 4.2s; }
+  @keyframes cue { 0%, 24.9% { opacity: 1 } 25%, 100% { opacity: 0 } }
+  @media (prefers-reduced-motion: reduce) {
+    .c1, .c2, .c3, .c4 { animation: none; opacity: .55 }
+  }
+</style>
+
+<rect class="ground" width="1200" height="492"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE A04 &#183; FIFTEEN ADDITIONS EITHER WAY</text>
+<text class="head"    x="54" y="92">Depth, not work, is what the tree buys</text>
+<text class="sub"     x="56" y="120">Sixteen values. A sequential sum waits fifteen times; the tree waits four.</text>
+
+<defs><rect id="L" width="20" height="20" rx="2"/></defs>
+
+<!-- ================= LEFT: the collapse, round by round ================= -->
+<rect class="panel" x="56" y="148" width="660" height="258" rx="4"/>
+<text class="phead" x="76" y="176" fill="#0891B2">SEQUENTIAL ADDRESSING &#183; sdata[tid] += sdata[tid + s]</text>
+
+<!-- row 0: every lane holds a value -->
+<text class="step" x="76"  y="211">start</text>
+<text class="live" x="648" y="211">16 held</text>
+<g>
+  <use href="#L" class="on" x="196" y="196"/><use href="#L" class="on" x="224" y="196"/>
+  <use href="#L" class="on" x="252" y="196"/><use href="#L" class="on" x="280" y="196"/>
+  <use href="#L" class="on" x="308" y="196"/><use href="#L" class="on" x="336" y="196"/>
+  <use href="#L" class="on" x="364" y="196"/><use href="#L" class="on" x="392" y="196"/>
+  <use href="#L" class="on" x="420" y="196"/><use href="#L" class="on" x="448" y="196"/>
+  <use href="#L" class="on" x="476" y="196"/><use href="#L" class="on" x="504" y="196"/>
+  <use href="#L" class="on" x="532" y="196"/><use href="#L" class="on" x="560" y="196"/>
+  <use href="#L" class="on" x="588" y="196"/><use href="#L" class="on" x="616" y="196"/>
+</g>
+
+<!-- round 1: s = 8, lanes 0-7 add lanes 8-15 -->
+<rect class="c1" x="178" y="238" width="4" height="20" fill="#F59E0B"/>
+<text class="step" x="76"  y="253">round 1</text>
+<text class="sfac" x="140" y="253">s=8</text>
+<text class="live" x="648" y="253">8 live</text>
+<g>
+  <use href="#L" class="on"  x="196" y="238"/><use href="#L" class="on"  x="224" y="238"/>
+  <use href="#L" class="on"  x="252" y="238"/><use href="#L" class="on"  x="280" y="238"/>
+  <use href="#L" class="on"  x="308" y="238"/><use href="#L" class="on"  x="336" y="238"/>
+  <use href="#L" class="on"  x="364" y="238"/><use href="#L" class="on"  x="392" y="238"/>
+  <use href="#L" class="off" x="420" y="238"/><use href="#L" class="off" x="448" y="238"/>
+  <use href="#L" class="off" x="476" y="238"/><use href="#L" class="off" x="504" y="238"/>
+  <use href="#L" class="off" x="532" y="238"/><use href="#L" class="off" x="560" y="238"/>
+  <use href="#L" class="off" x="588" y="238"/><use href="#L" class="off" x="616" y="238"/>
+</g>
+
+<!-- round 2: s = 4 -->
+<rect class="c2" x="178" y="280" width="4" height="20" fill="#F59E0B"/>
+<text class="step" x="76"  y="295">round 2</text>
+<text class="sfac" x="140" y="295">s=4</text>
+<text class="live" x="648" y="295">4 live</text>
+<g>
+  <use href="#L" class="on"  x="196" y="280"/><use href="#L" class="on"  x="224" y="280"/>
+  <use href="#L" class="on"  x="252" y="280"/><use href="#L" class="on"  x="280" y="280"/>
+  <use href="#L" class="off" x="308" y="280"/><use href="#L" class="off" x="336" y="280"/>
+  <use href="#L" class="off" x="364" y="280"/><use href="#L" class="off" x="392" y="280"/>
+  <use href="#L" class="off" x="420" y="280"/><use href="#L" class="off" x="448" y="280"/>
+  <use href="#L" class="off" x="476" y="280"/><use href="#L" class="off" x="504" y="280"/>
+  <use href="#L" class="off" x="532" y="280"/><use href="#L" class="off" x="560" y="280"/>
+  <use href="#L" class="off" x="588" y="280"/><use href="#L" class="off" x="616" y="280"/>
+</g>
+
+<!-- round 3: s = 2 -->
+<rect class="c3" x="178" y="322" width="4" height="20" fill="#F59E0B"/>
+<text class="step" x="76"  y="337">round 3</text>
+<text class="sfac" x="140" y="337">s=2</text>
+<text class="live" x="648" y="337">2 live</text>
+<g>
+  <use href="#L" class="on"  x="196" y="322"/><use href="#L" class="on"  x="224" y="322"/>
+  <use href="#L" class="off" x="252" y="322"/><use href="#L" class="off" x="280" y="322"/>
+  <use href="#L" class="off" x="308" y="322"/><use href="#L" class="off" x="336" y="322"/>
+  <use href="#L" class="off" x="364" y="322"/><use href="#L" class="off" x="392" y="322"/>
+  <use href="#L" class="off" x="420" y="322"/><use href="#L" class="off" x="448" y="322"/>
+  <use href="#L" class="off" x="476" y="322"/><use href="#L" class="off" x="504" y="322"/>
+  <use href="#L" class="off" x="532" y="322"/><use href="#L" class="off" x="560" y="322"/>
+  <use href="#L" class="off" x="588" y="322"/><use href="#L" class="off" x="616" y="322"/>
+</g>
+
+<!-- round 4: s = 1 -->
+<rect class="c4" x="178" y="364" width="4" height="20" fill="#F59E0B"/>
+<text class="step" x="76"  y="379">round 4</text>
+<text class="sfac" x="140" y="379">s=1</text>
+<text class="live" x="648" y="379">1 live</text>
+<g>
+  <use href="#L" class="on"  x="196" y="364"/><use href="#L" class="off" x="224" y="364"/>
+  <use href="#L" class="off" x="252" y="364"/><use href="#L" class="off" x="280" y="364"/>
+  <use href="#L" class="off" x="308" y="364"/><use href="#L" class="off" x="336" y="364"/>
+  <use href="#L" class="off" x="364" y="364"/><use href="#L" class="off" x="392" y="364"/>
+  <use href="#L" class="off" x="420" y="364"/><use href="#L" class="off" x="448" y="364"/>
+  <use href="#L" class="off" x="476" y="364"/><use href="#L" class="off" x="504" y="364"/>
+  <use href="#L" class="off" x="532" y="364"/><use href="#L" class="off" x="560" y="364"/>
+  <use href="#L" class="off" x="588" y="364"/><use href="#L" class="off" x="616" y="364"/>
+</g>
+
+<!-- ================= RIGHT: work versus depth ================= -->
+<rect class="panel" x="740" y="148" width="404" height="258" rx="4"/>
+<text class="phead" x="760" y="176" fill="#10B981">SAME WORK &#183; DIFFERENT DEPTH</text>
+
+<text class="col" x="760"  y="206">n</text>
+<text class="col" x="852"  y="206">ADDITIONS</text>
+<text class="col" x="978"  y="206">SEQ DEEP</text>
+<text class="col" x="1080" y="206">TREE</text>
+<line x1="760" y1="214" x2="1124" y2="214" stroke="#1E293B" stroke-width="1"/>
+
+<text class="num" x="760"  y="238">16</text>
+<text class="num" x="852"  y="238">15</text>
+<text class="num" x="978"  y="238">15</text>
+<text class="win" x="1080" y="238">4</text>
+
+<text class="num" x="760"  y="266">1,048,576</text>
+<text class="num" x="852"  y="266">1,048,575</text>
+<text class="num" x="978"  y="266">1,048,575</text>
+<text class="win" x="1080" y="266">20</text>
+
+<text class="lbl" x="760" y="300">Work is identical. Only the waiting collapses,</text>
+<text class="lbl" x="760" y="318">from n-1 rounds down to log2(n) &#8212; about</text>
+<text class="verdict" x="760" y="342" fill="#10B981">52,000&#215; shallower at one million values</text>
+
+<text class="tiny" x="760" y="372">The tree is why a reduction is not O(n) time.</text>
+<text class="tiny" x="760" y="390">Brent's theorem in A04 section 2 is the proof.</text>
+
+<!-- the honest cost, stated on the graphic -->
+<text class="verdict" x="56" y="434" fill="#F59E0B">The collapse wastes the array: 15 useful lane-steps out of 64 lane-slots, so 77% of the array idles.</text>
+<text class="tiny"    x="56" y="456">Counts are exact for stage 3 sequential addressing. Work and depth are derived, not measured.</text>
+<text class="tiny"    x="56" y="474">Giving each thread many elements before the tree starts &#8212; A04 stage 7, the algorithm cascade &#8212; is what recovers the idle fraction.</text>
+</svg>

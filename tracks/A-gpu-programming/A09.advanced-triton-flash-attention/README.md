@@ -238,6 +238,15 @@ flowchart TB
 four of the six carry an `N²`-sized payload, which is why the left side scales
 quadratically and the right side linearly.*
 
+Every box above is the same size, which hides the thing that matters. Drawn to scale,
+the four `N²` crossings dwarf everything else in the problem:
+
+![At N=4096 the unfused kernel moves 132 MiB per head against the fused kernel's 4 MiB](../../../assets/attention-traffic.svg)
+
+The cyan sliver on both bars is identical — it is Q, K, V and O, the data you cannot
+avoid touching. Everything else on the top bar is the score matrix crossing the
+boundary four times, and it is the only difference between the two implementations.
+
 ### The fix is A07's trick, generalized
 
 [A07 §3](../A07.softmax-and-fused-kernels/README.md#the-online-recurrence-both-statistics-in-one-pass)

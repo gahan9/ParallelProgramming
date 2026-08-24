@@ -156,6 +156,7 @@
     <span class="brand">Parallel Programming</span>
     <a href="dashboard.html">Planner</a>
     <a href="flashcards.html" aria-current="page">Recall</a>
+    <a href="cheatsheets.html">Reference</a>
     <a href="slides.html">Deck</a>
     <a href="../CURRICULUM.md">Curriculum</a>
   </nav>
@@ -411,13 +412,21 @@
 
   CARDS.forEach(function (c, i) { c.id = c.m + "-" + i; });
 
-  var TRACK_COLOR = { A: "#0891B2", B: "#6366F1", C: "#F59E0B" };
+  var TRACK_COLOR = { A: "#0891B2", B: "#6366F1", C: "#F59E0B", D: "#DB2777" };
+  var TRACKS = ["A", "B", "C", "D"];
 
   // ---- state -----------------------------------------------------------------
   var boxOf = load(KEY, {});          // cardId -> 1 | 2 | 3
-  var filter = "all";
+  var filter = startFilter();
   var current = null;
   var revealed = false;
+
+  /* The reference sheets link here per track ("test this"), so honour ?track=B.
+     An unknown or empty value just means the whole deck. */
+  function startFilter() {
+    var m = /[?&]track=([A-D])\b/i.exec(window.location.search);
+    return m ? m[1].toUpperCase() : "all";
+  }
 
   function load(k, d) {
     try { var r = localStorage.getItem(k); return r === null ? d : JSON.parse(r); }
@@ -483,8 +492,13 @@
         '<span class="bhint">' + m.hint + "</span></div>";
     }).join("");
 
-    // filters
-    var opts = [["all", "All " + CARDS.length], ["A", "Track A"], ["B", "Track B"], ["C", "Track C"]];
+    // Filters are derived from the deck, not listed by hand, so a track appears the
+    // moment its first card does and there is no fifth place to keep in sync.
+    var opts = [["all", "All " + CARDS.length]].concat(
+      TRACKS.filter(function (t) {
+        return CARDS.some(function (c) { return c.t === t; });
+      }).map(function (t) { return [t, "Track " + t]; })
+    );
     el("filters").innerHTML = opts.map(function (o) {
       return '<button type="button" data-f="' + o[0] + '" aria-pressed="' + (filter === o[0]) + '">' +
              o[1] + "</button>";
@@ -493,8 +507,12 @@
     // card
     if (!current) {
       el("cardHead").textContent = "Card";
+      var why = (filter !== "all" && !CARDS.some(function (c) { return c.t === filter; }))
+        ? "Track " + filter + " has no cards in the deck yet, so there is nothing to draw. " +
+          'Its material is on <a href="cheatsheets.html">the reference sheets</a> in the meantime.'
+        : "Pick another track above.";
       el("stage").innerHTML = '<div class="done"><h3>Nothing to review in this filter</h3>' +
-        "<p>Pick another track above.</p></div>";
+        "<p>" + why + "</p></div>";
       return;
     }
 

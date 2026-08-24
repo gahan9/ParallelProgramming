@@ -28,6 +28,15 @@ If you cannot fill "the measured number" from a run you did, stop and run the la
 Write in **shot rows**. `VISUAL` is what is on screen; `SAY` is spoken, conversational, contraction-friendly.
 Aim for ~140 words per minute — 12 minutes is roughly 1,600 words.
 
+**Naming a visual.** Where a shot uses one of the [infographics](../assets/README.md), name the asset
+id rather than describing it — `asset: coalescing` — so the shot list and the file stay tied
+together. Capture it by opening the SVG in a browser tab, which is enough for most shots. If an
+editor needs a file, derive one with
+`bash scripts/export_visual.sh <asset> gif 9x16` and point at `exports/`; that render is
+gitignored on purpose, so re-derive it rather than checking it in. Where a shot is better served by
+a control than by a fixed drawing, use the [concept players](../live/README.md) instead: the
+stride dial in `live/concepts/coalescing.html` reads well on camera.
+
 | # | Time | VISUAL | SAY |
 |---|------|--------|-----|
 | 1 | 0:00 | *Terminal, final result already printed* | *Cold-open: state the payoff number out loud.* |

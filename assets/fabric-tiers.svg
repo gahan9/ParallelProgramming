@@ -79,7 +79,8 @@
 <text class="tname"  x="56" y="216">HBM (on package)</text>
 <text class="trange" x="56" y="232">~1000-8000</text>
 <rect class="bar onpkg breathe" x="765" y="200" width="167" height="22"/>
-<text class="tiny" x="940" y="216">the number every kernel is measured against</text>
+<text class="tiny" x="940" y="209">the number every kernel</text>
+<text class="tiny" x="940" y="224">is measured against</text>
 
 <!-- scale-up GPU-GPU link -->
 <text class="tname"  x="56" y="254">Scale-up GPU link</text>

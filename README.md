@@ -39,7 +39,7 @@ flowchart TB
   ROOT --> CURR["CURRICULUM.md<br/>index + paths"]
   ROOT --> DOCS["docs/"]
   ROOT --> TRACKS["tracks/"]
-  ROOT --> LIVE["live/<br/>planner + slide deck"]
+  ROOT --> LIVE["live/<br/>planner, reference, recall, deck"]
   ROOT --> CONTENT["content/<br/>video + shorts scripts"]
 
   DOCS --> MT["MODULE_TEMPLATE"]
@@ -182,13 +182,16 @@ every module that follows.
 
 ## Four ways to work through this
 
-The same curriculum, four surfaces — pick whichever keeps you actually studying.
+The same curriculum, several surfaces — pick whichever keeps you actually studying.
 
 | Surface | What it is | Best for |
 |---|---|---|
 | **The repo** | Markdown modules next to runnable `hip/`, `cuda/`, `triton/` code | Doing the labs on a real GPU |
 | **The docs site** | The whole curriculum published via MkDocs Material, with search, rendered Mermaid, and a **Listen** button that reads any page aloud | Reading, searching, or listening on any device |
 | **The study planner** | [`live/dashboard.html`](live/dashboard.html) — pick a goal, tick modules off, watch remaining hours drop | Planning your route and tracking progress |
+| **The reference sheets** | [`live/cheatsheets.html`](live/cheatsheets.html) — track, concept and module cheatsheets, searchable and printable, every fact cited | Looking something up mid-lab without re-reading a module |
+| **The recall cards** | [`live/flashcards.html`](live/flashcards.html) — 49 cited cards in three Leitner boxes | Finding out what you only think you know |
+| **The concept players** | [`live/concepts/`](live/README.md) — change an input and watch the answer move | The ideas where a control teaches better than a picture |
 | **The slide deck** | [`live/slides.html`](live/slides.html) — a presentable overview, `Ctrl-P` for a PDF handout | Presenting or skimming the whole thing in 5 minutes |
 | **The content studio** | [`content/`](content/) — shot-by-shot scripts for YouTube long-form, Shorts, and Reels | Teaching it back, which is how you find out what you actually know |
 
@@ -208,10 +211,12 @@ synthesis — nothing is uploaded and no audio files are stored — and it skips
 self-assessment. Voice quality depends on your OS: good on Windows and macOS, often absent on Linux,
 where the control simply does not appear.
 
-**Planner and deck.** Both are single self-contained HTML files — no framework, no CDN, no build step
-— so they work on the published site, from a local clone, and offline. The planner keeps your progress
-in `localStorage`; nothing is uploaded. GitHub itself won't *render* them from a repo view (it serves
-HTML as source), so use the published site or open the files locally. See
+**Live pages.** Each is a single self-contained HTML file — no framework, no CDN, no build step — so
+they work on the published site, from a local clone, and offline. Progress lives in `localStorage`;
+nothing is uploaded. GitHub itself won't *render* them from a repo view (it serves HTML as source),
+so use the published site or open the files locally. The one exception is the reference sheets, whose
+facts live in `live/data/reference.json` so they can be checked mechanically — browsers block reading
+that from a `file://` page, and the page says so with the one-line fix. See
 [`live/README.md`](live/README.md).
 
 **Content studio.** Each pack leads with that module's *measured* number (A01: a 44 µs kernel inside a

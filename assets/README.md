@@ -14,6 +14,16 @@ If a diagram is boxes and arrows, use Mermaid — it is editable in place, diffs
 init block in [`../docs/BRAND.md`](../docs/BRAND.md) already themes it. Reach for SVG only when you
 hit one of the four rows above.
 
+There is a third surface, above these: if the reader needs to **change an input and watch the answer
+move**, that is a concept player in [`../live/concepts/`](../live/README.md), not an asset. The test
+is whether the geometry genuinely changes with the input. It does for access stride, which is why
+`coalescing.svg` has an interactive companion; it does not for the divergence panels, which is why
+that one does not. The SVG stays canonical either way — it is what the module embeds and what
+survives JavaScript being off.
+
+[`sources/canva.md`](sources/canva.md) covers laying an asset out in Canva and the checklist an
+export must clear before it can be committed.
+
 ---
 
 ## Why SVG and not GIF
@@ -108,15 +118,24 @@ argument — they should look like readings, not like copy.
 | `where-time-goes.svg` | A01 | Kernel tick | Real `rocprofv3` run, gfx950 |
 | `coalescing.svg` | A02 | Discarded bytes | 8 lanes ? 1 line vs 8 lines |
 | `divergence.svg` | A03 | THEN/ELSE antiphase | Cost is the sum, not the max |
+| `reduction-tree.svg` | A04 | Four rounds in turn | Lane grid collapsing; 15 of 64 lane-slots do work |
+| `tile-reuse.svg` | A06 | Eliminated span | 549.8 GB vs 17.2 GB, drawn to scale |
+| `attention-traffic.svg` | A09 | Four HBM crossings | 132 MiB vs 4 MiB per head; the skipped span is dashed |
 | `roofline.svg` | B02 | Vector-add pulse | Log-log, 5 kernels plotted |
+| `prefill-decode-split.svg` | B05 | Decode point pulse | Log-log; intensity is batch size until it saturates |
 | `scaling-walls.svg` | D01 | Turning-point pulse | Log-log; Amdahl ceilings vs the communication downturn |
-| `ring-allreduce.svg` | D03 | Three-panel phase cue | Start, after reduce-scatter, after all-gather |
+| `ring-allreduce.svg` | D03, B07 | Three-panel phase cue | Start, after reduce-scatter, after all-gather |
 | `fabric-tiers.svg` | D04 | HBM breathe | Log bandwidth axis; the on-package-to-wire cliff |
 | `scale-boundary.svg` | D06 | Failure-band creep | Which constraint binds at each decade of rank count |
 
-Candidates worth adding, all with something Mermaid can't express: the reduction tree collapsing over
-log?(n) rounds (A04), tile reuse in shared memory (A06), naive-vs-fused HBM traffic for attention
-(A09), and the prefill/decode arithmetic-intensity split (B05).
+Each asset carries a `brief:` block in its opening comment — id, module, which of the four jobs it
+does, what the motion claims, and whether its numbers are measured, derived or representative. It
+lives in the file rather than in a sidecar because the brief is only ever read while editing the
+asset, and a second file would be one more thing to leave stale.
+
+Candidates worth adding, all with something Mermaid can't express: the KV-cache growth curve against
+batch and context (B06), and the pipeline-bubble timeline that shows why interleaved schedules beat
+naive ones (B07).
 
 ## If you need a GIF
 
@@ -124,13 +143,21 @@ You do not, and this repo will not commit one — see [Why SVG and not GIF](#why
 above. These files are already animated, so an animated SVG *is* the editable GIF.
 
 When an external surface genuinely cannot take SVG (PowerPoint, some social embeds), **derive one,
-never commit it**. The SVG stays the single source of truth:
+never commit it**. The SVG stays the single source of truth, and
+[`../scripts/export_visual.sh`](../scripts/export_visual.sh) does the derivation:
 
 ```bash
-# render the animation to frames, then assemble - requires a headless browser + ffmpeg
-# (neither is a repo dependency; this is a one-off export, not part of any build)
-ffmpeg -framerate 25 -i frame_%04d.png -vf "split[a][b];[a]palettegen[p];[b][p]paletteuse" out.gif
+bash scripts/export_visual.sh coalescing            # 16:9 GIF into exports/
+bash scripts/export_visual.sh divergence mp4        # MP4 for a video editor
+bash scripts/export_visual.sh reduction-tree gif 9x16   # vertical, for a Short
 ```
+
+`exports/` is gitignored. The script needs Chrome and ffmpeg, neither of which is a repo
+dependency; it checks for both and exits with a one-line message rather than failing halfway. It is
+not part of any build, and nothing depends on its output.
+
+For a talk or a screen recording you usually do not need it at all: open the SVG in a browser tab
+and capture that. The export exists for the cases where a file has to be handed over.
 
 Committing generated GIFs would put unreviewable binaries in the tree and add a second artifact to
 regenerate on every content edit. If that ever changes, it needs **two** edits or it resolves on

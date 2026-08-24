@@ -1,0 +1,614 @@
+{
+  "_readme": [
+    "Cited facts behind live/cheatsheets.html. One rule governs this file: every bullet",
+    "carries a cite that points at the module section or glossary entry it came from. A",
+    "bullet without a cite does not belong here, for the same reason a flashcard without",
+    "a source does not belong in flashcards.html.",
+    "",
+    "Paths are relative to live/cheatsheets.html, which is also where the fetch happens.",
+    "Numbers are copied from the module that derives them - never restated from memory,",
+    "and never rounded into something the module does not say.",
+    "",
+    "Adding a sheet: append to clusters or modules, keep the track id in sync with",
+    "docs/BRAND.md track colours, and re-run check_links.py after wiring any new href."
+  ],
+
+  "tracks": [
+    {
+      "id": "A",
+      "title": "GPU Programming",
+      "color": "#0891B2",
+      "hours": 71,
+      "href": "../tracks/A-gpu-programming/README.md",
+      "owns": "Writing kernels that are correct first and fast second, on both HIP and CUDA, plus the portable Triton path.",
+      "prereq": "C or C++ that you can read and modify. No GPU experience is assumed at A01.",
+      "bullets": [
+        {
+          "text": "The host/device split is the whole programming model: copy in, launch a grid, copy out. Every thread computes its own global index and works on its slice.",
+          "cite": { "label": "A01 section 1", "href": "../tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Every runtime call is checked and every kernel launch is followed by an error check. A silent launch failure looks exactly like a wrong answer.",
+          "cite": { "label": "MODULE_TEMPLATE", "href": "../docs/MODULE_TEMPLATE.md" }
+        },
+        {
+          "text": "Track A ends at A10 (CuTe, CUTLASS, cuTile), which is NVIDIA-only and marked optional. Everything before it runs on both vendors.",
+          "cite": { "label": "CURRICULUM", "href": "../CURRICULUM.md" }
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "title": "GPU + ML Performance",
+      "color": "#6366F1",
+      "hours": 46,
+      "href": "../tracks/B-gpu-ml-performance/README.md",
+      "owns": "Deciding what is actually limiting a workload, and proving it with a measurement rather than a guess.",
+      "prereq": "Track A through A06. You need to have written a kernel before profiling one is meaningful.",
+      "bullets": [
+        {
+          "text": "The roofline comes first and the profiler second: form a hypothesis from intensity, then take the cheapest measurement that could kill it.",
+          "cite": { "label": "B03 section 1", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Almost every kernel in ML sits left of the ridge point, which is why fusing pays and why faster arithmetic often changes nothing.",
+          "cite": { "label": "B02 section 2", "href": "../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#2-first-principles" }
+        },
+        {
+          "text": "Published ceilings are a starting point, not an answer. B02's lab derives peak FLOP/s and bandwidth from your own hardware.",
+          "cite": { "label": "B02 section 4", "href": "../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#4-hands-on-labs" }
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "title": "ML System Design",
+      "color": "#F59E0B",
+      "hours": 47,
+      "href": "../tracks/C-ml-system-design/README.md",
+      "owns": "The design interview and the production system behind it: framing, data, training, serving, monitoring.",
+      "prereq": "None technically. There is no GPU code in this track; its tools are standard-library Python.",
+      "bullets": [
+        {
+          "text": "An ML system exists to produce a decision, not a prediction. The first question is what action the system takes, never what model to use.",
+          "cite": { "label": "C01 section 1", "href": "../tracks/C-ml-system-design/C01.problem-framing-and-metrics/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Model architecture is usually the least leveraged variable. The data pipeline is the system, and label leakage plus training-serving skew dominate its failure modes.",
+          "cite": { "label": "C02 section 1", "href": "../tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Design is constraint arithmetic: business goal, latency budget, traffic forecast and price list must be simultaneously satisfiable, and you should know which you would break first.",
+          "cite": { "label": "C07 section 1", "href": "../tracks/C-ml-system-design/C07.capstone-case-studies/README.md#1-tldr--layman-analogy" }
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "title": "Distributed Computing",
+      "color": "#DB2777",
+      "hours": 39,
+      "href": "../tracks/D-distributed-computing/README.md",
+      "owns": "The layer below ML: what it costs to talk between processes, over what wire, in what shape of cluster.",
+      "prereq": "Track A basics. B07 and C03 already own sharding and fault tolerance, so Track D deliberately sits underneath them.",
+      "bullets": [
+        {
+          "text": "Adding processors adds capacity, not speed. You convert capacity into speed only to the extent the work is independent.",
+          "cite": { "label": "D01 section 1", "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Every byte travels in one of a handful of tiers separated by roughly an order of magnitude each, and that ladder explains most placement decisions.",
+          "cite": { "label": "D04 section 1", "href": "../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Every inter-node figure in this track is an analytic model and says so in its own output banner. No multi-node measurement exists in this repo.",
+          "cite": { "label": "D01 section 4", "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#4-hands-on-labs" }
+        }
+      ]
+    }
+  ],
+
+  "clusters": [
+    {
+      "id": "memory",
+      "track": "A",
+      "title": "Memory hierarchy and coalescing",
+      "sub": "Why the same arithmetic runs at 15% or 70% of the ceiling",
+      "modules": ["A02", "A06", "B01"],
+      "svg": "../assets/coalescing.svg",
+      "concept": "concepts/coalescing.html",
+      "bullets": [
+        {
+          "text": "The hierarchy is registers, then shared memory / LDS, then L1 and L2, then global HBM. Each step down is roughly an order of magnitude slower and larger.",
+          "cite": { "label": "A02 section 1", "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "A cache line is fetched whole whether you use all of it or one byte of it. Stride-1 across a wavefront is one transaction; stride-8 is eight, and seven eighths of each is discarded.",
+          "cite": { "label": "A02 section 2", "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#2-first-principles" }
+        },
+        {
+          "text": "Even a stride-1 access that starts misaligned can straddle two lines, so alignment is a separate concern from stride.",
+          "cite": { "label": "A02 section 3", "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#3-deep-dive" }
+        },
+        {
+          "text": "Staging through shared memory converts a strided global pattern into a coalesced one. A transpose goes from about 15% of the copy ceiling to about 70%.",
+          "cite": { "label": "A02 section 5", "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#5-performance-analysis" }
+        },
+        {
+          "text": "Shared memory is banked, so the padding trick exists to break the conflict a naturally sized tile creates. Padding costs a column and buys back the conflict-free access.",
+          "cite": { "label": "Glossary: bank conflict", "href": "../docs/GLOSSARY.md#bank-conflict" }
+        }
+      ]
+    },
+    {
+      "id": "occupancy",
+      "track": "A",
+      "title": "Execution model, divergence and occupancy",
+      "sub": "What the hardware executes, as opposed to what you wrote",
+      "modules": ["A03", "A04", "A05"],
+      "svg": "../assets/divergence.svg",
+      "bullets": [
+        {
+          "text": "A block is how you organize threads; a warp (32 lanes, NVIDIA) or wavefront (64 lanes, AMD CDNA) is how the hardware executes them. Size blocks as a multiple of the wider one for portability.",
+          "cite": { "label": "A03 section 1", "href": "../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "A branch that divides lanes within a wavefront executes both sides in turn, so the cost is the sum of the paths, not the max. A branch that is uniform across the wavefront skips the untaken side entirely.",
+          "cite": { "label": "A03 section 3", "href": "../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md#3-deep-dive" }
+        },
+        {
+          "text": "Occupancy is a means, not a goal. More resident waves hide latency, but a kernel that is already bandwidth-saturated gains nothing from raising it.",
+          "cite": { "label": "Glossary: occupancy", "href": "../docs/GLOSSARY.md#occupancy" }
+        },
+        {
+          "text": "warpSize stopped being constexpr in ROCm 7.0, and __AMDGCN_WAVEFRONT_SIZE__ is deprecated. A03 documents the portable form.",
+          "cite": { "label": "A03 section 6", "href": "../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md#6-challenges-drawbacks--tradeoffs" }
+        }
+      ]
+    },
+    {
+      "id": "fusion",
+      "track": "A",
+      "title": "Fusion, online softmax and FlashAttention",
+      "sub": "The intermediate you never store is the one you never move",
+      "modules": ["A07", "A08", "A09"],
+      "svg": "../assets/attention-traffic.svg",
+      "bullets": [
+        {
+          "text": "Naive softmax overflows: expf(100) is +inf in fp32, so one large score turns a whole row into nan. Subtracting the row maximum is mathematically identical and numerically safe.",
+          "cite": { "label": "A07 section 1", "href": "../tracks/A-gpu-programming/A07.softmax-and-fused-kernels/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "The online recurrence computes the running max and the running sum in one pass, which is what makes the safe version free rather than an extra pass over memory.",
+          "cite": { "label": "A07 section 3", "href": "../tracks/A-gpu-programming/A07.softmax-and-fused-kernels/README.md#3-deep-dive" }
+        },
+        {
+          "text": "Unfused attention crosses the HBM boundary four times with an N-by-N payload. Fused traffic is 8Nd bytes against 8Nd + 8N^2, so the ratio is 1 + N/d: 9x at N=1k, 33x at 4k, 129x at 16k.",
+          "cite": { "label": "A09 section 2", "href": "../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md#2-first-principles" }
+        },
+        {
+          "text": "The dtype cancels out of that ratio. Moving to fp8 halves both sides and changes nothing about whether you should fuse.",
+          "cite": { "label": "A09 section 2", "href": "../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md#2-first-principles" }
+        },
+        {
+          "text": "Attention is not intrinsically memory-bound; unfused attention is. Fused intensity is N/2 and unbounded, while unfused saturates at d/2 forever.",
+          "cite": { "label": "A09 section 2", "href": "../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md#2-first-principles" }
+        }
+      ]
+    },
+    {
+      "id": "roofline",
+      "track": "B",
+      "title": "Roofline and profiling",
+      "sub": "Hypothesis first, then the cheapest measurement that could kill it",
+      "modules": ["B02", "B03"],
+      "svg": "../assets/roofline.svg",
+      "bullets": [
+        {
+          "text": "Attainable performance is min(peak FLOP/s, intensity x bandwidth). The ridge point is peak divided by bandwidth: the intensity at which you stop being bandwidth-limited.",
+          "cite": { "label": "B02 section 2", "href": "../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#2-first-principles" }
+        },
+        {
+          "text": "Timeline tracing and kernel profiling answer different questions and are not interchangeable. Start with the timeline: the kernel is often a rounding error in the wall clock.",
+          "cite": { "label": "B03 section 2", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#2-first-principles" }
+        },
+        {
+          "text": "rocprofv3 now defaults to rocpd SQLite output rather than CSV, so pass --output-format csv explicitly if you want to read it with the usual tools.",
+          "cite": { "label": "B03 section 4", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#4-hands-on-labs" }
+        },
+        {
+          "text": "Omniperf and Omnitrace were renamed in ROCm 6.3 to rocprof-compute and rocprof-sys-*. Older tutorials will name binaries that no longer exist.",
+          "cite": { "label": "B03 section 4", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#4-hands-on-labs" }
+        },
+        {
+          "text": "A01's profiled run puts a 44 microsecond kernel inside a 72 millisecond program: 0.06% of the wall clock. Optimizing the kernel first would have been wasted effort.",
+          "cite": { "label": "A01 section 5", "href": "../tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md#5-performance-analysis" }
+        }
+      ]
+    },
+    {
+      "id": "precision",
+      "track": "B",
+      "title": "Precision, numerics and quantization",
+      "sub": "Exponent bits buy range, mantissa bits buy precision",
+      "modules": ["B04"],
+      "bullets": [
+        {
+          "text": "That one sentence explains every format. bf16 keeps fp32's 8 exponent bits and cuts the mantissa to 7, so it has fp32's range with coarser steps and needs no loss scaling.",
+          "cite": { "label": "B04 section 1", "href": "../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "There are two incompatible fp8 formats. CDNA 3 (gfx942) implements FNUZ with exponent bias 8 and max 240; Hopper implements OCP with bias 7 and max 448.",
+          "cite": { "label": "B04 section 3", "href": "../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md#3-deep-dive" }
+        },
+        {
+          "text": "The same bits decode about 2x apart between them, and 0x80 is NaN under FNUZ but negative zero under OCP. Moving a checkpoint between vendors is not a reinterpret-cast.",
+          "cite": { "label": "B04 section 3", "href": "../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md#3-deep-dive" }
+        },
+        {
+          "text": "Quantization is a decode-side win: decode throughput is bandwidth over model bytes, so halving the weights nearly doubles it. Prefill barely notices.",
+          "cite": { "label": "B05 section 3", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#3-deep-dive" }
+        }
+      ]
+    },
+    {
+      "id": "prefill-decode",
+      "track": "B",
+      "title": "Prefill, decode and serving throughput",
+      "sub": "The same weights and kernel, two completely different machines",
+      "modules": ["B05", "B06"],
+      "svg": "../assets/prefill-decode-split.svg",
+      "bullets": [
+        {
+          "text": "A transformer layer is about 12d^2 parameters at the usual FFN multiplier of 4, a forward pass costs about 2x params in FLOPs per token, and training about 6x. Those plus the KV-cache size are the whole envelope.",
+          "cite": { "label": "B05 section 1", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Arithmetic intensity of one projection is Td/(d + 2T). At d=4096 that is 1.0 at T=1, 62.1 at T=64, and 1024 at T=2048.",
+          "cite": { "label": "B05 section 2", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#2-first-principles" }
+        },
+        {
+          "text": "For small T the intensity is approximately T, so the batch size at which decode becomes compute-bound is roughly the machine's ridge point: 281 tokens against MI300X's 247 FLOP/byte.",
+          "cite": { "label": "B05 section 2", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#2-first-principles" }
+        },
+        {
+          "text": "This is why batching transforms decode and does almost nothing for prefill, and why a vendor quoting a FLOPs improvement is advertising a prefill number.",
+          "cite": { "label": "B05 section 3", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#3-deep-dive" }
+        },
+        {
+          "text": "You do not optimize latency or throughput. You fix an SLO and maximize goodput: requests served within it.",
+          "cite": { "label": "B06 section 1", "href": "../tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/README.md#1-tldr--layman-analogy" }
+        }
+      ]
+    },
+    {
+      "id": "framing",
+      "track": "C",
+      "title": "Framing, metrics and data",
+      "sub": "The two failure modes that dominate everything else",
+      "modules": ["C01", "C02"],
+      "bullets": [
+        {
+          "text": "Define the decision before the prediction. Metrics are proxies for a business outcome, and the operating threshold comes from the relative cost of the two error types.",
+          "cite": { "label": "C01 section 2", "href": "../tracks/C-ml-system-design/C01.problem-framing-and-metrics/README.md#2-first-principles" }
+        },
+        {
+          "text": "Label leakage puts information into training that will not exist at prediction time, which makes the offline metric a fiction rather than an overestimate.",
+          "cite": { "label": "C02 section 1", "href": "../tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Training-serving skew is the same feature computed two different ways in two different code paths. The fix is one path, not two paths kept in sync.",
+          "cite": { "label": "Glossary: training-serving skew", "href": "../docs/GLOSSARY.md#training-serving-skew" }
+        }
+      ]
+    },
+    {
+      "id": "deployment",
+      "track": "C",
+      "title": "Optimization and deployment",
+      "sub": "Cheapest and least risky fix first",
+      "modules": ["C04", "C05", "C07"],
+      "bullets": [
+        {
+          "text": "The ordering is: do not call the model at all (caching, cascades, early exit), then serve it better (batching, runtime, graph capture), then shrink the numbers, then shrink the model.",
+          "cite": { "label": "C04 section 1", "href": "../tracks/C-ml-system-design/C04.production-model-optimization/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Choose the serving pattern from latency, cost, freshness, connectivity and privacy requirements, not from habit. Online, async, streaming, batch and edge are genuinely different systems.",
+          "cite": { "label": "C05 section 2", "href": "../tracks/C-ml-system-design/C05.deployment-and-serving-architecture/README.md#2-first-principles" }
+        },
+        {
+          "text": "Scale on queue depth, not CPU or GPU utilization. A GPU can read as busy while the queue is empty, and as idle while requests are waiting.",
+          "cite": { "label": "C05 section 1", "href": "../tracks/C-ml-system-design/C05.deployment-and-serving-architecture/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "The capstone works two designs end to end, LLM serving and a recommender, so the constraint arithmetic is practised rather than described.",
+          "cite": { "label": "C07 section 4", "href": "../tracks/C-ml-system-design/C07.capstone-case-studies/README.md#4-hands-on-labs" }
+        }
+      ]
+    },
+    {
+      "id": "reliability",
+      "track": "C",
+      "title": "Training systems, monitoring and drift",
+      "sub": "A model can be perfectly healthy and quietly wrong",
+      "modules": ["C03", "C06"],
+      "bullets": [
+        {
+          "text": "A training run at scale is a distributed system with a loss function attached. Its uptime depends on the input pipeline, bit-exact checkpoint resume, and how fast a dead rank is detected.",
+          "cite": { "label": "C03 section 1", "href": "../tracks/C-ml-system-design/C03.training-systems/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Monitor four layers - system, data, model, business - and alert on very few of them. Alerting on all four produces noise that trains people to ignore it.",
+          "cite": { "label": "C06 section 1", "href": "../tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "Distinguish covariate shift (P(x) moved) from prior or label shift (P(y) moved). They have different causes and different fixes.",
+          "cite": { "label": "Glossary: drift", "href": "../docs/GLOSSARY.md#drift" }
+        }
+      ]
+    },
+    {
+      "id": "scaling-laws",
+      "track": "D",
+      "title": "Scaling limits and cluster shape",
+      "sub": "Amdahl bounds you from above; communication bends the curve back down",
+      "modules": ["D01", "D05"],
+      "svg": "../assets/scaling-walls.svg",
+      "bullets": [
+        {
+          "text": "Amdahl says a fixed problem with serial fraction s can never exceed 1/s speedup. Gustafson says a growing problem escapes that, because the serial part does not grow with it.",
+          "cite": { "label": "D01 section 2", "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#2-first-principles" }
+        },
+        {
+          "text": "Neither law includes communication. Add the alpha-beta term and the speedup curve does not plateau, it turns over: past some rank count you go slower.",
+          "cite": { "label": "D01 section 3", "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#3-deep-dive" }
+        },
+        {
+          "text": "A cluster is a shape, not a link. Diameter sets the latency term and bisection bandwidth sets the throughput term, and the shape decides which links you may use at once.",
+          "cite": { "label": "D05 section 1", "href": "../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md#1-tldr--layman-analogy" }
+        }
+      ]
+    },
+    {
+      "id": "collectives",
+      "track": "D",
+      "title": "Collectives, MPI and sharding traffic",
+      "sub": "all-reduce equals reduce-scatter plus all-gather",
+      "modules": ["D02", "D03", "B07"],
+      "svg": "../assets/ring-allreduce.svg",
+      "bullets": [
+        {
+          "text": "Memorize the identity: all-reduce = reduce-scatter + all-gather. Most of ZeRO and most of the tensor-parallel tricks are that identity applied somewhere.",
+          "cite": { "label": "B07 section 2", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#2-first-principles" }
+        },
+        {
+          "text": "Ring all-reduce moves 2(P-1)/P x S bytes per rank, which converges to 2S rather than P x S. Volume is essentially independent of rank count, which is why it replaced parameter servers.",
+          "cite": { "label": "B07 section 2", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#2-first-principles" }
+        },
+        {
+          "text": "The step count is linear though: 2(P-1) is 14 steps at 8 ranks and 2,046 at 1024. Volume converges, latency does not.",
+          "cite": { "label": "D03 section 3", "href": "../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md#3-deep-dive" }
+        },
+        {
+          "text": "The latency/bandwidth crossover is S* = P x alpha x B. At P=8, alpha=8us, B=50 GB/s that is 3.05 MiB: below it you are paying for launches, not wire.",
+          "cite": { "label": "B07 section 2", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#2-first-principles" }
+        },
+        {
+          "text": "Mixed-precision Adam costs 16 bytes per parameter of resident state before any activation exists, so a 70B model needs about 1043 GiB on hardware with 192 GiB per device.",
+          "cite": { "label": "B07 section 1", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#1-tldr--layman-analogy" }
+        }
+      ]
+    },
+    {
+      "id": "fabric",
+      "track": "D",
+      "title": "Interconnects, RDMA and real systems",
+      "sub": "The tiers are an order of magnitude apart, and that is the whole subject",
+      "modules": ["D04", "D06"],
+      "svg": "../assets/fabric-tiers.svg",
+      "bullets": [
+        {
+          "text": "The ladder runs on-package memory, then scale-up links inside a node, then PCIe, then the scale-out network, then storage. Each tier is roughly 10x the one above it in cost per byte.",
+          "cite": { "label": "D04 section 1", "href": "../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#1-tldr--layman-analogy" }
+        },
+        {
+          "text": "That ladder is why tensor parallelism is confined to one node: its per-layer all-reduce would cross the scale-out tier several times per layer otherwise.",
+          "cite": { "label": "D04 section 2", "href": "../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#2-first-principles" }
+        },
+        {
+          "text": "algbw and busbw are not the same number. busbw scales algbw by the collective's ring factor, and comparing the wrong one across collectives is a common error.",
+          "cite": { "label": "Glossary: algbw and busbw", "href": "../docs/GLOSSARY.md#algbw-and-busbw" }
+        },
+        {
+          "text": "Frontier, El Capitan, Aurora, Fugaku, Summit and LUMI differ enormously in processors and hardly at all in reasoning: each spends its design budget on moving data.",
+          "cite": { "label": "D06 section 1", "href": "../tracks/D-distributed-computing/D06.real-systems-at-scale/README.md#1-tldr--layman-analogy" }
+        }
+      ]
+    }
+  ],
+
+  "modules": [
+    { "id": "A01", "track": "A", "title": "Foundations and programming model", "hours": 6, "depth": 1, "href": "../tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md", "cluster": "memory",
+      "one_liner": "Copy in, launch a grid, copy out - and every thread finds its own slice by index.",
+      "bullets": [
+        { "text": "The three-step model is the whole API surface at this level: host-to-device copy, kernel launch, device-to-host copy.", "cite": { "label": "section 1", "href": "../tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md#1-tldr--layman-analogy" } },
+        { "text": "A profiled run here shows a 44 microsecond kernel inside a 72 millisecond program, which is 0.06% of the wall clock.", "cite": { "label": "section 5", "href": "../tracks/A-gpu-programming/A01.foundations-and-programming-model/README.md#5-performance-analysis" } }
+      ] },
+    { "id": "A02", "track": "A", "title": "Memory hierarchy and coalescing", "hours": 6, "depth": 2, "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md", "cluster": "memory",
+      "one_liner": "A pyramid of memories, and a cache line that is fetched whole whether you use it or not.",
+      "bullets": [
+        { "text": "Coalesced stride-1 access across a wavefront is one transaction; stride-8 is eight, with seven eighths of each line discarded.", "cite": { "label": "section 2", "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#2-first-principles" } },
+        { "text": "Staging a transpose through shared memory with padding takes it from about 15% to about 70% of the copy ceiling.", "cite": { "label": "section 5", "href": "../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#5-performance-analysis" } }
+      ] },
+    { "id": "A03", "track": "A", "title": "Execution model, occupancy and divergence", "hours": 7, "depth": 2, "href": "../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md", "cluster": "occupancy",
+      "one_liner": "Blocks are yours; warps of 32 and wavefronts of 64 are the hardware's.",
+      "bullets": [
+        { "text": "A divergent branch runs both sides in turn, so its cost is the sum of the paths. A wavefront-uniform branch skips the untaken side.", "cite": { "label": "section 3", "href": "../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md#3-deep-dive" } },
+        { "text": "Occupancy hides latency; it does not create bandwidth. A saturated kernel gains nothing from more resident waves.", "cite": { "label": "section 5", "href": "../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md#5-performance-analysis" } }
+      ] },
+    { "id": "A04", "track": "A", "title": "Parallel reduction", "hours": 6, "depth": 3, "href": "../tracks/A-gpu-programming/A04.parallel-reduction/README.md", "cluster": "occupancy",
+      "one_liner": "Same N-1 additions, log2(N) levels instead of N-1 - depth is what the tree buys.",
+      "bullets": [
+        { "text": "16.7 million numbers finish in 24 levels rather than 16.7 million dependent steps.", "cite": { "label": "section 1", "href": "../tracks/A-gpu-programming/A04.parallel-reduction/README.md#1-tldr--layman-analogy" } },
+        { "text": "The tree idles the array as it collapses: at 16 lanes only 15 of 64 lane-slots do work. Stage 7's algorithm cascade is what recovers that.", "cite": { "label": "section 3", "href": "../tracks/A-gpu-programming/A04.parallel-reduction/README.md#3-deep-dive" } },
+        { "text": "The nine-stage ladder is nine implementations of one function. Every stage must pass; a failing stage is a bug, not a rounding effect.", "cite": { "label": "section 4", "href": "../tracks/A-gpu-programming/A04.parallel-reduction/README.md#4-hands-on-labs" } }
+      ] },
+    { "id": "A05", "track": "A", "title": "Parallel scan and prefix sum", "hours": 6, "depth": 3, "href": "../tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/README.md", "cluster": "occupancy",
+      "one_liner": "Looks irreducibly sequential; is not, because addition is associative.",
+      "bullets": [
+        { "text": "Hillis-Steele is simple with O(n log n) work and O(log n) depth; Blelloch is work-efficient at O(n) with two passes.", "cite": { "label": "section 2", "href": "../tracks/A-gpu-programming/A05.parallel-scan-prefix-sum/README.md#2-first-principles" } }
+      ] },
+    { "id": "A06", "track": "A", "title": "Tiled matrix multiply", "hours": 8, "depth": 3, "href": "../tracks/A-gpu-programming/A06.tiled-matrix-multiply/README.md", "cluster": "memory",
+      "one_liner": "The FLOPs are fixed; the bytes are a design choice.",
+      "bullets": [
+        { "text": "Naive GEMM has intensity 0.25 FLOP/byte regardless of N. Tiling makes it T/4, so intensity scales with the tile.", "cite": { "label": "section 2", "href": "../tracks/A-gpu-programming/A06.tiled-matrix-multiply/README.md#2-first-principles" } },
+        { "text": "At N=4096 fp32 that is 549.8 GB of traffic naive against 17.2 GB at T=32, to move matrices that occupy 201 MB.", "cite": { "label": "section 2", "href": "../tracks/A-gpu-programming/A06.tiled-matrix-multiply/README.md#2-first-principles" } },
+        { "text": "Register blocking breaks the threads = T^2 constraint, giving a 64x64 tile from 256 threads instead of an illegal 4096.", "cite": { "label": "section 3", "href": "../tracks/A-gpu-programming/A06.tiled-matrix-multiply/README.md#3-deep-dive" } }
+      ] },
+    { "id": "A07", "track": "A", "title": "Softmax and fused kernels", "hours": 7, "depth": 4, "href": "../tracks/A-gpu-programming/A07.softmax-and-fused-kernels/README.md", "cluster": "fusion",
+      "one_liner": "Fix the overflow and win the extra pass at the same time.",
+      "bullets": [
+        { "text": "expf(100) is +inf in fp32, so one large score turns an entire row into nan. Subtracting the row max is identical mathematically and safe numerically.", "cite": { "label": "section 1", "href": "../tracks/A-gpu-programming/A07.softmax-and-fused-kernels/README.md#1-tldr--layman-analogy" } },
+        { "text": "The online recurrence carries the running max and running sum together, so the safe version costs one pass rather than two.", "cite": { "label": "section 3", "href": "../tracks/A-gpu-programming/A07.softmax-and-fused-kernels/README.md#3-deep-dive" } }
+      ] },
+    { "id": "A08", "track": "A", "title": "Triton foundations", "hours": 6, "depth": 3, "href": "../tracks/A-gpu-programming/A08.triton-foundations/README.md", "cluster": "fusion",
+      "one_liner": "Raise the unit of programming from one thread to one block of elements.",
+      "bullets": [
+        { "text": "You write what a program does to a block-shaped slab; the compiler decides the thread mapping. That is the whole idea.", "cite": { "label": "section 1", "href": "../tracks/A-gpu-programming/A08.triton-foundations/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "A09", "track": "A", "title": "Advanced Triton and FlashAttention", "hours": 9, "depth": 4, "href": "../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md", "cluster": "fusion",
+      "one_liner": "The score matrix you never store is the one you never move.",
+      "bullets": [
+        { "text": "Unfused traffic is 8Nd + 8N^2, fused is 8Nd, so the ratio is 1 + N/d and the dtype cancels entirely.", "cite": { "label": "section 2", "href": "../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md#2-first-principles" } },
+        { "text": "The fused result is exact, not an approximation. It is the same answer with a different traffic profile.", "cite": { "label": "section 1", "href": "../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "A10", "track": "A", "title": "CuTe, CUTLASS and cuTile", "hours": 10, "depth": 5, "href": "../tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/README.md", "cluster": "memory",
+      "one_liner": "NVIDIA-only and optional: what it takes to actually reach peak.",
+      "bullets": [
+        { "text": "Peak needs tensor cores plus deep software pipelining, which is more machinery than a hand-written tiled GEMM contains.", "cite": { "label": "section 1", "href": "../tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/README.md#1-tldr--layman-analogy" } },
+        { "text": "Marked optional because it is NVIDIA-only. The AMD counterpart is Composable Kernel, named in the module.", "cite": { "label": "section 6", "href": "../tracks/A-gpu-programming/A10.cute-cutlass-and-cutile/README.md#6-challenges-drawbacks--tradeoffs" } }
+      ] },
+
+    { "id": "B01", "track": "B", "title": "Accelerator architecture", "hours": 6, "depth": 2, "href": "../tracks/B-gpu-ml-performance/B01.accelerator-architecture/README.md", "cluster": "roofline",
+      "one_liner": "A factory floor with a knowable structure, not a big pile of cores.",
+      "bullets": [
+        { "text": "Hundreds of near-identical execution engines: AMD calls them CUs, NVIDIA calls them SMs, and the scheduling unit differs by vendor.", "cite": { "label": "section 2", "href": "../tracks/B-gpu-ml-performance/B01.accelerator-architecture/README.md#2-first-principles" } },
+        { "text": "AMD's own CDNA 3 whitepaper and its Hot Chips 2024 slides disagree on Infinity Cache bandwidth (17.2 vs 14.7 TB/s). The module reports both rather than picking one.", "cite": { "label": "section 3", "href": "../tracks/B-gpu-ml-performance/B01.accelerator-architecture/README.md#3-deep-dive" } }
+      ] },
+    { "id": "B02", "track": "B", "title": "Roofline and arithmetic intensity", "hours": 5, "depth": 2, "href": "../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md", "cluster": "roofline",
+      "one_liner": "One formula: min(peak, intensity x bandwidth).",
+      "bullets": [
+        { "text": "The ridge point is peak FLOP/s divided by peak bandwidth. Left of it you are bandwidth-bound no matter how good your arithmetic is.", "cite": { "label": "section 2", "href": "../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#2-first-principles" } },
+        { "text": "Every kernel this curriculum writes plots left of the ridge, which is the argument for fusion in one picture.", "cite": { "label": "section 5", "href": "../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#5-performance-analysis" } }
+      ] },
+    { "id": "B03", "track": "B", "title": "Profiling and bottleneck analysis", "hours": 6, "depth": 3, "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md", "cluster": "roofline",
+      "one_liner": "A decision procedure, not a command you run.",
+      "bullets": [
+        { "text": "Form the hypothesis from the roofline, then take the cheapest measurement that could kill it.", "cite": { "label": "section 1", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#1-tldr--layman-analogy" } },
+        { "text": "Timeline tracing and kernel profiling are two levels and are not interchangeable. Start with the timeline.", "cite": { "label": "section 2", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#2-first-principles" } },
+        { "text": "rocprofv3 defaults to rocpd SQLite; pass --output-format csv if you want CSV.", "cite": { "label": "section 4", "href": "../tracks/B-gpu-ml-performance/B03.profiling-and-bottleneck-analysis/README.md#4-hands-on-labs" } }
+      ] },
+    { "id": "B04", "track": "B", "title": "Precision and quantization", "hours": 6, "depth": 3, "href": "../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md", "cluster": "precision",
+      "one_liner": "Exponent bits buy range; mantissa bits buy precision - fp32, bf16, fp16 and fp8 in one sentence.",
+      "bullets": [
+        { "text": "bf16 keeps fp32's 8 exponent bits with a 7-bit mantissa, which is why it needs no loss scaling.", "cite": { "label": "section 1", "href": "../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md#1-tldr--layman-analogy" } },
+        { "text": "The two fp8 formats are not interchangeable: FNUZ on CDNA 3 and OCP on Hopper decode the same bits about 2x apart, and disagree on what 0x80 means.", "cite": { "label": "section 3", "href": "../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md#3-deep-dive" } }
+      ] },
+    { "id": "B05", "track": "B", "title": "Transformer performance", "hours": 7, "depth": 4, "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md", "cluster": "prefill-decode",
+      "one_liner": "Shrink the token count to 1 and the machine changes character.",
+      "bullets": [
+        { "text": "About 12d^2 parameters per layer, about 2x params FLOPs per token forward, 6x for training.", "cite": { "label": "section 1", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#1-tldr--layman-analogy" } },
+        { "text": "Intensity is Td/(d+2T): 1.0 at T=1, 247 at T=281, 1024 at T=2048 when d=4096.", "cite": { "label": "section 2", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#2-first-principles" } },
+        { "text": "Decode at batch 1 uses about 0.4% of the machine's arithmetic. The cost is entirely the weight read.", "cite": { "label": "section 2", "href": "../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#2-first-principles" } }
+      ] },
+    { "id": "B06", "track": "B", "title": "Inference serving optimizations", "hours": 8, "depth": 4, "href": "../tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/README.md", "cluster": "prefill-decode",
+      "one_liner": "Fix an SLO, then maximize goodput - not latency, not throughput.",
+      "bullets": [
+        { "text": "Batching raises tokens/s and raises every user's latency, so the two goals genuinely fight and you must pick the constraint.", "cite": { "label": "section 1", "href": "../tracks/B-gpu-ml-performance/B06.inference-serving-optimizations/README.md#1-tldr--layman-analogy" } },
+        { "text": "Continuous batching admits and retires requests mid-flight rather than at batch boundaries, which is where most of the win is.", "cite": { "label": "Glossary", "href": "../docs/GLOSSARY.md#continuous-batching" } }
+      ] },
+    { "id": "B07", "track": "B", "title": "Distributed training and sharding", "hours": 8, "depth": 4, "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md", "cluster": "collectives",
+      "one_liner": "16 bytes per parameter of Adam state, before a single activation exists.",
+      "bullets": [
+        { "text": "A 70B model needs about 1043 GiB of resident state on hardware with 192 GiB per device, which is why sharding is arithmetic rather than preference.", "cite": { "label": "section 1", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#1-tldr--layman-analogy" } },
+        { "text": "Ring all-reduce moves 2(P-1)/P x S per rank, converging to 2S. Volume is independent of scale; step count is not.", "cite": { "label": "section 2", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#2-first-principles" } },
+        { "text": "Tensor parallel costs 4 all-reduces per layer against data parallel's one per step, which is why TP stays inside a node.", "cite": { "label": "section 3", "href": "../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#3-deep-dive" } }
+      ] },
+
+    { "id": "C01", "track": "C", "title": "Problem framing and metrics", "hours": 5, "depth": 1, "href": "../tracks/C-ml-system-design/C01.problem-framing-and-metrics/README.md", "cluster": "framing",
+      "one_liner": "The system produces a decision, not a prediction.",
+      "bullets": [
+        { "text": "Name the action and the good outcome before the model. Metrics are proxies; the threshold comes from the relative cost of each error type.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C01.problem-framing-and-metrics/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "C02", "track": "C", "title": "Data pipelines and features", "hours": 6, "depth": 2, "href": "../tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md", "cluster": "framing",
+      "one_liner": "The data pipeline is the system; the architecture rarely is.",
+      "bullets": [
+        { "text": "Label leakage makes the offline metric a fiction, not merely optimistic.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md#1-tldr--layman-analogy" } },
+        { "text": "Training-serving skew comes from computing one feature in two code paths. The fix is one path.", "cite": { "label": "section 2", "href": "../tracks/C-ml-system-design/C02.data-pipelines-and-features/README.md#2-first-principles" } }
+      ] },
+    { "id": "C03", "track": "C", "title": "Training systems", "hours": 7, "depth": 3, "href": "../tracks/C-ml-system-design/C03.training-systems/README.md", "cluster": "reliability",
+      "one_liner": "A distributed system with a loss function attached.",
+      "bullets": [
+        { "text": "Uptime is decided by the input pipeline, bit-exact resumable checkpoints, and dead-rank detection time - none of which are modelling concerns.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C03.training-systems/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "C04", "track": "C", "title": "Production model optimization", "hours": 7, "depth": 3, "href": "../tracks/C-ml-system-design/C04.production-model-optimization/README.md", "cluster": "deployment",
+      "one_liner": "Cheapest and least risky first, in a fixed order.",
+      "bullets": [
+        { "text": "Do not call the model, then serve it better, then shrink the numbers, then shrink the model. Distillation is late for a reason.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C04.production-model-optimization/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "C05", "track": "C", "title": "Deployment and serving architecture", "hours": 6, "depth": 3, "href": "../tracks/C-ml-system-design/C05.deployment-and-serving-architecture/README.md", "cluster": "deployment",
+      "one_liner": "Scale on queue depth, not utilization.",
+      "bullets": [
+        { "text": "Pick the serving pattern from latency, cost, freshness, connectivity and privacy. Online, async, streaming, batch and edge are different systems.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C05.deployment-and-serving-architecture/README.md#1-tldr--layman-analogy" } },
+        { "text": "Put the model behind its own service so it can scale and ship independently of the application.", "cite": { "label": "section 2", "href": "../tracks/C-ml-system-design/C05.deployment-and-serving-architecture/README.md#2-first-principles" } }
+      ] },
+    { "id": "C06", "track": "C", "title": "Monitoring, drift and ethics", "hours": 6, "depth": 3, "href": "../tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/README.md", "cluster": "reliability",
+      "one_liner": "Perfectly healthy and quietly wrong is a real state.",
+      "bullets": [
+        { "text": "Monitor system, data, model and business layers; alert on very few of them.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/README.md#1-tldr--layman-analogy" } },
+        { "text": "Covariate shift and label shift have different causes and different fixes; naming which one you have is most of the work.", "cite": { "label": "section 2", "href": "../tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/README.md#2-first-principles" } }
+      ] },
+    { "id": "C07", "track": "C", "title": "Capstone case studies", "hours": 10, "depth": 4, "href": "../tracks/C-ml-system-design/C07.capstone-case-studies/README.md", "cluster": "deployment",
+      "one_liner": "Design is constraint arithmetic, practised end to end.",
+      "bullets": [
+        { "text": "Two worked designs: LLM serving and a recommender, each with the goal, latency budget, traffic forecast and price list made explicit.", "cite": { "label": "section 4", "href": "../tracks/C-ml-system-design/C07.capstone-case-studies/README.md#4-hands-on-labs" } },
+        { "text": "Say which constraint you would break first. An architecture that satisfies all four without a stated tradeoff is usually under-specified.", "cite": { "label": "section 1", "href": "../tracks/C-ml-system-design/C07.capstone-case-studies/README.md#1-tldr--layman-analogy" } }
+      ] },
+
+    { "id": "D01", "track": "D", "title": "Scaling limits and communication cost", "hours": 6, "depth": 2, "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md", "cluster": "scaling-laws",
+      "one_liner": "Processors add capacity; only independence turns capacity into speed.",
+      "bullets": [
+        { "text": "Amdahl caps a fixed problem at 1/s speedup; Gustafson escapes it by growing the problem. Neither includes communication.", "cite": { "label": "section 2", "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#2-first-principles" } },
+        { "text": "Add the alpha-beta term and the curve turns over rather than plateauing: past some rank count more ranks are slower.", "cite": { "label": "section 3", "href": "../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#3-deep-dive" } }
+      ] },
+    { "id": "D02", "track": "D", "title": "Message passing with MPI", "hours": 7, "depth": 3, "href": "../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md", "cluster": "collectives",
+      "one_liner": "The model you get once you accept there is no shared memory.",
+      "bullets": [
+        { "text": "A process knows only its own rank and its group size, and can affect another only by a message the other explicitly agrees to receive.", "cite": { "label": "section 1", "href": "../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md#1-tldr--layman-analogy" } },
+        { "text": "This module's C sources are the one exception in the repo that was actually compiled: warning-free under -Wall -Wextra against Open MPI 5.0.10 headers. Compiled, not run.", "cite": { "label": "section 4", "href": "../tracks/D-distributed-computing/D02.message-passing-and-mpi/README.md#4-hands-on-labs" } }
+      ] },
+    { "id": "D03", "track": "D", "title": "GPU collectives (NCCL and RCCL)", "hours": 7, "depth": 3, "href": "../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md", "cluster": "collectives",
+      "one_liner": "Turning different gradients into the same averaged gradient, as fast as the wires allow.",
+      "bullets": [
+        { "text": "NCCL and RCCL are API-compatible siblings: same call sequence, same environment variables, largely the same algorithms.", "cite": { "label": "section 1", "href": "../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md#1-tldr--layman-analogy" } },
+        { "text": "Ring all-reduce byte count converges (1.75m at N=8, 1.998m at N=1024) while the step count stays linear (14 steps against 2,046).", "cite": { "label": "section 3", "href": "../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md#3-deep-dive" } }
+      ] },
+    { "id": "D04", "track": "D", "title": "Interconnects and RDMA", "hours": 6, "depth": 3, "href": "../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md", "cluster": "fabric",
+      "one_liner": "Five tiers, each about an order of magnitude from the next.",
+      "bullets": [
+        { "text": "On-package memory, scale-up links, PCIe, scale-out network, storage. The ladder explains why tensor parallelism stays inside a node.", "cite": { "label": "section 1", "href": "../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "D05", "track": "D", "title": "Topology and scale boundaries", "hours": 7, "depth": 4, "href": "../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md", "cluster": "scaling-laws",
+      "one_liner": "A cluster is a shape, and the shape decides which links you may use at once.",
+      "bullets": [
+        { "text": "Diameter sets the latency term, bisection bandwidth sets the throughput term. Those two numbers characterize any topology.", "cite": { "label": "section 1", "href": "../tracks/D-distributed-computing/D05.topology-and-scale-boundaries/README.md#1-tldr--layman-analogy" } }
+      ] },
+    { "id": "D06", "track": "D", "title": "Real systems at scale", "hours": 6, "depth": 4, "href": "../tracks/D-distributed-computing/D06.real-systems-at-scale/README.md", "cluster": "fabric",
+      "one_liner": "The reference machines differ in processors and hardly at all in reasoning.",
+      "bullets": [
+        { "text": "Frontier, El Capitan, Aurora, Fugaku, Summit and LUMI each spend their design budget on moving data.", "cite": { "label": "section 1", "href": "../tracks/D-distributed-computing/D06.real-systems-at-scale/README.md#1-tldr--layman-analogy" } },
+        { "text": "Which constraint binds changes by decade of rank count, which is what the scale-boundary infographic plots.", "cite": { "label": "section 5", "href": "../tracks/D-distributed-computing/D06.real-systems-at-scale/README.md#5-performance-analysis" } }
+      ] }
+  ]
+}

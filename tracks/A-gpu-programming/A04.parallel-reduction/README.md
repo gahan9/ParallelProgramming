@@ -221,6 +221,16 @@ flowchart TB
 *Eight values, seven additions, three levels — `W = N−1`, `D = log₂N`. Every level needs a barrier,
 because level `k+1` reads what level `k` wrote.*
 
+The tree above is a static picture of a process that happens **in turn**, one round after the next,
+and that distinction is where the cost hides:
+
+![Fifteen additions either way, but four rounds of waiting instead of fifteen](../../../assets/reduction-tree.svg)
+
+Watch what the rounds do to the array. Half the lanes fall idle at every level, so by the final
+round one lane in sixteen is still working — only 15 of the 64 lane-slots ever do anything. The
+depth win is real and it is the reason to use a tree, but the idle fraction is a real bill, and
+stage 7 below is the rung that pays it off.
+
 The GPU version has **three** nested levels of this tree, and they are not the same mechanism:
 
 | Level | Span | How values are exchanged | Sync primitive |

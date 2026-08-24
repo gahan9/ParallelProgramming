@@ -127,9 +127,9 @@ nav:
   - Home: README.md
   - Curriculum: CURRICULUM.md
   - Setup: docs/SETUP.md
-  # dashboard.html and slides.html are static files copied verbatim by MkDocs;
-  # only the index page can live in nav, and it links to both.
-  - Planner & Deck: live/README.md
+  # dashboard.html, cheatsheets.html and slides.html are static files copied verbatim
+  # by MkDocs; only the index page can live in nav, and it links to all of them.
+  - Planner, Reference & Deck: live/README.md
   - Track A — GPU Programming:
       - Overview: tracks/A-gpu-programming/README.md
       - A01 · Foundations:

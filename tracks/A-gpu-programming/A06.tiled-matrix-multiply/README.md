@@ -124,6 +124,14 @@ intensity                 = 2N³ / (8N³/T) = T / 4  FLOP/byte
 | 64 | 16 | 8.6 GB |
 | 128 | 32 | 4.3 GB |
 
+A table states the ratio; it takes a scale drawing to feel it. The two bars below are the first and
+third rows, at the same scale:
+
+![Naive moves 549.8 GB where a 32-wide tile moves 17.2 GB, for identical arithmetic](../../../assets/tile-reuse.svg)
+
+The hairline near the origin is the 201 MB the three matrices actually occupy. Everything to the
+right of it on the top bar is the same bytes being fetched again.
+
 ### Where the ridge point is
 
 The [roofline](../../../docs/REFERENCES.md#roofline-williams-et-al-2009) **ridge point** is

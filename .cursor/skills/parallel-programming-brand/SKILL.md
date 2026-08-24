@@ -31,6 +31,7 @@ Use this skill whenever you:
 | `brand-deep` | `#0F172A` | Dark backgrounds, slide titles on dark decks |
 | `brand-accent` | `#6366F1` | CTAs, key callouts, Track B accent |
 | `brand-highlight` | `#F59E0B` | Warnings, interview tips, Track C accent |
+| `brand-trackd` | `#DB2777` | Track D accent (distributed computing) |
 | `brand-success` | `#10B981` | DONE status, passed tests, verification |
 | `brand-surface` | `#F8FAFC` | Light slide/doc background |
 | `brand-muted` | `#64748B` | Secondary text, captions |
@@ -44,6 +45,7 @@ Use this skill whenever you:
 | A — GPU Programming | Cyan | `#0891B2` |
 | B — ML Performance | Indigo | `#6366F1` |
 | C — ML System Design | Amber | `#F59E0B` |
+| D — Distributed Computing | Magenta | `#DB2777` |
 
 ---
 
@@ -63,6 +65,7 @@ In Mermaid classDef blocks, map to brand tokens:
 classDef trackA fill:#0891B2,stroke:#0F172A,color:#fff
 classDef trackB fill:#6366F1,stroke:#0F172A,color:#fff
 classDef trackC fill:#F59E0B,stroke:#0F172A,color:#0F172A
+classDef trackD fill:#DB2777,stroke:#0F172A,color:#fff
 classDef neutral fill:#F8FAFC,stroke:#0891B2,color:#0F172A
 classDef success fill:#10B981,stroke:#0F172A,color:#fff
 classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A
@@ -118,6 +121,32 @@ Each module should include **at least two** of:
 - One pitfall / tradeoff flowchart (Section 6)
 
 Reference module A01 as the gold standard.
+
+---
+
+## Mermaid, SVG, or an interactive page
+
+Three surfaces, and picking the wrong one is the most common mistake. The rule:
+
+| If the visual has to... | Use | Where it lives |
+|---|---|---|
+| Show structure, a pipeline, a decision tree | **Mermaid**, with the init block above | Inline in the module README |
+| Show a proportion, a curve, a sequence, or the brand itself | **Hand-authored SVG** | [`assets/`](../../../assets/README.md) |
+| Let the reader change an input and watch the answer move | **A concept page** | [`live/concepts/`](../../../live/README.md) |
+
+Mermaid is the default and carries most of the load — it is editable in place and diffs cleanly.
+Reach for SVG only when you hit one of the four jobs in
+[`assets/README.md`](../../../assets/README.md), and for a concept page only when the geometry
+genuinely changes with the input. If the picture would be the same shape at every setting, it should
+have stayed an SVG.
+
+Every SVG carries a `brief:` comment header (id, module, which job, what the motion claims, whether
+its numbers are measured / derived / representative), animates only what teaches, ships a
+`prefers-reduced-motion` fallback that still reads, and is **pure ASCII** — numeric entities like
+`&#183;` and `&#215;`, never the literal characters.
+
+[`assets/sources/canva.md`](../../../assets/sources/canva.md) covers using Canva to lay one out, and
+the checklist an export has to clear before it can be committed.
 
 ---
 

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coalescing, with the stride in your hands — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive version of the memory-coalescing infographic: change the access stride and watch how many cache lines a single wavefront touches, and how many of the fetched bytes it throws away.">
+<!--
+  Interactive companion to assets/coalescing.svg (module A02).
+
+  Why this exists as a separate page rather than more animation in the SVG: the SVG
+  argues one case, stride 1 against stride 8, and argues it well. The thing a reader
+  asks next is "what about stride 2? what about 3?" - and that question has a control
+  as its answer, not a longer animation. The static asset stays canonical for the
+  module; this page is where you go to poke at it.
+
+  The geometry genuinely changes with the input, which is the test the plan sets for
+  whether a concept page is earned. If the picture were the same shape at every
+  setting, this should have stayed an SVG.
+
+  Numbers are exact arithmetic, not a measurement: with a 128-byte line and 4-byte
+  elements, a lane at index i touches line floor(i * stride / 32). Everything on the
+  page follows from that one expression. A02's lab measures what it costs on real
+  silicon; this only counts lines.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary:   #0891B2;
+    --deep:      #0F172A;
+    --accent:    #6366F1;
+    --highlight: #F59E0B;
+    --success:   #10B981;
+    --surface:   #F8FAFC;
+    --muted:     #64748B;
+    --amd:       #ED1C24;
+    --nvidia:    #76B900;
+
+    --bg:     var(--deep);
+    --raised: #1B2436;
+    --sunk:   #131C2E;
+    --fg:     var(--surface);
+    --dim:    #94A3B8;
+    --rule:   #2C3A52;
+    --waste:  #7C3A0B;
+
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+
+  .top { border-top: 4px solid var(--primary); margin: 0 -1.25rem; }
+  nav.bar {
+    max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+    display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline;
+  }
+  nav.bar .brand {
+    font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--primary); margin-right: auto;
+  }
+  nav.bar a {
+    font-size: .84rem; text-decoration: none; color: var(--dim);
+    border-bottom: 1px solid transparent; padding-bottom: 2px;
+  }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--primary); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+
+  /* ---- controls: big enough for a thumb ---- */
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button {
+    font: 600 .92rem var(--mono); cursor: pointer; color: var(--dim);
+    background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+    min-width: 58px; min-height: 44px; padding: .5rem .9rem;
+  }
+  .opts button:hover { border-color: var(--primary); color: var(--fg); }
+  .opts button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .opts button[aria-pressed="true"] {
+    background: var(--primary); border-color: var(--primary); color: #06212A; font-weight: 700;
+  }
+  .opts button.warnsel[aria-pressed="true"] { background: var(--highlight); border-color: var(--highlight); color: #331B02; }
+  .vendor { font: 700 9.5px var(--mono); letter-spacing: .06em; display: block; margin-top: .15rem; opacity: .85; }
+  .opts button[data-w="32"] .vendor { color: var(--nvidia); }
+  .opts button[data-w="64"] .vendor { color: var(--amd); }
+  .opts button[aria-pressed="true"] .vendor { color: inherit; opacity: .75; }
+
+  /* ---- readouts ---- */
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.6rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad  b { color: var(--highlight); }
+  .read.neutral b { color: var(--primary); }
+
+  /* ---- the picture ---- */
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; overflow-x: auto; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; }
+  .stage h2 + p { margin-top: -.5rem; }
+
+  .lanes { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: .4rem; }
+  .lane { width: 15px; height: 15px; border-radius: 2px; background: var(--primary); }
+  .caption { font: 400 11.5px var(--mono); color: var(--muted); margin: 0 0 1.2rem; }
+
+  .lines { display: flex; flex-direction: column; gap: 5px; }
+  .lineRow { display: flex; align-items: center; gap: .6rem; }
+  .lineName { font: 400 10.5px var(--mono); color: var(--muted); width: 52px; flex: 0 0 52px; text-align: right; }
+  .cells { display: flex; gap: 1px; }
+  .cell { width: 9px; height: 17px; border-radius: 1px; background: var(--waste); }
+  .cell.used { background: var(--primary); }
+  .lineTail { font: 400 10.5px var(--mono); color: var(--muted); }
+  .more { font: 400 11.5px var(--mono); color: var(--dim); margin: .5rem 0 0 3.7rem; }
+
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0 0; font: 400 11.5px var(--mono); color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+  noscript p { border-left: 4px solid var(--highlight); padding-left: .9rem; color: var(--dim); }
+  noscript img { display: block; width: 100%; margin-top: 1rem; border-radius: 6px; }
+
+  /* Transitions are the only motion here - the page is driven by the reader, not by a
+     timer - so honouring the preference means turning the easing off, nothing more. */
+  .cell, .lane, .opts button { transition: background-color .12s linear, border-color .12s linear; }
+  @media (prefers-reduced-motion: reduce) {
+    .cell, .lane, .opts button { transition: none; }
+  }
+
+  @media (max-width: 620px) {
+    .lane { width: 12px; height: 12px; }
+    .cell { width: 7px; height: 15px; }
+    .lineName { width: 44px; flex-basis: 44px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Module A02 &middot; concept player</p>
+  <h1>Coalescing, with the stride in your hands</h1>
+  <p class="lede">
+    One wavefront, one instruction, the same arithmetic every time. The only thing you change is the
+    distance between the addresses each lane asks for &mdash; and that alone decides how much
+    bandwidth you get.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="strideLabel">Access stride, in elements</span>
+      <div class="opts" id="strides" role="group" aria-labelledby="strideLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="widthLabel">Lockstep width</span>
+      <div class="opts" id="widths" role="group" aria-labelledby="widthLabel"></div>
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read neutral"><b id="rLines">1</b><span>cache lines touched</span></div>
+    <div class="read good" id="rFetchedBox"><b id="rFetched">128 B</b><span>bytes fetched from HBM</span></div>
+    <div class="read good"><b id="rUsed">128 B</b><span>bytes the lanes actually use</span></div>
+    <div class="read" id="rEffBox"><b id="rEff">100%</b><span>of the fetch you paid for</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>What the hardware fetches</h2>
+    <div class="lanes" id="lanes" aria-hidden="true"></div>
+    <p class="caption" id="laneCap"></p>
+    <div class="lines" id="lines"></div>
+    <p class="more" id="more"></p>
+    <p class="legend">
+      <span><i style="background:#0891B2"></i>bytes a lane asked for</span>
+      <span><i style="background:#7C3A0B"></i>bytes fetched and discarded</span>
+    </p>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>These are counts, not measurements.</b> A 128-byte line and 4-byte elements make lane
+    <code>i</code> touch line <code>floor(i &times; stride / 32)</code>, and everything above follows
+    from that. Real hardware also has caches, coalescers and outstanding-request limits, so measured
+    bandwidth will not fall off as cleanly as <code>1/stride</code>.
+    <a href="../../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md#4-hands-on-labs">A02's
+    lab</a> measures the real curve on your own GPU; a strided transpose there reaches about 15% of
+    the copy ceiling, and staging through shared memory takes it to about 70%.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the same
+      argument &mdash; stride 1 against stride 8 &mdash; is the infographic below, and it is what
+      <a href="../../tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing/README.md">module A02</a>
+      embeds.
+    </p>
+    <img src="../../assets/coalescing.svg" alt="Eight lanes reading consecutive addresses land in one cache line; the same eight lanes reading with a stride land in eight, and seven eighths of each is discarded.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/coalescing.svg">coalescing.svg</a>, which is what module A02 embeds and
+      what stays correct with images disabled and JavaScript off. This page adds the one thing a
+      fixed drawing cannot: the stride as a dial. If you want the fact rather than the picture, it is
+      on <a href="../cheatsheets.html">the memory reference sheet</a>; if you want to be tested on it,
+      it is in <a href="../flashcards.html">the recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var LINE_BYTES = 128;   // a cache line on both current CDNA and Hopper parts
+  var ELEM_BYTES = 4;     // fp32, to match A02's transpose lab
+  var PER_LINE   = LINE_BYTES / ELEM_BYTES;   // 32 elements per line
+  var MAX_DRAWN  = 8;     // beyond this the stack stops teaching and starts scrolling
+
+  var STRIDES = [1, 2, 4, 8, 16, 32];
+  var WIDTHS  = [
+    { w: 32, label: "32", vendor: "NVIDIA warp" },
+    { w: 64, label: "64", vendor: "AMD wavefront" }
+  ];
+
+  var stride = 1;
+  var width = 64;
+
+  var el = {
+    strides: document.getElementById("strides"),
+    widths:  document.getElementById("widths"),
+    lanes:   document.getElementById("lanes"),
+    laneCap: document.getElementById("laneCap"),
+    lines:   document.getElementById("lines"),
+    more:    document.getElementById("more"),
+    verdict: document.getElementById("verdict"),
+    rLines:  document.getElementById("rLines"),
+    rFetched:document.getElementById("rFetched"),
+    rFetchedBox: document.getElementById("rFetchedBox"),
+    rUsed:   document.getElementById("rUsed"),
+    rEff:    document.getElementById("rEff"),
+    rEffBox: document.getElementById("rEffBox")
+  };
+
+  function bytes(n) {
+    if (n >= 1024) { return (n / 1024).toFixed(n % 1024 ? 1 : 0) + " KiB"; }
+    return n + " B";
+  }
+
+  /* The whole model, in one function: which line does each lane land in, and which
+     slot inside it. Everything the page shows is read off this map. */
+  function model() {
+    var slots = {};          // line index -> set of used offsets
+    var order = [];
+    for (var i = 0; i < width; i++) {
+      var elemIdx = i * stride;
+      var line = Math.floor(elemIdx / PER_LINE);
+      var off = elemIdx % PER_LINE;
+      if (!slots[line]) { slots[line] = {}; order.push(line); }
+      slots[line][off] = true;
+    }
+    order.sort(function (a, b) { return a - b; });
+    return { slots: slots, order: order };
+  }
+
+  function build(container, items, current, key, onPick, extraClass) {
+    container.innerHTML = "";
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button";
+      if (extraClass) { b.className = extraClass; }
+      b.dataset[key] = it.value;
+      b.setAttribute("aria-pressed", String(it.value === current));
+      b.innerHTML = it.html;
+      b.addEventListener("click", function () { onPick(it.value); });
+      container.appendChild(b);
+    });
+  }
+
+  function buildControls() {
+    build(el.strides, STRIDES.map(function (s) {
+      return { value: s, html: (s === 1 ? "1" : String(s)) };
+    }), stride, "stride", function (v) { stride = v; render(); }, "warnsel");
+
+    build(el.widths, WIDTHS.map(function (w) {
+      return { value: w.w, html: w.label + '<span class="vendor">' + w.vendor + "</span>" };
+    }), width, "w", function (v) { width = v; render(); });
+  }
+
+  function paintControls() {
+    Array.prototype.forEach.call(el.strides.children, function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.stride) === stride));
+    });
+    Array.prototype.forEach.call(el.widths.children, function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.w) === width));
+    });
+  }
+
+  function render() {
+    paintControls();
+
+    var m = model();
+    var lineCount = m.order.length;
+    var fetched = lineCount * LINE_BYTES;
+    var used = width * ELEM_BYTES;
+    var eff = used / fetched;
+
+    el.rLines.textContent = lineCount;
+    el.rFetched.textContent = bytes(fetched);
+    el.rUsed.textContent = bytes(used);
+    el.rEff.textContent = (eff >= 0.1 ? (eff * 100).toFixed(eff === 1 ? 0 : 1)
+                                      : (eff * 100).toFixed(2)) + "%";
+    el.rEffBox.className = "read " + (eff === 1 ? "good" : eff >= 0.5 ? "neutral" : "bad");
+    /* Amber means waste, everywhere in this curriculum. At stride 1 there is none, so
+       the fetch figure must not wear the warning colour. */
+    el.rFetchedBox.className = "read " + (fetched === used ? "good" : "bad");
+
+    /* lanes: all of them are active, always. That is the point - nothing about the
+       instruction changed, only the addresses. */
+    var lanes = "";
+    for (var i = 0; i < width; i++) { lanes += '<div class="lane"></div>'; }
+    el.lanes.innerHTML = lanes;
+    el.laneCap.textContent = width + " lanes, all active, each reading one 4-byte element "
+      + (stride === 1 ? "at consecutive addresses" : stride + " elements apart");
+
+    var drawn = m.order.slice(0, MAX_DRAWN);
+    el.lines.innerHTML = drawn.map(function (line) {
+      var cells = "";
+      var usedHere = 0;
+      for (var off = 0; off < PER_LINE; off++) {
+        var on = !!m.slots[line][off];
+        if (on) { usedHere++; }
+        cells += '<div class="cell' + (on ? " used" : "") + '"></div>';
+      }
+      return '<div class="lineRow">' +
+        '<span class="lineName">line ' + line + "</span>" +
+        '<span class="cells">' + cells + "</span>" +
+        '<span class="lineTail">' + usedHere + " of 32 used</span></div>";
+    }).join("");
+
+    var hidden = lineCount - drawn.length;
+    el.more.textContent = hidden > 0
+      ? "+ " + hidden + " more line" + (hidden === 1 ? "" : "s") + ", each with the same " +
+        Object.keys(m.slots[m.order[m.order.length - 1]]).length + " of 32 used"
+      : "";
+
+    var vendorNote = width === 64 ? "AMD CDNA wavefront" : "NVIDIA warp";
+    if (stride === 1) {
+      el.verdict.innerHTML = "<strong>Perfectly coalesced.</strong> The " + width + " lanes of this " +
+        vendorNote + " fall inside " + lineCount + " line" + (lineCount === 1 ? "" : "s") +
+        " and fill " + (lineCount === 1 ? "it" : "them") + " completely. Every byte the memory system " +
+        "moves is a byte a lane asked for.";
+    } else {
+      var perLine = width / lineCount;
+      var share = perLine >= 2
+        ? "Only " + perLine + " lanes share each line"
+        : "Every lane lands in a line of its own";
+      el.verdict.innerHTML = "<strong>You are paying " + Math.round(1 / eff) + "&times; the traffic for the " +
+        "same result.</strong> " + share + ", and a line is fetched whole, so " +
+        bytes(fetched - used) + " of the " + bytes(fetched) + " is fetched and thrown away. The " +
+        "instruction, the lane count and the arithmetic are identical to stride 1.";
+    }
+  }
+
+  buildControls();
+  render();
+}());
+</script>
+</body>
+</html>

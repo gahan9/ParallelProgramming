@@ -117,6 +117,13 @@ real, and the analogy lands better once they know what it is explaining.
 - **Diagrams:** render the module's Mermaid diagrams (GitHub and the MkDocs site both render them)
   and screen-capture. For a curriculum-overview shot, open the interactive **curriculum dashboard**
   canvas in Cursor (see [`BRAND_OVERLAY.md`](BRAND_OVERLAY.md) for which shots work on camera).
+- **Infographics:** the [`assets/`](../assets/README.md) SVGs are already animated and already on
+  brand, so open one in a browser tab and capture it rather than rebuilding it in an editor. Name
+  the asset id in the shot row. If a file has to be handed over, derive it with
+  `bash scripts/export_visual.sh <asset>` — never commit the render.
+- **Interactive shots:** the [concept players](../live/README.md) put a control on screen, which
+  makes a much better reveal than a fixed drawing when the lesson is "watch this number move".
+  `live/concepts/coalescing.html` is the one that exists today.
 - **Live GPU:** always show `rocm-smi` / `nvidia-smi` once, so viewers know it is real hardware.
 - **Audio** matters more than video quality. A cheap mic close to your mouth beats a good mic far away.
 
@@ -146,10 +153,20 @@ and a `shorts.md` (three vertical scripts). Build the next pack by copying
 [`STORYBOARD_TEMPLATE.md`](STORYBOARD_TEMPLATE.md).
 
 **All 30 curriculum modules are authored, but only these two have content packs.** That is deliberate:
-a pack needs a *measured* number to lead with, so the next candidates are the modules whose labs
-produce the most striking result once you have run them on your own GPU — A04 (the reduction ladder's
-stage-1-to-stage-9 spread), A06 (naive vs tiled GEMM), A07 (the poisoned row printing `nan`), and
-B02 (the roofline knee the sweep discovers by itself).
+a pack needs a *measured* number to lead with, and inventing one would break the rule the whole
+curriculum rests on. The next four are prepared to the point where the only missing piece is the
+run:
+
+| Module | Blocked on | Lead visual | Beat it belongs in |
+|---|---|---|---|
+| A04 Parallel reduction | Stage 1 to stage 9 spread from the `reduction` lab | `asset: reduction-tree` | Reveal — the depth win, then the idle cost |
+| A06 Tiled matmul | naive vs tiled vs register-blocked GFLOP/s from the `matmul` lab | `asset: tile-reuse` | Reveal — the two traffic bars, to scale |
+| A07 Softmax & fusion | the poisoned row printing `nan`, then not | — (terminal is the visual) | Hook — the failure on screen |
+| B02 Roofline | the knee the intensity sweep finds on your own part | `asset: roofline` | Proof — your kernels plotted on your ceilings |
+
+Each lead visual already exists in [`../assets/`](../assets/README.md), so the pack is a script plus
+a number, not a script plus a number plus artwork. Capture a visual by opening its SVG in a browser
+tab, or derive a file with `bash scripts/export_visual.sh <asset> gif 9x16` if an editor needs one.
 
 **Re-run the lab on your own GPU before recording** and quote your own numbers on screen. The figures
 above are from reference runs on AMD MI-series hardware; they will differ on yours, and an

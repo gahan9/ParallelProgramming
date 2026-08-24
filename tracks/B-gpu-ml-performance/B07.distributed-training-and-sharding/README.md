@@ -337,6 +337,12 @@ chunk to its right neighbour and adds the chunk it receives from its left. After
 **Phase 2 — all-gather (`P-1` steps).** Now circulate those finished chunks the
 same way, without reducing. Bytes sent per rank: another `(P-1) * S/P`.
 
+![Each rank ends with the full sum having sent about 2S bytes, not P times S](../../../assets/ring-allreduce.svg)
+
+The three panels are the same four ranks at the start, after reduce-scatter, and
+after all-gather — the shading tracks which chunks are fully reduced, which is the
+part the formula below is counting.
+
 ```
 bytes moved per rank = 2 * (P-1)/P * S            <-- the key result
 time  T(S,P)         = 2*(P-1)*alpha  +  (2*(P-1)/P) * S/B

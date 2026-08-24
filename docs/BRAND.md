@@ -14,6 +14,7 @@ skill when authoring visual material.
 | **Throughput cyan** (`#0891B2`) | Parallel lanes, data movement, Track A |
 | **Compute indigo** (`#6366F1`) | Deep analysis, profiling, Track B |
 | **Systems amber** (`#F59E0B`) | Tradeoffs, production design, Track C |
+| **Fabric magenta** (`#DB2777`) | The wire below the ML layer, Track D |
 | **Slate foundation** (`#0F172A` / `#F8FAFC`) | Readable docs and slides for long study sessions |
 
 Vendor colors (AMD red, NVIDIA green) appear **only** as small labels — never as the primary brand.
@@ -28,6 +29,7 @@ Vendor colors (AMD red, NVIDIA green) appear **only** as small labels — never 
 | `brand-deep` | `#0F172A` | 15, 23, 42 | Dark mode, code slide backgrounds |
 | `brand-accent` | `#6366F1` | 99, 102, 241 | Track B, CTAs, emphasis |
 | `brand-highlight` | `#F59E0B` | 245, 158, 11 | Track C, warnings, interview drills |
+| `brand-trackd` | `#DB2777` | 219, 39, 119 | Track D (distributed computing) |
 | `brand-success` | `#10B981` | 16, 185, 129 | DONE, PASSED, verified |
 | `brand-surface` | `#F8FAFC` | 248, 250, 252 | Light backgrounds |
 | `brand-muted` | `#64748B` | 100, 116, 139 | Captions, footers |
@@ -71,6 +73,7 @@ Append after your diagram nodes:
 classDef trackA fill:#0891B2,stroke:#0F172A,color:#fff
 classDef trackB fill:#6366F1,stroke:#0F172A,color:#fff
 classDef trackC fill:#F59E0B,stroke:#0F172A,color:#0F172A
+classDef trackD fill:#DB2777,stroke:#0F172A,color:#fff
 classDef neutral fill:#F8FAFC,stroke:#0891B2,color:#0F172A
 classDef success fill:#10B981,stroke:#0F172A,color:#fff
 classDef warn fill:#FEF3C7,stroke:#F59E0B,color:#0F172A

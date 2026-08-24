@@ -23,8 +23,10 @@ analogy, then expert depth - with runnable labs, cited sources, and an honest tr
 | Cross-references | All 30 modules linked to each other, to `docs/GLOSSARY.md` (65 `###` terms) and to `docs/REFERENCES.md` (81 anchored sources). 2744 relative links across 223 files, all resolving. Contract lives in `docs/MODULE_TEMPLATE.md` |
 | Read-aloud | `docs/javascripts/read-aloud.js` + matching CSS, injected site-wide via `extra_javascript`. Browser `speechSynthesis`, no dependency. Skips code blocks and collapsed `<details>`; rewrites technical vocabulary before speaking |
 | Site UX | `navigation.tabs` + `prune` so a module page's sidebar shows only its own track, not all 30. `docs/javascripts/panel-toggle.js` hides the nav and TOC panels (persisted in `localStorage`); `docs/javascripts/gfm-alerts.js` upgrades GitHub `> [!NOTE]` blockquotes into Material admonitions, which keeps the source readable on both surfaces. Dark mode verified in a real browser, both schemes |
-| Live pages | `live/` - study planner, 49 cited recall cards (with a `L`isten control), 14-slide deck. Self-contained HTML |
-| Infographics | `assets/` - 10 hand-authored SVGs for what Mermaid cannot express. GIF is deliberately refused; the SVGs are already animated and `assets/README.md` documents a derive-never-commit export path |
+| Live pages | `live/` - study planner, 49 cited recall cards (with a `L`isten control), reference sheets, one concept player, 14-slide deck. Self-contained HTML |
+| Reference sheets | `live/cheatsheets.html` + `live/data/reference.json` - 4 track, 12 concept and 30 module sheets, search + track filter, print CSS. **Every bullet carries a `cite`; that is the contract.** The 30-lane rail is the signature and is load-bearing (filtering dims it). Data is fetched, so this page alone needs HTTP locally - it says so on screen |
+| Concept players | `live/concepts/` - interactive versions where a *control* teaches better than a drawing. `coalescing.html` is the pilot (stride + lockstep width). Bar for adding one: the geometry must genuinely change with the input, else it stays an SVG |
+| Infographics | `assets/` - 14 hand-authored SVGs for what Mermaid cannot express, each with a `brief:` comment header. GIF is deliberately refused; the SVGs are already animated and `scripts/export_visual.sh` derives one into gitignored `exports/` when an external surface truly needs a file |
 | Content studio | `content/` - video/Shorts scripts. Packs exist for A01 and A02 only |
 | Cursor canvas | `canvases/curriculum-dashboard.canvas.tsx` (outside the repo, in the Cursor project dir) |
 | Git | `main` clean and pushed; every workflow run green |
@@ -45,11 +47,13 @@ tracks/A-gpu-programming/        A01-A10 (+ legacy 01/02/03 raw examples, supers
 tracks/B-gpu-ml-performance/     B01-B07
 tracks/C-ml-system-design/       C01-C07 (design track: no GPU code, stdlib-only Python tools)
 tracks/D-distributed-computing/  D01-D06 (below the ML layer: MPI, collectives, fabric, topology)
-assets/                          SVG infographics + their system doc
-live/                            dashboard.html, flashcards.html, slides.html
+assets/                          SVG infographics + their system doc; sources/canva.md
+live/                            dashboard, cheatsheets, flashcards, slides
+live/data/reference.json         cited facts behind the reference sheets
+live/concepts/                   interactive concept players (coalescing.html)
 content/                         video scripts + brand overlay spec
 outputs/                         sanitized lab transcripts (gfx950, ROCm 7) + manifest.json
-scripts/                         collect_outputs.sh, sanitize_output.py
+scripts/                         collect_outputs.sh, sanitize_output.py, export_visual.sh
 .cursor/skills/parallel-programming-brand/   brand skill (load when authoring visuals)
 ```
 
@@ -96,6 +100,35 @@ python -m mkdocs build --clean --strict --site-dir ./site
 # Inline JS in the live pages - a syntax error leaves a page silently dead
 node --check <extracted script>
 
+# reference.json: every bullet cited, and every href + anchor actually resolving.
+# check_links.py cannot see inside JSON, so this is the only thing that catches a
+# renamed heading breaking a cheatsheet citation (Traps #14).
+python - <<'PY'
+import json, re, pathlib
+base = pathlib.Path('live')
+d = json.load(open('live/data/reference.json', encoding='utf-8'))
+slug = lambda h: re.sub(r'\s', '-', re.sub(r'[^\w\s-]', '', h.strip().lower()))
+hrefs, bad = set(), []
+for key in ('tracks', 'clusters', 'modules'):
+    for s in d[key]:
+        hrefs.update(s[k] for k in ('href', 'svg', 'concept') if s.get(k))
+        for b in s.get('bullets', []):
+            hrefs.add(b['cite']['href'])
+for h in sorted(hrefs):
+    path, _, anchor = h.partition('#')
+    p = (base / path).resolve()
+    if not p.exists():
+        bad.append(f'MISSING FILE {h}')
+    elif anchor and p.suffix == '.md':
+        heads = [slug(m[1]) for m in re.findall(r'^(#{1,6})\s+(.*)$', p.read_text(encoding='utf-8'), re.M)]
+        if anchor not in heads:
+            bad.append(f'MISSING ANCHOR {h}')
+print('\n'.join(bad) or f'{len(hrefs)} hrefs resolve')
+PY
+
+# The reference sheets fetch their data, so exercise them over HTTP, not file://
+python -m http.server 8000    # then open /live/cheatsheets.html and search for something
+
 # SVGs must be well-formed XML and pure ASCII
 # (XmlDocument.LoadXml + a scan for [^\x09\x0A\x0D\x20-\x7E])
 
@@ -132,10 +165,15 @@ $env:GITHUB_TOKEN = ""; gh run list --limit 1
    U+FFFD, which made six SVGs invalid XML and broke a `--strict` build on one Markdown file. After
    writing any file with typography, verify it decodes as UTF-8. **SVGs are pure ASCII by policy** -
    they use XML numeric entities (`&#183;`, `&#8594;`, `&#215;`). Keep them that way.
-7. **Module data is duplicated in five places.** Update all of them together: `CURRICULUM.md`
-   (tables + totals), `live/dashboard.html` (`M`, `PATHS`), `live/flashcards.html` (`CARDS`),
-   `live/slides.html` (headline counts), and the Cursor canvas. Each surface must stand alone with no
-   shared runtime; five is few enough to do by hand and a generator is not yet earned.
+7. **Module data is duplicated in six places.** Update all of them together: `CURRICULUM.md`
+ (tables + totals), `live/dashboard.html` (`M`, `PATHS`), `live/flashcards.html` (`CARDS`),
+ `live/data/reference.json` (`modules`, and `clusters` for a genuinely new concept),
+ `live/slides.html` (headline counts), and the Cursor canvas. Each surface must stand alone with no
+ shared runtime; six is still few enough to do by hand and a generator is not yet earned.
+ Two things are deliberately **not** in that list and must stay derived: the reference sheets compute
+ per-track module counts and hour totals from their own `modules` array, and the recall deck builds
+ its track filter row from the cards that exist. Both were hand-written lists once, and both were
+ silently wrong the moment Track D landed. If you find yourself typing a count, derive it instead.
 8. **GitHub and MkDocs slugify headings differently**, so a deep link can work on one surface and
    404 on the other. `## 6. Challenges, Drawbacks & Tradeoffs` is `#6-challenges-drawbacks--tradeoffs`
    on GitHub (the `&` leaves two hyphens) but `...-tradeoffs` under stock Python-Markdown, which
@@ -162,6 +200,16 @@ $env:GITHUB_TOKEN = ""; gh run list --limit 1
    backgrounds, so in the slate scheme it resolves to a near-invisible grey on this curriculum's
    light `classDef` fills.    `docs/stylesheets/brand.css` pins the `--md-mermaid-*` variables
    (flowchart *and* sequence) inside `.mermaid`. Fix contrast there, not in the diagrams.
+
+14. **`check_links.py` does not read JSON or JavaScript.** The hrefs inside
+   `live/data/reference.json` are invisible to it, so a renamed heading breaks them silently. After
+   touching that file or a section heading it cites, re-run the resolver in "Verify before you
+   claim" below. The same blind spot applies to any URL built in a `<script>`.
+15. **One key, one meaning, in shared data.** `reference.json` briefly used `modules` for a *count*
+   on a track and an *array* on a cluster. Searching then threw inside the render, and the page kept
+   showing stale results instead of failing visibly - the worst kind of bug, because it looks like it
+   works. The count is now derived and the reader guards with `Array.isArray`. Whenever you add a
+   field, check no sibling shape already uses that name for something else.
 
 Both surfaces matter equally: the curriculum is read on GitHub *and* on the docs site, and Traps #8,
 #11 and #12 are all the same failure - a change verified on one surface only.
@@ -218,15 +266,18 @@ Known likely first-build friction:
 1. **Build-and-run pass on a real GPU.** The highest-value next step: it converts every
    expected-shape table into a measured one and unblocks item 2.
 2. **Content packs** for A04, A06, A07, B02 - each needs a real measured number to lead with, which
-   is why they are blocked on item 1. `content/README.md` names them.
-3. **More infographics.** `assets/README.md` lists the four strongest candidates: the reduction tree
-   collapsing over log2(n) rounds (A04), tile reuse (A06), naive-vs-fused attention traffic (A09),
-   and the prefill/decode intensity split (B05). Rule: only if Mermaid genuinely cannot express it.
-   Track D's `ring-allreduce.svg` is written so **B07 can link it too** - it is not yet linked from
-   there, and doing so is a two-line change.
-4. **Bump Node 20 actions.** CI warns that `checkout@v4`, `configure-pages@v5`, `setup-python@v5`,
+   is why they are blocked on item 1. `content/README.md` now names the lead visual and the exact
+   lab output each is waiting on, so a pack is a script plus a number, nothing else.
+3. **Recall cards for Track D.** The deck is 49 cards over Tracks A, B and C; Track D was added after
+   it was built and has none. The reference sheets link to `flashcards.html?track=D` and the deck
+   says plainly that the track is empty, so the gap is visible rather than silent. Every card needs a
+   real source.
+4. **Two more concept players.** `live/concepts/coalescing.html` proved the pattern. The ring
+   all-reduce phase stepper (D03) and the roofline intensity slider (B02) are the two where a control
+   genuinely beats the static asset. Same bar: the geometry has to change with the input.
+5. **Bump Node 20 actions.** CI warns that `checkout@v4`, `configure-pages@v5`, `setup-python@v5`,
    and `upload-artifact@v4` are being forced onto Node 24. Nothing is broken; it is upkeep.
-5. **Legacy cleanup.** `tracks/A-gpu-programming/01.hello_world/Makefile` still calls bare
+6. **Legacy cleanup.** `tracks/A-gpu-programming/01.hello_world/Makefile` still calls bare
    `rocprofv3` instead of `$(ROCPROFV3)`, so it fails when ROCm is not on `PATH` - the bug fixed
    everywhere else. Kept as raw reference material, superseded by A01.
 
@@ -247,4 +298,5 @@ Rough effort record, kept because the operator asks for usage tracking.
 | 2026-08-09 | Reconciled the two 2026-08-08 sessions and pushed both. The Pages deploy had been red for a day: splitting a half-finished tree into commits left `docs/REFERENCES.md`'s generated index describing citations that were not in the same commit, and `build_reference_index.py --check` failed the build exactly as designed - but nobody looked at the run. Landing the rest of the rollout fixed it |
 | 2026-08-08 | Docs-site UX pass in a parallel session: found that `md_in_html` had been silently publishing all 24 Section 9 answer blocks as raw Markdown (Traps #11); pinned the Mermaid dark-mode variables (Traps #12); added `navigation.tabs`/`prune`, the nav+TOC toggles and the GFM-alert upgrader. Its `??? note` collapsibles then broke the syllabus tables on GitHub, migrated to `<details markdown="1">` |
 | 2026-08-10 | Output cache on `gfx950`/ROCm 7: `scripts/collect_outputs.sh` + `sanitize_output.py`, 46 sanitized artifacts under `outputs/`, SETUP §6 + MODULE_TEMPLATE hook; A01/A02 exercise headers refreshed |
+| 2026-08-24 | **Visual learning system.** Four new infographics closing the candidate list (`reduction-tree` A04, `tile-reuse` A06, `attention-traffic` A09, `prefill-decode-split` B05), each with an inline `brief:` header instead of a sidecar file; `ring-allreduce.svg` finally linked from B07. New reference-sheet surface: `live/cheatsheets.html` over a cited `live/data/reference.json` (4 track + 12 concept + 30 module sheets, search, track filter, print CSS, 30-lane rail). First concept player, `live/concepts/coalescing.html`. Two real bugs found by testing in a browser rather than by reading: `reference.json` used `modules` for both a count and an array, which threw inside the render and left stale results on screen (Traps #15); the recall deck's track filter was a hand-written A/B/C list, so Track D could never appear - both are now derived. Track D's `#DB2777` added to `BRAND.md` and the brand skill, where it had been missing since the track landed |
 | 2026-08-11 | **Track D added (D01-D06, ~24k lines).** Distributed computing *below* the ML layer, since B07/C03 already own sharding and fault tolerance: Amdahl/Gustafson/Hockney alpha-beta, MPI, NCCL/RCCL, RDMA and the fabric tiers, topology, and a scale-boundary capstone. 20 new sources (every DOI web-verified against the publisher before it was written), 17 glossary terms, 4 new animated SVGs, fourth track colour `#DB2777`. Authored D01 by hand as the gold standard, then five parallel subagents for D02-D06 and six more for the labs - one died on a network stall and was simply relaunched. Two subagents caught real arithmetic errors in prose they were implementing against (D01's `m*` crossover claim was backwards; D05's block-mapping rail claim was wrong), which is the argument for making every table reproducible by a tool rather than asserting it |

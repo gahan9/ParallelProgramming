@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 470" width="1200" height="470" role="img" aria-labelledby="t d">
+<title id="t">HBM traffic for a naive versus a tiled matrix multiply, drawn to scale</title>
+<desc id="d">Two horizontal bars drawn to the same scale. The naive kernel moves 549.8 gigabytes of HBM traffic to multiply two four thousand ninety six square matrices in fp32; the tiled kernel with a thirty-two wide tile moves 17.2 gigabytes, a bar one thirty-second as long. A hairline near the origin marks the 201 megabytes the three matrices actually occupy, so the naive version moves the data set about 2731 times over. Below, a mechanism strip shows that one element loaded from memory feeds a single fused multiply-add in the naive kernel but thirty-two of them once the tile is staged in shared memory, which is why arithmetic intensity rises from 0.25 to 8 FLOP per byte.</desc>
+
+<!--
+  brief:
+    id: tile-reuse
+    module: A06
+    track: A
+    visual_job: proportion
+    signature_device: none
+    motion_teaches: true
+    motion_claim: "the amber span is traffic that tiling deletes outright"
+    numbers: derived from A06 section 2 - naive 8N^3 bytes, tiled 8N^3/T, at N=4096 fp32
+    static_fallback: "bar lengths carry the whole argument; motion only tints the eliminated span"
+
+  A06's README already tabulates intensity against tile size. What a table cannot do is
+  show 549.8 GB and 17.2 GB as lengths you can see at once, which is the entire point:
+  32x is a number, but a bar one thirty-second as long is an argument.
+
+  SCALE IS TRUE. 900 px maps to 549.756 GB, so 1 px is 0.6108 GB. The tiled bar is
+  drawn at 28 px because 17.2 GB really is 28 px at that scale. The 201 MB of actual
+  matrix data is 0.33 px, which is why it is drawn as a hairline and labelled rather
+  than given a bar it cannot honestly fill.
+
+  Amber carries the meaning it carries in coalescing.svg: bytes you paid for and did
+  not need.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #0891B2; }
+  .eyebrow  { fill: #0891B2; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .secname  { fill: #64748B; font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1.6px; }
+  .barname  { font: 700 13.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: .5px; }
+  .barsub   { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .val      { fill: #F8FAFC; font: 700 17px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .segl     { fill: #FBBF24; font: 700 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .lbl      { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .verdict  { font: 700 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .hair     { stroke: #10B981; stroke-width: 1.5; }
+  .hairlbl  { fill: #10B981; font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .kept     { fill: #0891B2; }
+  .fma      { fill: #6366F1; }
+  .wire     { stroke: #475569; stroke-width: 1.2; fill: none; }
+  .divide   { stroke: #1E293B; stroke-width: 1; }
+
+  /* The span tiling deletes. Same vocabulary as coalescing.svg: amber is traffic
+     you paid for and did not need. */
+  .gone { fill: #7C3A0B; animation: burn 3s ease-in-out infinite; }
+  @keyframes burn { 0%, 100% { fill: #7C3A0B } 50% { fill: #B45309 } }
+  @media (prefers-reduced-motion: reduce) { .gone { animation: none; fill: #92400E } }
+</style>
+
+<rect class="ground" width="1200" height="470"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE A06 &#183; THE FLOPS ARE FIXED, THE BYTES ARE A CHOICE</text>
+<text class="head"    x="54" y="92">Tiling does not change the math, only the traffic</text>
+<text class="sub"     x="56" y="120">Both kernels do the same 137 GFLOP. One of them reads its inputs 2731 times over.</text>
+
+<text class="secname" x="56" y="158">HBM TRAFFIC &#183; C = A &#215; B, N = 4096, fp32 &#183; BARS DRAWN TO SCALE</text>
+
+<defs>
+  <marker id="a" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M 0 1 L 6 4 L 0 7 z" fill="#475569"/>
+  </marker>
+</defs>
+
+<!-- ================= naive: 549.8 GB = 900 px ================= -->
+<text class="barname" x="56" y="188" fill="#F59E0B">NAIVE</text>
+<text class="barsub"  x="56" y="204">1 thread</text>
+<text class="barsub"  x="56" y="218">per output</text>
+<rect class="kept" x="200" y="176" width="28"  height="42"/>
+<rect class="gone" x="228" y="176" width="872" height="42"/>
+<text class="val"  x="200" y="248">549.8 GB</text>
+<text class="segl" x="330" y="203">872 px of this bar is traffic that tiling deletes: 532.6 GB of re-reads</text>
+
+<!-- ================= tiled: 17.2 GB = 28 px ================= -->
+<text class="barname" x="56" y="288" fill="#10B981">TILED</text>
+<text class="barsub"  x="56" y="304">T = 32 in</text>
+<text class="barsub"  x="56" y="318">shared mem</text>
+<rect class="kept" x="200" y="276" width="28" height="42"/>
+<text class="val"  x="244" y="304">17.2 GB</text>
+<text class="lbl"  x="352" y="304">Same result, same FLOPs, one thirty-second of the wire time.</text>
+
+<text class="tiny" x="820" y="286">Traffic is 8N&#179;/T bytes, so intensity scales</text>
+<text class="tiny" x="820" y="304">with the tile. Crossing the ridge point needs</text>
+<text class="tiny" x="820" y="322">T of about 124 on MI300X, 80 on H100 (fp32).</text>
+
+<!-- the data itself: 201 MB is 0.33 px at this scale, so it gets a hairline, not a bar -->
+<line class="hair" x1="200" y1="330" x2="200" y2="352"/>
+<text class="hairlbl" x="210" y="347">201 MB &#8212; what A, B and C actually occupy</text>
+
+<line class="divide" x1="56" y1="372" x2="1144" y2="372"/>
+
+<!-- ================= mechanism: why the bar shrinks ================= -->
+<text class="secname" x="56" y="396">WHY &#183; ONE LOADED ELEMENT, HOW MANY FLOPS IT FEEDS</text>
+
+<text class="barsub" x="56" y="424" fill="#F59E0B">naive</text>
+<rect class="kept" x="200" y="412" width="16" height="16" rx="2"/>
+<path class="wire" d="M 222 420 H 250" marker-end="url(#a)"/>
+<rect class="fma" x="262" y="414" width="5" height="12" rx="1"/>
+<text class="tiny" x="292" y="424">1 FMA per element loaded &#183; intensity 0.25 FLOP/byte</text>
+
+<text class="barsub" x="56" y="452" fill="#10B981">tiled</text>
+<rect class="kept" x="200" y="440" width="16" height="16" rx="2"/>
+<path class="wire" d="M 222 448 H 250" marker-end="url(#a)"/>
+<g class="fma">
+  <rect x="262" y="442" width="5" height="12" rx="1"/><rect x="271" y="442" width="5" height="12" rx="1"/>
+  <rect x="280" y="442" width="5" height="12" rx="1"/><rect x="289" y="442" width="5" height="12" rx="1"/>
+  <rect x="298" y="442" width="5" height="12" rx="1"/><rect x="307" y="442" width="5" height="12" rx="1"/>
+  <rect x="316" y="442" width="5" height="12" rx="1"/><rect x="325" y="442" width="5" height="12" rx="1"/>
+  <rect x="334" y="442" width="5" height="12" rx="1"/><rect x="343" y="442" width="5" height="12" rx="1"/>
+  <rect x="352" y="442" width="5" height="12" rx="1"/><rect x="361" y="442" width="5" height="12" rx="1"/>
+  <rect x="370" y="442" width="5" height="12" rx="1"/><rect x="379" y="442" width="5" height="12" rx="1"/>
+  <rect x="388" y="442" width="5" height="12" rx="1"/><rect x="397" y="442" width="5" height="12" rx="1"/>
+  <rect x="406" y="442" width="5" height="12" rx="1"/><rect x="415" y="442" width="5" height="12" rx="1"/>
+  <rect x="424" y="442" width="5" height="12" rx="1"/><rect x="433" y="442" width="5" height="12" rx="1"/>
+  <rect x="442" y="442" width="5" height="12" rx="1"/><rect x="451" y="442" width="5" height="12" rx="1"/>
+  <rect x="460" y="442" width="5" height="12" rx="1"/><rect x="469" y="442" width="5" height="12" rx="1"/>
+  <rect x="478" y="442" width="5" height="12" rx="1"/><rect x="487" y="442" width="5" height="12" rx="1"/>
+  <rect x="496" y="442" width="5" height="12" rx="1"/><rect x="505" y="442" width="5" height="12" rx="1"/>
+  <rect x="514" y="442" width="5" height="12" rx="1"/><rect x="523" y="442" width="5" height="12" rx="1"/>
+  <rect x="532" y="442" width="5" height="12" rx="1"/><rect x="541" y="442" width="5" height="12" rx="1"/>
+</g>
+<text class="tiny" x="562" y="452">T = 32 FMAs per element loaded &#183; intensity T/4 = 8 FLOP/byte</text>
+</svg>

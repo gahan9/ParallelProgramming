@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-labelledby="t d">
+<title id="t">Arithmetic intensity of one projection as a function of tokens in the GEMM</title>
+<desc id="d">A log-log curve. Tokens in the GEMM run along the horizontal axis from 1 to 8192; arithmetic intensity in FLOP per byte runs up the vertical from below 1 to about 1638. The curve rises with slope one for small token counts, so intensity is roughly equal to the token count, then bends over and flattens toward its ceiling of d over 2. A dashed horizontal line marks the MI300X ridge point of 247 FLOP per byte, splitting the plot into a memory-bound region below and a compute-bound region above. Decode with a batch of one sits at 1.0 FLOP per byte, using about 0.4 percent of the machine's arithmetic. The curve crosses the ridge at 281 concurrent tokens, and prefill at 2048 tokens reaches 1024 FLOP per byte, well inside the compute-bound region. The same weights and the same kernel produce both points; only the token count differs.</desc>
+
+<!--
+  brief:
+    id: prefill-decode-split
+    module: B05
+    track: B
+    visual_job: curve
+    signature_device: log_axis
+    motion_teaches: true
+    motion_claim: "the decode operating point is pinned at the bottom-left and does not move"
+    numbers: derived - AI = T*d/(d + 2T) at d=4096; ridge 247 is MI300X datasheet via B05 section 5
+    static_fallback: "curve, ridge line and all four operating points are drawn; motion only pulses decode"
+
+  Module B05. Mermaid cannot draw a curve or a log axis, which is the whole reason this
+  file exists. The module tabulates six points; the table cannot show that the curve has
+  slope one at the left and flattens at the right, which is why batching rescues decode
+  and does nothing for prefill.
+
+  Axis mapping, if you re-plot:
+    x(T)  = 150 + 197.5 * log10(T)          decades at 1, 10, 100, 1k, 10k
+    y(AI) = 434 - 75 * log10(AI / 0.5)      decades at 1, 10, 100, 1000
+    curve: AI = T*d / (d + 2T), d = 4096, fp16
+    ceiling: AI -> d/2 = 2048 as T grows
+    ridge: 1307.4 TFLOP/s / 5.3 TB/s = 247 FLOP/byte  (MI300X, B05 section 5)
+
+  The plot starts at y=164 rather than tucking under the header. An earlier revision
+  put the axis caption at y=76, where it collided with the headline - invisible in the
+  source, obvious the moment it was rendered.
+
+  The ridge is a DATASHEET figure for one part, not a measurement of yours. B05's own
+  tooling computes it for your hardware; use that.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #6366F1; }
+  .eyebrow  { fill: #6366F1; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .axis     { stroke: #334155; stroke-width: 1.2; }
+  .grid     { stroke: #1B2436; stroke-width: 1; }
+  .tick     { fill: #64748B; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .axlbl    { fill: #94A3B8; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .3px; }
+  .curve    { stroke: #6366F1; stroke-width: 3; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+  .memfill  { fill: #0891B2; opacity: .07; }
+  .cmpfill  { fill: #6366F1; opacity: .07; }
+  .zone     { font: 700 12px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: .4px; }
+  .ridgeline{ stroke: #F59E0B; stroke-width: 1.2; stroke-dasharray: 4 4; }
+  .dropline { stroke: #F59E0B; stroke-width: 1; stroke-dasharray: 3 3; }
+  .ceil     { stroke: #475569; stroke-width: 1; stroke-dasharray: 2 4; }
+  .dot      { stroke: #0F172A; stroke-width: 2; }
+  .leader   { stroke: #475569; stroke-width: 1; }
+  .legname  { fill: #E2E8F0; font: 600 12px Inter, "Segoe UI", system-ui, sans-serif; }
+  .legval   { fill: #94A3B8; font: 400 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+
+  .pulse { animation: p 3s ease-in-out infinite; }
+  @keyframes p { 0%, 100% { r: 6 } 50% { r: 9 } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none } }
+</style>
+
+<rect class="ground" width="1200" height="560"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE B05 &#183; SAME WEIGHTS, SAME KERNEL, ONE NUMBER DIFFERENT</text>
+<text class="head"    x="54" y="92">One token reads the whole model</text>
+<text class="sub"     x="56" y="120">Arithmetic intensity of a single d &#215; d projection, d = 4096, fp16, against tokens in the GEMM.</text>
+
+<!-- regions: the ridge splits the plane -->
+<rect class="memfill" x="150" y="232" width="790" height="202"/>
+<rect class="cmpfill" x="150" y="164" width="790" height="68"/>
+
+<!-- grid -->
+<g class="grid">
+  <line x1="347.5" y1="164" x2="347.5" y2="434"/><line x1="545" y1="164" x2="545" y2="434"/>
+  <line x1="742.5" y1="164" x2="742.5" y2="434"/>
+  <line x1="150" y1="411" x2="940" y2="411"/><line x1="150" y1="336" x2="940" y2="336"/>
+  <line x1="150" y1="261" x2="940" y2="261"/><line x1="150" y1="186" x2="940" y2="186"/>
+</g>
+<g class="axis">
+  <line x1="150" y1="434" x2="940" y2="434"/>
+  <line x1="150" y1="164" x2="150" y2="434"/>
+</g>
+
+<g class="tick">
+  <text x="146" y="452">1</text><text x="340" y="452">10</text><text x="535" y="452">100</text>
+  <text x="731" y="452">1k</text><text x="928" y="452">10k</text>
+  <text x="132" y="415">1</text><text x="126" y="340">10</text>
+  <text x="120" y="265">100</text><text x="114" y="190">1000</text>
+</g>
+<text class="axlbl" x="440" y="472">tokens in the GEMM &#8212; batch &#215; sequence</text>
+<text class="axlbl" x="56"  y="152">arithmetic intensity &#8212; FLOP/byte</text>
+
+<!-- the ceiling the curve approaches but never reaches -->
+<line class="ceil" x1="150" y1="162" x2="940" y2="162"/>
+<text class="tiny" x="820" y="156" fill="#475569">ceiling d/2 = 2048</text>
+
+<!-- ridge -->
+<line class="ridgeline" x1="150" y1="232" x2="940" y2="232"/>
+<text class="zone" x="166" y="184" fill="#6366F1">compute-bound</text>
+<text class="zone" x="166" y="254" fill="#0891B2">memory-bound</text>
+
+<!-- AI = T*d/(d+2T), d = 4096 -->
+<path class="curve" d="M 150 411 L 209 389 L 269 366 L 328 344 L 388 321 L 447 299 L 507 277 L 566 255 L 634 232 L 685 216 L 744 199 L 804 186 L 863 176 L 923 170"/>
+
+<!-- crossover drop line -->
+<line class="dropline" x1="634" y1="232" x2="634" y2="400"/>
+<text class="tiny" x="644" y="418" fill="#F59E0B">T = 281</text>
+
+<!-- operating points -->
+<circle class="dot pulse" cx="150" cy="411" r="6" fill="#0891B2"/>
+<circle class="dot" cx="507" cy="277" r="6" fill="#0891B2"/>
+<circle class="dot" cx="634" cy="232" r="6" fill="#F59E0B"/>
+<circle class="dot" cx="804" cy="186" r="6" fill="#6366F1"/>
+
+<!-- decode callout: the wedge under the curve is the only empty space near the point -->
+<line class="leader" x1="158" y1="416" x2="410" y2="416"/>
+<text class="legname" x="418" y="412">decode, batch 1</text>
+<text class="legval"  x="418" y="428">1.0 FLOP/byte &#183; 0.4% of peak math</text>
+
+<!-- ================= legend column ================= -->
+<line x1="968" y1="170" x2="968" y2="434" stroke="#1E293B" stroke-width="1"/>
+
+<circle cx="990" cy="186" r="5" fill="#0891B2" stroke="#0F172A" stroke-width="2"/>
+<text class="legname" x="1004" y="184">decode</text>
+<text class="legval"  x="1004" y="200">T=1 &#8594; 1.0</text>
+
+<circle cx="990" cy="232" r="5" fill="#0891B2" stroke="#0F172A" stroke-width="2"/>
+<text class="legname" x="1004" y="230">small batch</text>
+<text class="legval"  x="1004" y="246">T=64 &#8594; 62.1</text>
+
+<circle cx="990" cy="278" r="5" fill="#F59E0B" stroke="#0F172A" stroke-width="2"/>
+<text class="legname" x="1004" y="276">the ridge</text>
+<text class="legval"  x="1004" y="292">T=281 &#8594; 247</text>
+
+<circle cx="990" cy="324" r="5" fill="#6366F1" stroke="#0F172A" stroke-width="2"/>
+<text class="legname" x="1004" y="322">prefill</text>
+<text class="legval"  x="1004" y="338">T=2048 &#8594; 1024</text>
+
+<text class="legval" x="968" y="374" fill="#64748B">For small T the curve</text>
+<text class="legval" x="968" y="390" fill="#64748B">has slope 1, so batch</text>
+<text class="legval" x="968" y="406" fill="#64748B">size IS your intensity</text>
+<text class="legval" x="968" y="422" fill="#64748B">until it saturates.</text>
+
+<text class="tiny" x="56" y="502">This is why batching transforms decode and does nothing for prefill: prefill is already past the ridge, so adding tokens buys no intensity, only queueing.</text>
+<text class="tiny" x="56" y="524">Curve is the closed form AI = T&#183;d/(d + 2T), derived in B05 section 2, not a measurement. Ridge 247 is the MI300X datasheet</text>
+<text class="tiny" x="56" y="542">ratio (1307.4 TFLOP/s over 5.3 TB/s); H100 is 295 and H200 is 206 on the same arithmetic. Use your own part's numbers.</text>
+</svg>

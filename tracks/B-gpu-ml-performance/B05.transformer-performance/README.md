@@ -211,6 +211,13 @@ Evaluate at `d = 4096`:
 | 2048 | 1024 | **compute-bound** |
 | 8192 | 1638 | compute-bound |
 
+Those six rows are samples off one curve, and the *shape* of the curve is what the table cannot show:
+
+![Intensity equals batch size until it saturates, so decode sits at 1.0 and prefill at 1024](../../../assets/prefill-decode-split.svg)
+
+Slope 1 on the left, flat on the right. Everything in this module follows from which side of the
+bend your workload sits on.
+
 Look at the `T = 1` row. You moved 33.6 MB of weights to do 33.6 MFLOP of arithmetic: **one FLOP per
 byte**, on a machine that needs 247 to break even. You are using **0.4%** of the available
 arithmetic. The matrix cores are idle; the entire cost is the weight read.

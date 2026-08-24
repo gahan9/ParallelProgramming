@@ -1,17 +1,19 @@
-# Live pages — plan, test, present
+# Live pages — plan, look up, test, present
 
-Three self-contained pages published with the docs site, sharing one nav so they read as a single
+Five self-contained pages published with the docs site, sharing one nav so they read as a single
 tool. All are plain HTML with no framework, no CDN, and no build step, so they work on GitHub Pages,
 from a local checkout, and on a locked-down corporate network alike.
 
 | Page | What it does | Open it |
 |---|---|---|
 | **Study planner** | Pick a goal, get an ordered module ladder, tick modules off, watch remaining hours drop | [dashboard.html](dashboard.html) |
+| **Reference sheets** | Track, concept and module cheatsheets — searchable, printable, every fact cited | [cheatsheets.html](cheatsheets.html) |
 | **Recall cards** | Retrieval practice on the curriculum's own Q&A, sorted into three Leitner boxes, every card cited | [flashcards.html](flashcards.html) |
 | **Slide deck** | Presentable overview of the curriculum and the findings from building it | [slides.html](slides.html) |
+| **Concept player** | Interactive versions of the infographics, where a control is what teaches | [concepts/coalescing.html](concepts/coalescing.html) |
 
-They form a loop: **plan** what to study, **test** whether it stuck, **present** it to find out what
-you only half-know.
+They form a loop: **plan** what to study, **look up** what you forgot mid-lab, **test** whether it
+stuck, and **present** it to find out what you only half-know.
 
 > **On GitHub these render as source, not as pages.** GitHub does not serve HTML from a repository
 > view. Use the published site (the `Deploy docs to GitHub Pages` workflow builds it on every push to
@@ -64,6 +66,45 @@ Deliberately a three-box Leitner system rather than a full SM-2 scheduler: inter
 what stands between a learner and this material, and a simpler mechanic you can see is worth more
 than a better one you can't.
 
+## Reference sheets
+
+Recall and reference are different activities, and merging them makes both worse. The cards ask you
+a question; these answer one you already have, mid-lab, without making you re-read a 900-line module.
+
+- **Three tiers, three questions.** A *track* sheet says what that part of the curriculum owns and
+  what you need before starting it. A *concept* sheet crosses modules, because the concepts do —
+  twelve of them, from memory hierarchy to fabric tiers. A *module* card is the "what was the one
+  idea in A04 again" answer, one per module.
+- **Every bullet is cited** to the module section or glossary entry that derives it, and the numbers
+  are the module's numbers. Nothing here is restated from memory.
+- **Search and filter.** Type to search every sheet at once; `/` focuses the box and `Escape` clears
+  it. Track pills narrow to one track.
+- **The rail is load-bearing.** Thirty lanes across the top, one per module, coloured by track —
+  the same "a square is a unit" device the [infographics](../assets/README.md) use. Filtering dims
+  the lanes that drop out, so it always answers "how much of the curriculum am I looking at". Click
+  a lane to jump to its card.
+- **Printable.** `Ctrl-P` gives one concept sheet per landscape page with the citation URLs spelled
+  out, so the printout stands on its own.
+
+The facts live in [`data/reference.json`](data/reference.json), not inside the HTML, so they have one
+home and can be checked mechanically — every bullet must carry a `cite`. The cost of that choice:
+browsers refuse to `fetch()` a sibling file from a page opened with `file://`, so this one page needs
+an HTTP server locally (`python -m http.server` from the repo root). It says so on screen, with the
+command, rather than rendering blank. The published site is unaffected.
+
+## Concept players
+
+One page per idea where a **control** teaches better than a fixed drawing.
+[`concepts/coalescing.html`](concepts/coalescing.html) is the first: change the access stride and the
+lockstep width, and watch the cache lines touched, the bytes fetched and the bytes wasted move with
+it. The efficiency turns out to be `1/stride` on both a 32-lane warp and a 64-lane wavefront, which
+is a more convincing way to learn that than being told it.
+
+The bar for adding one is that **the geometry has to genuinely change with the input**. If the
+picture is the same shape at every setting, it should stay an SVG in [`../assets/`](../assets/README.md),
+which remains the canonical version that the module embeds and that survives JavaScript being off.
+The next two candidates are the ring all-reduce phases (D03) and the roofline intensity slider (B02).
+
 ## Slide deck
 
 Fourteen slides following the slide template in [docs/BRAND.md](../docs/BRAND.md) — 4px cyan accent
@@ -93,10 +134,22 @@ The planner and deck hardcode the module list, hour estimates, and depths. The s
    belongs on a learning path.
 3. `live/flashcards.html` — add cards to `CARDS`, reusing an entry from the `S` source table or adding
    one. A card without a real source does not belong in the deck.
-4. `live/slides.html` — only if the headline counts (30 modules, ~203 hours) change.
-5. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
+4. `live/data/reference.json` — add a `modules` entry, and a `clusters` entry if the module brings a
+   genuinely new concept. Every bullet needs a `cite`.
+5. `live/slides.html` — only if the headline counts (30 modules, ~203 hours) change.
+6. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
    use inside the editor.
 
-The duplication is deliberate: each surface has to stand alone with no shared runtime. Four places is
+The duplication is deliberate: each surface has to stand alone with no shared runtime. Five places is
 few enough to keep in step by hand, and a build step to generate them would be more machinery than
 the problem deserves.
+
+Two things are deliberately *not* duplicated, and should stay that way. The reference sheets derive
+their per-track module counts and hour totals from the `modules` array rather than storing them
+again, and the recall deck builds its track filter row from the cards that actually exist. Both used
+to be hand-written lists; both were quietly wrong the moment Track D landed.
+
+**Known gap:** the recall deck has 49 cards covering Tracks A, B and C, and none for Track D — it
+was built before that track existed. The reference sheets link to it per track
+(`flashcards.html?track=D`), and the deck says plainly that the track has no cards yet rather than
+showing an empty screen. Writing them is the fix; each needs a real source.

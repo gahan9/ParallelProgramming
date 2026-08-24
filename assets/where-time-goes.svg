@@ -41,7 +41,8 @@
 
 <!-- Callout for the kernel, placed above because there is no room beside it -->
 <text class="callout" x="905" y="168">44 &#181;s of compute</text>
-<text class="tiny"    x="905" y="186">the tick below is drawn 4&#215; wide so it is visible at all</text>
+<text class="tiny"    x="905" y="186">the tick below is drawn 4&#215; wide</text>
+<text class="tiny"    x="905" y="202">so it is visible at all</text>
 <path class="leader" d="M 1050 194 L 1050 208 L 1116 208 L 1116 222"/>
 
 <!-- The bar. x=56, total width 1088, mapped from 72.373 ms -->
