@@ -147,6 +147,7 @@
       "sub": "What the hardware executes, as opposed to what you wrote",
       "modules": ["A03", "A04", "A05"],
       "svg": "../assets/divergence.svg",
+      "concept": "concepts/divergence.html",
       "bullets": [
         {
           "text": "A block is how you organize threads; a warp (32 lanes, NVIDIA) or wavefront (64 lanes, AMD CDNA) is how the hardware executes them. Size blocks as a multiple of the wider one for portability.",
@@ -173,6 +174,7 @@
       "sub": "The intermediate you never store is the one you never move",
       "modules": ["A07", "A08", "A09"],
       "svg": "../assets/attention-traffic.svg",
+      "concept": "concepts/attention-traffic.html",
       "bullets": [
         {
           "text": "Naive softmax overflows: expf(100) is +inf in fp32, so one large score turns a whole row into nan. Subtracting the row maximum is mathematically identical and numerically safe.",
@@ -203,6 +205,7 @@
       "sub": "Hypothesis first, then the cheapest measurement that could kill it",
       "modules": ["B02", "B03"],
       "svg": "../assets/roofline.svg",
+      "concept": "concepts/roofline.html",
       "bullets": [
         {
           "text": "Attainable performance is min(peak FLOP/s, intensity x bandwidth). The ridge point is peak divided by bandwidth: the intensity at which you stop being bandwidth-limited.",
@@ -232,6 +235,7 @@
       "title": "Precision, numerics and quantization",
       "sub": "Exponent bits buy range, mantissa bits buy precision",
       "modules": ["B04"],
+      "concept": "concepts/precision-formats.html",
       "bullets": [
         {
           "text": "That one sentence explains every format. bf16 keeps fp32's 8 exponent bits and cuts the mantissa to 7, so it has fp32's range with coarser steps and needs no loss scaling.",
@@ -258,6 +262,7 @@
       "sub": "The same weights and kernel, two completely different machines",
       "modules": ["B05", "B06"],
       "svg": "../assets/prefill-decode-split.svg",
+      "concept": "concepts/prefill-decode.html",
       "bullets": [
         {
           "text": "A transformer layer is about 12d^2 parameters at the usual FFN multiplier of 4, a forward pass costs about 2x params in FLOPs per token, and training about 6x. Those plus the KV-cache size are the whole envelope.",
@@ -287,6 +292,7 @@
       "title": "Framing, metrics and data",
       "sub": "The two failure modes that dominate everything else",
       "modules": ["C01", "C02"],
+      "concept": "concepts/decision-threshold.html",
       "bullets": [
         {
           "text": "Define the decision before the prediction. Metrics are proxies for a business outcome, and the operating threshold comes from the relative cost of the two error types.",
@@ -308,6 +314,7 @@
       "title": "Optimization and deployment",
       "sub": "Cheapest and least risky fix first",
       "modules": ["C04", "C05", "C07"],
+      "concept": "concepts/optimization-ladder.html",
       "bullets": [
         {
           "text": "The ordering is: do not call the model at all (caching, cascades, early exit), then serve it better (batching, runtime, graph capture), then shrink the numbers, then shrink the model.",
@@ -333,6 +340,7 @@
       "title": "Training systems, monitoring and drift",
       "sub": "A model can be perfectly healthy and quietly wrong",
       "modules": ["C03", "C06"],
+      "concept": "concepts/drift-monitor.html",
       "bullets": [
         {
           "text": "A training run at scale is a distributed system with a loss function attached. Its uptime depends on the input pipeline, bit-exact checkpoint resume, and how fast a dead rank is detected.",
@@ -355,6 +363,7 @@
       "sub": "Amdahl bounds you from above; communication bends the curve back down",
       "modules": ["D01", "D05"],
       "svg": "../assets/scaling-walls.svg",
+      "concept": "concepts/scaling-limits.html",
       "bullets": [
         {
           "text": "Amdahl says a fixed problem with serial fraction s can never exceed 1/s speedup. Gustafson says a growing problem escapes that, because the serial part does not grow with it.",
@@ -377,6 +386,7 @@
       "sub": "all-reduce equals reduce-scatter plus all-gather",
       "modules": ["D02", "D03", "B07"],
       "svg": "../assets/ring-allreduce.svg",
+      "concept": "concepts/ring-allreduce.html",
       "bullets": [
         {
           "text": "Memorize the identity: all-reduce = reduce-scatter + all-gather. Most of ZeRO and most of the tensor-parallel tricks are that identity applied somewhere.",
@@ -407,6 +417,7 @@
       "sub": "The tiers are an order of magnitude apart, and that is the whole subject",
       "modules": ["D04", "D06"],
       "svg": "../assets/fabric-tiers.svg",
+      "concept": "concepts/fabric-tiers.html",
       "bullets": [
         {
           "text": "The ladder runs on-package memory, then scale-up links inside a node, then PCIe, then the scale-out network, then storage. Each tier is roughly 10x the one above it in cost per byte.",

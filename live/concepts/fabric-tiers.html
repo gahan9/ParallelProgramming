@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An order of magnitude, every step down — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive fabric-tier ladder: slide a message size and watch the time to move it across eight tiers, from on-chip registers to networked storage, spread by roughly an order of magnitude each.">
+<!--
+  Interactive companion to assets/fabric-tiers.svg (modules D04, D06).
+
+  Bandwidth and latency figures are midpoints of the ORDER-OF-MAGNITUDE ranges D04 section 2.1's
+  own table states ("10s of TB/s", "100s of GB/s", and so on) - illustrative round numbers taken
+  from the module's own ranges, not a new spec claim and not any single vendor's number. The point
+  the module makes, that bandwidth drops ~2 orders of magnitude from HBM to the network while
+  latency rises ~4, survives exactly at these midpoints; that gap is what this page makes visible
+  as message size changes.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B; --trackd: #DB2777;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--trackd); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--trackd); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--trackd); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--trackd); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--trackd); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  input[type="range"] { width: 100%; accent-color: var(--trackd); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.4rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .9rem; }
+  .tiers { display: flex; flex-direction: column; gap: .6rem; }
+  .tierrow .tLabel { display: flex; justify-content: space-between; font: 400 11.5px var(--mono); color: var(--dim); margin-bottom: .25rem; }
+  .tTrack { background: var(--deep); border: 1px solid var(--rule); border-radius: 4px; height: 22px; overflow: hidden; }
+  .tFill { height: 100%; border-radius: 3px 0 0 3px; background: var(--trackd); transition: width .15s ease; }
+  @media (prefers-reduced-motion: reduce) { .tFill { transition: none; } }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules D04, D06 &middot; concept player</p>
+  <h1>An order of magnitude, every step down</h1>
+  <p class="lede">
+    Every byte a GPU touches travels through one of a handful of tiers, each roughly ten times
+    slower than the one above it. Slide the message size and watch all eight tiers move at once —
+    the gaps between them are the entire subject.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="szLabel">Message size: <span class="rangeval" id="szVal">1 MB</span></span>
+      <input type="range" id="size" min="0" max="240" value="120" aria-labelledby="szLabel">
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read good"><b id="rFastest">1 ns</b><span>fastest tier, this size</span></div>
+    <div class="read bad"><b id="rSlowest">1 ns</b><span>slowest tier, this size</span></div>
+    <div class="read"><b id="rGap">1&times;</b><span>slowest &divide; fastest</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Time to move this message, by tier (log scale)</h2>
+    <div class="tiers" id="tiers"></div>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Midpoints of D04's own order-of-magnitude ranges, not new specs.</b> D04's table gives each
+    tier as a range ("10s of GB/s", "100s of GB/s", and so on) precisely because a single number
+    would overclaim precision it does not have; this page uses one representative point from each
+    range so the ladder can be drawn. The shape is the citable part &mdash;
+    <a href="../../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md#2-first-principles">D04
+    section 2.1</a>: bandwidth drops roughly two orders of magnitude from HBM to the network while
+    latency rises roughly four, which is why small messages suffer so much more across the network
+    than a bandwidth ratio alone suggests.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the same
+      argument is the infographic below, which
+      <a href="../../tracks/D-distributed-computing/D04.interconnects-and-rdma/README.md">module D04</a>
+      embeds.
+    </p>
+    <img src="../../assets/fabric-tiers.svg" alt="A ladder of fabric tiers from on-package memory to networked storage, each roughly an order of magnitude slower than the one above it.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/fabric-tiers.svg">fabric-tiers.svg</a>, which the module embeds. Fact
+      without the control: <a href="../cheatsheets.html#sheet-fabric">the fabric reference
+      sheet</a>. Test yourself: <a href="../flashcards.html?track=D">Track D recall cards</a>
+      (Track D's deck is still being written — the reference sheet says so plainly).
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Midpoints of D04 section 2.1's own order-of-magnitude ranges. Not vendor specs.
+  var TIERS = [
+    { label: "Register / LDS", bw: 20e12, lat: 1e-9 },
+    { label: "Last-level / Infinity Cache", bw: 4e12, lat: 20e-9 },
+    { label: "HBM", bw: 3e12, lat: 300e-9 },
+    { label: "Scale-up GPU link", bw: 400e9, lat: 1.5e-6 },
+    { label: "PCIe, GPU to host/NIC", bw: 32e9, lat: 1.5e-6 },
+    { label: "Scale-out RDMA fabric", bw: 25e9, lat: 3.5e-6 },
+    { label: "Datacenter Ethernet / TCP", bw: 5e9, lat: 75e-6 },
+    { label: "Networked storage", bw: 1e9, lat: 500e-6 }
+  ];
+
+  var SZ_MIN = 64, SZ_MAX = 1e9;
+
+  function sliderToSize(v) {
+    var t = v / 240;
+    return Math.pow(10, Math.log10(SZ_MIN) + t * (Math.log10(SZ_MAX) - Math.log10(SZ_MIN)));
+  }
+
+  function timeFor(tier, size) { return tier.lat + size / tier.bw; }
+
+  function fmtTime(s) {
+    if (s >= 1) { return s.toFixed(2) + " s"; }
+    if (s >= 1e-3) { return (s * 1e3).toFixed(2) + " ms"; }
+    if (s >= 1e-6) { return (s * 1e6).toFixed(2) + " \u03bcs"; }
+    return (s * 1e9).toFixed(0) + " ns";
+  }
+  function fmtSize(n) {
+    if (n >= 1e9) { return (n / 1e9).toFixed(1) + " GB"; }
+    if (n >= 1e6) { return (n / 1e6).toFixed(1) + " MB"; }
+    if (n >= 1e3) { return (n / 1e3).toFixed(1) + " KB"; }
+    return Math.round(n) + " B";
+  }
+
+  var el = {
+    size: document.getElementById("size"), szVal: document.getElementById("szVal"),
+    rFastest: document.getElementById("rFastest"), rSlowest: document.getElementById("rSlowest"), rGap: document.getElementById("rGap"),
+    tiers: document.getElementById("tiers"), verdict: document.getElementById("verdict")
+  };
+
+  function render() {
+    var size = sliderToSize(Number(el.size.value));
+    el.szVal.textContent = fmtSize(size);
+
+    var times = TIERS.map(function (t) { return timeFor(t, size); });
+    var maxT = Math.max.apply(null, times), minT = Math.min.apply(null, times);
+
+    el.rFastest.textContent = fmtTime(minT);
+    el.rSlowest.textContent = fmtTime(maxT);
+    el.rGap.textContent = (maxT / minT).toExponential(1).replace("e+", "\u00d710^") + "\u00d7";
+
+    var logMax = Math.log10(maxT), logMin = Math.log10(minT * 0.5);
+    el.tiers.innerHTML = TIERS.map(function (t, i) {
+      var time = times[i];
+      var pct = Math.max(2, ((Math.log10(time) - logMin) / (logMax - logMin)) * 100);
+      return '<div class="tierrow"><p class="tLabel"><span>' + t.label + '</span><span>' + fmtTime(time) + '</span></p>' +
+        '<div class="tTrack"><div class="tFill" style="width:' + pct + '%"></div></div></div>';
+    }).join("");
+
+    el.verdict.innerHTML = "<strong>" + (maxT / minT).toExponential(1) + "\u00d7 slower, register to storage.</strong> " +
+      "Moving " + fmtSize(size) + " costs " + fmtTime(minT) + " at the fastest tier and " + fmtTime(maxT) +
+      " at the slowest. At small sizes the gap is dominated by latency; only at large sizes does bandwidth " +
+      "start to matter more than the fixed per-message cost.";
+  }
+
+  el.size.addEventListener("input", render);
+  render();
+}());
+</script>
+</body>
+</html>

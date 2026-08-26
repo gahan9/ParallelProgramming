@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One byte, two answers — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive fp8 decoder: drag one byte and watch it decode to two different numbers depending on whether you read it as AMD's FNUZ or NVIDIA's OCP E4M3.">
+<!--
+  Interactive companion to B04's fp8 discussion (modules B04-B05) and the domain fact recorded
+  in AGENTS.md: CDNA 3 (gfx942) implements FNUZ fp8 (bias 8, max 240); Hopper implements OCP
+  (bias 7, max 448); the same bits decode about 2x apart, and 0x80 is NaN under FNUZ but -0.0
+  under OCP.
+
+  Both formats are E4M3 (1 sign, 4 exponent, 3 mantissa bits). The decode below is standard
+  IEEE-style exponent/mantissa arithmetic with each format's own bias and special-case rule,
+  not a measurement - it is exact bit arithmetic, cross-checked against the cited numbers
+  (FNUZ max 240 at 0x7F, OCP max 448 at 0x7E).
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52; --amd: #ED1C24; --nvidia: #76B900;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--accent); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--accent); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--accent); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--accent); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .jumps { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .7rem; }
+  .jumps button { font: 600 .82rem var(--mono); cursor: pointer; color: var(--dim);
+                  background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                  padding: .4rem .7rem; min-height: 38px; }
+  .jumps button:hover { border-color: var(--accent); color: var(--fg); }
+  .bits { display: flex; gap: 3px; margin-top: 1.2rem; justify-content: center; }
+  .bit { width: 34px; height: 42px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+         font: 700 1rem var(--mono); color: #06212A; }
+  .bit.sign { background: var(--amd); color: #fff; }
+  .bit.exp { background: var(--accent); color: #fff; }
+  .bit.mant { background: var(--primary); }
+  .bitcap { display: flex; gap: 3px; margin-top: .3rem; justify-content: center; font: 400 9.5px var(--mono); color: var(--muted); }
+  .bitcap span { width: 34px; text-align: center; }
+  .decodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .9rem; margin-top: 1.6rem; }
+  .decode { background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem; }
+  .decode .who { font: 700 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+  .decode .val { font: 700 1.7rem var(--mono); margin: .4rem 0 .2rem; }
+  .decode.nan .val { color: var(--highlight); }
+  .decode.zero .val { color: var(--dim); }
+  .decode .meta { font-size: .82rem; color: var(--dim); }
+  .decode.disagree { border-color: var(--highlight); box-shadow: 0 0 0 1px var(--highlight) inset; }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Module B04 &middot; concept player</p>
+  <h1>One byte, two answers</h1>
+  <p class="lede">
+    fp8 is not one format. Drag the byte and watch the same eight bits decode to two different
+    numbers &mdash; <span style="color:var(--amd);font-weight:700">AMD's FNUZ</span> on CDNA 3, and
+    <span style="color:var(--nvidia);font-weight:700">NVIDIA's OCP E4M3</span> on Hopper.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="byteLabel">Byte: <span class="rangeval" id="byteVal">0x80 &middot; 0b10000000</span></span>
+      <input type="range" id="byte" min="0" max="255" value="128" aria-labelledby="byteLabel">
+    </div>
+    <div class="jumps" id="jumps"></div>
+  </div>
+
+  <div class="bits" id="bits"></div>
+  <div class="bitcap" id="bitcap"></div>
+
+  <div class="decodes">
+    <div class="decode" id="fnuzCard">
+      <p class="who"><span>AMD FNUZ &middot; bias 8 &middot; CDNA 3</span><span style="color:var(--amd)">&#9632;</span></p>
+      <p class="val" id="fnuzVal">1.0</p>
+      <p class="meta" id="fnuzMeta"></p>
+    </div>
+    <div class="decode" id="ocpCard">
+      <p class="who"><span>NVIDIA OCP E4M3 &middot; bias 7 &middot; Hopper</span><span style="color:var(--nvidia)">&#9632;</span></p>
+      <p class="val" id="ocpVal">1.0</p>
+      <p class="meta" id="ocpMeta"></p>
+    </div>
+  </div>
+
+  <p class="verdict" id="verdict"></p>
+
+  <p class="note">
+    <b>Exact bit arithmetic, not a measurement.</b> Both formats are E4M3: 1 sign bit, 4 exponent
+    bits, 3 mantissa bits. Each format is exact IEEE-style exponent/mantissa arithmetic with its
+    own bias and special-case rule &mdash; not a training-run observation. FNUZ's maximum, 240, and
+    OCP's maximum, 448, both fall out of this arithmetic at their respective largest bytes, which
+    is the check that the decoder is right. Moving a checkpoint between vendors is not a
+    reinterpret-cast &mdash;
+    <a href="../../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md#3-deep-dive">B04
+    section 3</a> covers what to do instead.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. Read
+      <a href="../../tracks/B-gpu-ml-performance/B04.precision-and-quantization/README.md">module B04</a>
+      for the same argument in prose.
+    </p>
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> Fact without the control:
+      <a href="../cheatsheets.html#sheet-precision">the precision reference sheet</a>. Test
+      yourself: <a href="../flashcards.html?track=B">Track B recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var JUMPS = [
+    { label: "0x00 zero", v: 0x00 },
+    { label: "0x38 = 1.0", v: 0x38 },
+    { label: "0x7E OCP max", v: 0x7E },
+    { label: "0x7F FNUZ max", v: 0x7F },
+    { label: "0x80 the disagreement", v: 0x80 },
+    { label: "0xFF", v: 0xFF }
+  ];
+
+  var el = {
+    byte: document.getElementById("byte"), byteVal: document.getElementById("byteVal"),
+    bits: document.getElementById("bits"), bitcap: document.getElementById("bitcap"),
+    jumps: document.getElementById("jumps"),
+    fnuzVal: document.getElementById("fnuzVal"), fnuzMeta: document.getElementById("fnuzMeta"), fnuzCard: document.getElementById("fnuzCard"),
+    ocpVal: document.getElementById("ocpVal"), ocpMeta: document.getElementById("ocpMeta"), ocpCard: document.getElementById("ocpCard"),
+    verdict: document.getElementById("verdict")
+  };
+
+  function bitsOf(b) {
+    var s = (b >>> 0).toString(2);
+    while (s.length < 8) { s = "0" + s; }
+    return s;
+  }
+
+  function decodeFNUZ(b) {
+    if (b === 0x80) { return { kind: "nan", value: NaN }; }
+    var sign = (b >> 7) & 1, exp = (b >> 3) & 0xF, mant = b & 0x7;
+    var value;
+    if (exp === 0) { value = (mant / 8) * Math.pow(2, 1 - 8); }
+    else { value = (1 + mant / 8) * Math.pow(2, exp - 8); }
+    if (sign) { value = -value; }
+    return { kind: exp === 0 && mant === 0 ? "zero" : "num", value: value };
+  }
+
+  function decodeOCP(b) {
+    var sign = (b >> 7) & 1, exp = (b >> 3) & 0xF, mant = b & 0x7;
+    if (exp === 15 && mant === 7) { return { kind: "nan", value: NaN }; }
+    var value;
+    if (exp === 0) {
+      value = mant === 0 ? 0 : (mant / 8) * Math.pow(2, 1 - 7);
+    } else {
+      value = (1 + mant / 8) * Math.pow(2, exp - 7);
+    }
+    if (sign) { value = mant === 0 && exp === 0 ? -0 : -value; }
+    return { kind: (exp === 0 && mant === 0) ? (sign ? "negzero" : "zero") : "num", value: value };
+  }
+
+  function fmtVal(d) {
+    if (d.kind === "nan") { return "NaN"; }
+    if (d.kind === "zero") { return "0.0"; }
+    if (d.kind === "negzero") { return "\u22120.0"; }
+    return (Object.is(d.value, -0) ? "-0" : d.value.toFixed(d.value !== 0 && Math.abs(d.value) < 1 ? 5 : 3));
+  }
+
+  function render() {
+    var b = Number(el.byte.value);
+    el.byteVal.textContent = "0x" + b.toString(16).toUpperCase().padStart(2, "0") + " \u00b7 0b" + bitsOf(b);
+
+    var bits = bitsOf(b).split("");
+    el.bits.innerHTML = bits.map(function (bit, i) {
+      var cls = i === 0 ? "sign" : (i <= 4 ? "exp" : "mant");
+      return '<div class="bit ' + cls + '">' + bit + "</div>";
+    }).join("");
+    el.bitcap.innerHTML = bits.map(function (_, i) {
+      return "<span>" + (i === 0 ? "S" : (i <= 4 ? "E" + (i) : "M" + (i - 4))) + "</span>";
+    }).join("");
+
+    var f = decodeFNUZ(b), o = decodeOCP(b);
+    el.fnuzVal.textContent = fmtVal(f);
+    el.ocpVal.textContent = fmtVal(o);
+    el.fnuzMeta.textContent = f.kind === "nan" ? "sole NaN pattern under FNUZ" : f.kind === "zero" ? "unsigned zero \u2014 FNUZ has no \u22120.0" : "max magnitude is 240 (0x7F)";
+    el.ocpMeta.textContent = o.kind === "nan" ? "NaN \u2014 reserved S.1111.111" : o.kind === "negzero" ? "negative zero, a valid OCP value" : o.kind === "zero" ? "positive zero" : "max magnitude is 448 (0x7E)";
+
+    el.fnuzCard.className = "decode" + (f.kind === "nan" ? " nan" : (f.kind === "zero" ? " zero" : ""));
+    el.ocpCard.className = "decode" + (o.kind === "nan" ? " nan" : (o.kind === "zero" || o.kind === "negzero" ? " zero" : ""));
+
+    var fStr = fmtVal(f), oStr = fmtVal(o);
+    var disagree = fStr !== oStr;
+    el.fnuzCard.classList.toggle("disagree", disagree);
+    el.ocpCard.classList.toggle("disagree", disagree);
+
+    if (b === 0x80) {
+      el.verdict.innerHTML = "<strong>The cited disagreement.</strong> Byte 0x80 is sign=1, exponent=0000, " +
+        "mantissa=000 under both formats \u2014 but FNUZ reserves this exact pattern as its <em>only</em> " +
+        "NaN encoding, while OCP treats it as an ordinary negative zero. The same bits, two entirely " +
+        "different meanings.";
+    } else if (disagree) {
+      el.verdict.innerHTML = "<strong>Same bits, different numbers.</strong> " + fStr + " under FNUZ against " +
+        oStr + " under OCP \u2014 the two formats use different exponent biases (8 against 7), so most bytes " +
+        "decode roughly 2\u00d7 apart. A checkpoint moved between vendors without reinterpreting the bias is " +
+        "silently wrong.";
+    } else {
+      el.verdict.innerHTML = "<strong>These happen to agree.</strong> Not every byte disagrees \u2014 but enough " +
+        "do, and there is no bit pattern that tells you which format you are holding. That has to travel " +
+        "with the tensor as metadata.";
+    }
+  }
+
+  el.jumps.innerHTML = "";
+  JUMPS.forEach(function (j) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = j.label;
+    btn.addEventListener("click", function () { el.byte.value = j.v; render(); });
+    el.jumps.appendChild(btn);
+  });
+
+  el.byte.addEventListener("input", render);
+  render();
+}());
+</script>
+</body>
+</html>

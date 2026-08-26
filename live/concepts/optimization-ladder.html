@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheapest and least risky first — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive companion to C04's optimization ordering: stack caching, better serving, quantization, and distillation in order and watch how little of the expensive, risky levers you actually need.">
+<!--
+  Interactive companion to C04's optimization ordering (module C04).
+
+  C04 section 1's ordering, cited verbatim in reference.json/clusters/deployment: do not call the
+  model at all (caching, cascades, early exit), then serve it better (batching, runtime, graph
+  capture), then shrink the numbers (quantization), then shrink the model (distillation). This
+  page makes the ordering the point: each lever multiplies remaining cost by a factor the reader
+  sets, applied in the module's stated order, so a reader can see how often the first, cheapest,
+  lowest-risk lever alone clears the budget.
+
+  Percentages here are levers the reader sets, not measured savings from any real deployment.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--highlight); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--highlight); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--highlight); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--highlight); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--highlight); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .ctl .risk { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); }
+  input[type="range"] { width: 100%; accent-color: var(--highlight); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.5rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .9rem; }
+  .waterfall { display: flex; flex-direction: column; gap: .55rem; }
+  .wrow .wLabel { display: flex; justify-content: space-between; font: 400 11.5px var(--mono); color: var(--dim); margin-bottom: .25rem; }
+  .wTrack { background: var(--deep); border: 1px solid var(--rule); border-radius: 4px; height: 24px; overflow: hidden; }
+  .wFill { height: 100%; border-radius: 3px 0 0 3px; transition: width .15s ease; }
+  .wFill.s0 { background: var(--highlight); }
+  .wFill.s1 { background: #D97706; }
+  .wFill.s2 { background: var(--accent); }
+  .wFill.s3 { background: var(--primary); }
+  .wFill.s4 { background: var(--success); }
+  @media (prefers-reduced-motion: reduce) { .wFill { transition: none; } }
+  .budgetLine { position: relative; height: 0; }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules C04&ndash;C05, C07 &middot; concept player</p>
+  <h1>Cheapest and least risky fix first</h1>
+  <p class="lede">
+    Four levers, applied in the module's stated order: stop calling the model at all, serve it
+    better, shrink the numbers, shrink the model. Each is more invasive and more risky than the
+    last — slide them and watch how rarely you need to reach the expensive end.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="cacheLabel">1&middot; Cache / cascade hit-rate <span class="risk">(lowest risk)</span>: <span class="rangeval" id="cacheVal">30%</span></span>
+      <input type="range" id="cache" min="0" max="90" value="30" aria-labelledby="cacheLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="batchLabel">2&middot; Serve better — batching / runtime / graph capture: <span class="rangeval" id="batchVal">2.0&times;</span></span>
+      <input type="range" id="batch" min="10" max="60" value="20" aria-labelledby="batchLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="quantLabel">3&middot; Shrink the numbers — quantization: <span class="rangeval" id="quantVal">2.0&times;</span></span>
+      <input type="range" id="quant" min="10" max="40" value="20" aria-labelledby="quantLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="distillLabel">4&middot; Shrink the model — distillation <span class="risk">(highest risk)</span>: <span class="rangeval" id="distillVal">1.0&times;</span></span>
+      <input type="range" id="distill" min="10" max="50" value="10" aria-labelledby="distillLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="budgetLabel">Target cost budget: <span class="rangeval" id="budgetVal">25%</span> of baseline</span>
+      <input type="range" id="budget" min="1" max="100" value="25" aria-labelledby="budgetLabel">
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read"><b id="rFinal">100%</b><span>cost after all four levers</span></div>
+    <div class="read" id="rStageBox"><b id="rStage">none</b><span>first stage that clears budget</span></div>
+    <div class="read good" id="rRiskBox"><b id="rRisk">Low</b><span>risk of the levers you actually needed</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Remaining cost, stage by stage</h2>
+    <div class="waterfall" id="waterfall"></div>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>These are levers you set, not measured savings.</b> The multiplication is exact given the
+    factors above; what any real workload's cache hit-rate or quantization speedup actually is
+    has to come from your own traffic and your own profiling, not this page. The ordering is the
+    citable part &mdash;
+    <a href="../../tracks/C-ml-system-design/C04.production-model-optimization/README.md#1-tldr--layman-analogy">C04
+    section 1</a>: cheapest and least risky first, because a lever you do not need is a lever
+    whose risk you never took on.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. Read
+      <a href="../../tracks/C-ml-system-design/C04.production-model-optimization/README.md">module C04</a>
+      for the same argument in prose.
+    </p>
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> Fact without the control:
+      <a href="../cheatsheets.html#sheet-deployment">the deployment reference sheet</a>. Test
+      yourself: <a href="../flashcards.html?track=C">Track C recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var el = {
+    cache: document.getElementById("cache"), cacheVal: document.getElementById("cacheVal"),
+    batch: document.getElementById("batch"), batchVal: document.getElementById("batchVal"),
+    quant: document.getElementById("quant"), quantVal: document.getElementById("quantVal"),
+    distill: document.getElementById("distill"), distillVal: document.getElementById("distillVal"),
+    budget: document.getElementById("budget"), budgetVal: document.getElementById("budgetVal"),
+    rFinal: document.getElementById("rFinal"), rStage: document.getElementById("rStage"),
+    rStageBox: document.getElementById("rStageBox"), rRisk: document.getElementById("rRisk"),
+    rRiskBox: document.getElementById("rRiskBox"),
+    waterfall: document.getElementById("waterfall"), verdict: document.getElementById("verdict")
+  };
+
+  var STAGES = [
+    { key: "baseline", label: "Baseline", risk: 0 },
+    { key: "cache",    label: "After caching / cascades", risk: 1 },
+    { key: "batch",    label: "After better serving", risk: 2 },
+    { key: "quant",    label: "After quantization", risk: 3 },
+    { key: "distill",  label: "After distillation", risk: 4 }
+  ];
+
+  function render() {
+    var cacheHit = Number(el.cache.value) / 100;
+    var batchMult = Number(el.batch.value) / 10;
+    var quantMult = Number(el.quant.value) / 10;
+    var distillMult = Number(el.distill.value) / 10;
+    var budget = Number(el.budget.value) / 100;
+
+    el.cacheVal.textContent = Math.round(cacheHit * 100) + "%";
+    el.batchVal.textContent = batchMult.toFixed(1) + "\u00d7";
+    el.quantVal.textContent = quantMult.toFixed(1) + "\u00d7";
+    el.distillVal.textContent = distillMult.toFixed(1) + "\u00d7";
+    el.budgetVal.textContent = Math.round(budget * 100) + "%";
+
+    var costs = [1];
+    costs.push(costs[0] * (1 - cacheHit));
+    costs.push(costs[1] / batchMult);
+    costs.push(costs[2] / quantMult);
+    costs.push(costs[3] / distillMult);
+
+    var clearedAt = -1;
+    for (var i = 0; i < costs.length; i++) { if (costs[i] <= budget) { clearedAt = i; break; } }
+
+    el.rFinal.textContent = (costs[4] * 100).toFixed(1) + "%";
+    el.rStage.textContent = clearedAt === -1 ? "none yet" : STAGES[clearedAt].label.replace("After ", "");
+    el.rStageBox.className = "read " + (clearedAt === -1 ? "bad" : (clearedAt <= 1 ? "good" : ""));
+    var riskUsed = clearedAt === -1 ? 4 : STAGES[clearedAt].risk;
+    el.rRisk.textContent = riskUsed <= 1 ? "Low" : (riskUsed <= 2 ? "Moderate" : (riskUsed <= 3 ? "Elevated" : "Highest"));
+    el.rRiskBox.className = "read " + (riskUsed <= 1 ? "good" : (riskUsed >= 4 ? "bad" : ""));
+
+    var maxCost = costs[0];
+    el.waterfall.innerHTML = STAGES.map(function (s, i) {
+      var pct = Math.max(2, (costs[i] / maxCost) * 100);
+      var cleared = i === clearedAt;
+      return '<div class="wrow"><p class="wLabel"><span>' + s.label + (cleared ? " \u2713 clears budget" : "") +
+        '</span><span>' + (costs[i] * 100).toFixed(1) + '% of baseline</span></p>' +
+        '<div class="wTrack"><div class="wFill s' + i + '" style="width:' + pct + '%"></div></div></div>';
+    }).join("");
+
+    el.verdict.innerHTML = clearedAt === -1
+      ? "<strong>Even all four levers together don't clear the budget.</strong> Final cost is " +
+        (costs[4] * 100).toFixed(1) + "% of baseline against a " + (budget * 100).toFixed(0) +
+        "% target. The next move is not a fifth lever \u2014 it is revisiting the budget or the SLO itself."
+      : "<strong>Stage " + (clearedAt + 1) + " of 5 already clears the budget.</strong> You never " +
+        "needed to reach " + (clearedAt < 4 ? "the more invasive levers below it" : "anything further") +
+        ". That is the entire argument for the ordering: the cheapest, least-risky lever is tried " +
+        "first precisely so you can stop as soon as one clears the bar.";
+  }
+
+  [el.cache, el.batch, el.quant, el.distill, el.budget].forEach(function (i) {
+    i.addEventListener("input", render);
+  });
+  render();
+}());
+</script>
+</body>
+</html>

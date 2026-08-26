@@ -10,10 +10,14 @@ from a local checkout, and on a locked-down corporate network alike.
 | **Reference sheets** | Track, concept and module cheatsheets — searchable, printable, every fact cited | [cheatsheets.html](cheatsheets.html) |
 | **Recall cards** | Retrieval practice on the curriculum's own Q&A, sorted into three Leitner boxes, every card cited | [flashcards.html](flashcards.html) |
 | **Slide deck** | Presentable overview of the curriculum and the findings from building it | [slides.html](slides.html) |
-| **Concept player** | Interactive versions of the infographics, where a control is what teaches | [concepts/coalescing.html](concepts/coalescing.html) |
+| **Concept players** | Twelve interactive versions of the infographics, one per concept cluster, where a control is what teaches | [concepts/index.html](concepts/index.html) |
 
 They form a loop: **plan** what to study, **look up** what you forgot mid-lab, **test** whether it
-stuck, and **present** it to find out what you only half-know.
+stuck, **play** with the one control that makes a concept click, and **present** it to find out
+what you only half-know. Every surface links to the other three: a concept player's footer points
+at its reference sheet and its recall cards; a reference sheet's cluster card points at its concept
+player and its recall cards; a recall card's track filter matches the same track colours
+everywhere.
 
 > **On GitHub these render as source, not as pages.** GitHub does not serve HTML from a repository
 > view. Use the published site (the `Deploy docs to GitHub Pages` workflow builds it on every push to
@@ -99,16 +103,42 @@ command, rather than rendering blank. The published site is unaffected.
 
 ## Concept players
 
-One page per idea where a **control** teaches better than a fixed drawing.
-[`concepts/coalescing.html`](concepts/coalescing.html) is the first: change the access stride and the
-lockstep width, and watch the cache lines touched, the bytes fetched and the bytes wasted move with
-it. The efficiency turns out to be `1/stride` on both a 32-lane warp and a 64-lane wavefront, which
-is a more convincing way to learn that than being told it.
+One page per idea where a **control** teaches better than a fixed drawing —
+[`concepts/index.html`](concepts/index.html) is the hub, one tile per concept cluster, filterable by
+track and cross-linked to that cluster's reference sheet and recall cards. Twelve clusters, twelve
+players, all now built:
+
+| Concept | Modules | Player |
+|---|---|---|
+| Memory hierarchy & coalescing | A02, A06, B01 | [coalescing.html](concepts/coalescing.html) |
+| Divergence & occupancy | A03, A04, A05 | [divergence.html](concepts/divergence.html) |
+| Fusion & FlashAttention traffic | A07, A08, A09 | [attention-traffic.html](concepts/attention-traffic.html) |
+| Roofline & profiling | B02, B03 | [roofline.html](concepts/roofline.html) |
+| Precision, numerics & fp8 | B04 | [precision-formats.html](concepts/precision-formats.html) |
+| Prefill, decode & serving | B05, B06 | [prefill-decode.html](concepts/prefill-decode.html) |
+| Decision thresholds & cost | C01, C02 | [decision-threshold.html](concepts/decision-threshold.html) |
+| Optimization ladder | C04, C05, C07 | [optimization-ladder.html](concepts/optimization-ladder.html) |
+| Drift & monitoring | C03, C06 | [drift-monitor.html](concepts/drift-monitor.html) |
+| Scaling limits & cluster shape | D01, D05 | [scaling-limits.html](concepts/scaling-limits.html) |
+| Ring all-reduce & collectives | D02, D03, B07 | [ring-allreduce.html](concepts/ring-allreduce.html) |
+| Interconnect & fabric tiers | D04, D06 | [fabric-tiers.html](concepts/fabric-tiers.html) |
+
+[`concepts/coalescing.html`](concepts/coalescing.html) was the first: change the access stride and
+the lockstep width, and watch the cache lines touched, the bytes fetched and the bytes wasted move
+with it. The efficiency turns out to be `1/stride` on both a 32-lane warp and a 64-lane wavefront,
+which is a more convincing way to learn that than being told it. The other eleven follow the same
+rule and the same visual system (dark chrome, brand tokens from
+[docs/BRAND.md](../docs/BRAND.md), track-coloured accent bars): every reading is exact arithmetic
+on a formula the linked module already states and cites — never a new measurement, never a new
+claim — and every page says so plainly in its own disclosure note, the same convention the module's
+own analytic labs use.
 
 The bar for adding one is that **the geometry has to genuinely change with the input**. If the
 picture is the same shape at every setting, it should stay an SVG in [`../assets/`](../assets/README.md),
-which remains the canonical version that the module embeds and that survives JavaScript being off.
-The next two candidates are the ring all-reduce phases (D03) and the roofline intensity slider (B02).
+which remains the canonical version that the module embeds and that survives JavaScript being off —
+every concept player links back to its own canonical SVG for exactly that reason. The two clusters
+this repository had already flagged as earning a page, the ring all-reduce phases (D03) and the
+roofline intensity slider (B02), are both now built.
 
 ## Slide deck
 
@@ -140,9 +170,14 @@ The planner and deck hardcode the module list, hour estimates, and depths. The s
 3. `live/flashcards.html` — add cards to `CARDS`, reusing an entry from the `S` source table or adding
    one. A card without a real source does not belong in the deck.
 4. `live/data/reference.json` — add a `modules` entry, and a `clusters` entry if the module brings a
-   genuinely new concept. Every bullet needs a `cite`.
-5. `live/slides.html` — only if the headline counts (30 modules, ~203 hours) change.
-6. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
+   genuinely new concept. Every bullet needs a `cite`. If the new cluster earns a concept player
+   (the geometry genuinely changes with an input), add a `concept` field pointing at it —
+   `cheatsheets.html`'s cluster card wires the link automatically.
+5. `live/concepts/index.html` — add a tile to the inline `CLUSTERS` array so the hub lists it. This
+   mirrors `reference.json`'s `clusters` array on purpose (AGENTS.md trap #7): each live page stands
+   alone with no shared runtime, so the two lists are kept in step by hand.
+6. `live/slides.html` — only if the headline counts (30 modules, ~203 hours) change.
+7. The Cursor canvas at `canvases/curriculum-dashboard.canvas.tsx`, which carries the same data for
    use inside the editor.
 
 The duplication is deliberate: each surface has to stand alone with no shared runtime. Five places is

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ring all-reduce, one step at a time — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive ring all-reduce stepper: step through reduce-scatter and all-gather phase by phase and watch bytes-per-rank converge to 2S regardless of rank count.">
+<!--
+  Interactive companion to assets/ring-allreduce.svg (modules D02, D03, B07).
+
+  Ring all-reduce = reduce-scatter + all-gather (B07 section 2, D03 section 3): 2(P-1) steps
+  total, 2(P-1)/P x S bytes moved per rank, converging to 2S as P grows - independent of rank
+  count, which is the reason ring replaced parameter servers. The step count stays linear even
+  as the byte volume flattens, which is exactly what this stepper is built to make visible: drag
+  the step slider and watch every ring edge light up at once, every step, in either phase.
+
+  Named explicitly as one of the two candidate concept players in AGENTS.md before this pass.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B; --trackd: #DB2777;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--trackd); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--trackd); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--trackd); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--trackd); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--trackd); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button { font: 600 .88rem var(--mono); cursor: pointer; color: var(--dim);
+                 background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                 min-width: 52px; min-height: 44px; padding: .5rem .7rem; }
+  .opts button[aria-pressed="true"] { background: var(--trackd); border-color: var(--trackd); color: #fff; font-weight: 700; }
+  input[type="range"] { width: 100%; accent-color: var(--trackd); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.5rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.neutral b { color: var(--trackd); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; width: 100%; }
+  svg.ring { width: 260px; height: 260px; flex: 0 0 auto; }
+  .node { fill: var(--raised); stroke: var(--rule); stroke-width: 1.5; }
+  .edge { stroke: var(--rule); stroke-width: 1.5; }
+  .edge.active { stroke: var(--trackd); stroke-width: 2.5; }
+  .nodeLabel { font: 700 10px "JetBrains Mono", monospace; fill: var(--dim); text-anchor: middle; }
+  .stepinfo { flex: 1 1 260px; }
+  .stepbar { display: flex; align-items: center; gap: .7rem; margin-top: .5rem; }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; width: 100%; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules D02, D03, B07 &middot; concept player</p>
+  <h1>Ring all-reduce, one step at a time</h1>
+  <p class="lede">
+    All-reduce equals reduce-scatter plus all-gather. Every step, every rank sends to its ring
+    neighbor at once — step through both phases and watch the byte volume per rank converge to
+    <code>2S</code> no matter how many ranks you add, while the step count keeps climbing.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="pLabel">Ranks P</span>
+      <div class="opts" id="ps" role="group" aria-labelledby="pLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="sLabel">Payload size S</span>
+      <div class="opts" id="ss" role="group" aria-labelledby="sLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="stepLabel">Step: <span class="rangeval" id="stepVal">0 of 14</span></span>
+      <input type="range" id="step" min="0" max="13" value="0" aria-labelledby="stepLabel">
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read neutral"><b id="rSteps">14</b><span>total steps, 2(P&minus;1)</span></div>
+    <div class="read good"><b id="rBytes">1.75 MB</b><span>bytes moved per rank, this run</span></div>
+    <div class="read"><b id="rLimit">2.00 MB</b><span>the limit as P &rarr; &infin;, 2S</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>The ring, at this step</h2>
+    <svg class="ring" id="ring" viewBox="0 0 260 260" role="img" aria-label="Ring topology at the current step"></svg>
+    <div class="stepinfo">
+      <p><strong id="phaseLabel">Reduce-scatter</strong>, step <span id="stepOf"></span></p>
+      <p id="phaseDesc" style="color:#DDE3EC;font-size:.92rem;"></p>
+    </div>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Exact arithmetic on the ring formula, not a measurement.</b> Per-rank traffic is
+    2(P&minus;1)/P &times; S; step count is 2(P&minus;1). At P=8 that is 14 steps
+    (<a href="../../tracks/D-distributed-computing/D03.gpu-collectives-nccl-and-rccl/README.md#3-deep-dive">D03
+    section 3</a> gives 2,046 steps at P=1024 — volume converges, latency does not). The
+    latency/bandwidth crossover is S* = P&nbsp;&times;&nbsp;&alpha;&nbsp;&times;&nbsp;B; at P=8,
+    &alpha;=8&mu;s, B=50&nbsp;GB/s that is 3.05&nbsp;MiB
+    (<a href="../../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md#2-first-principles">B07
+    section 2</a>) &mdash; below it you are paying for launches, not wire.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the same
+      argument is the infographic below, which
+      <a href="../../tracks/B-gpu-ml-performance/B07.distributed-training-and-sharding/README.md">module B07</a>
+      embeds.
+    </p>
+    <img src="../../assets/ring-allreduce.svg" alt="A ring of nodes passing chunks around during reduce-scatter, then passing the reduced result back around during all-gather.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/ring-allreduce.svg">ring-allreduce.svg</a>, linked from module B07.
+      Fact without the control: <a href="../cheatsheets.html#sheet-collectives">the collectives
+      reference sheet</a>. Test yourself: <a href="../flashcards.html?track=B">Track B recall
+      cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PS = [4, 8, 16, 32];
+  var SS = [
+    { label: "1 MB", bytes: 1e6 },
+    { label: "16 MB", bytes: 16e6 },
+    { label: "256 MB", bytes: 256e6 }
+  ];
+
+  var P = 8;
+  var S = SS[0];
+
+  var el = {
+    ps: document.getElementById("ps"), ss: document.getElementById("ss"),
+    step: document.getElementById("step"), stepVal: document.getElementById("stepVal"),
+    rSteps: document.getElementById("rSteps"), rBytes: document.getElementById("rBytes"), rLimit: document.getElementById("rLimit"),
+    ring: document.getElementById("ring"), stepOf: document.getElementById("stepOf"),
+    phaseLabel: document.getElementById("phaseLabel"), phaseDesc: document.getElementById("phaseDesc"),
+    verdict: document.getElementById("verdict")
+  };
+
+  function bytesStr(n) {
+    if (n >= 1e6) { return (n / 1e6).toFixed(2) + " MB"; }
+    if (n >= 1e3) { return (n / 1e3).toFixed(1) + " KB"; }
+    return n + " B";
+  }
+
+  function buildOpts(container, items, key, current, onPick) {
+    container.innerHTML = "";
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.label;
+      b.setAttribute("aria-pressed", String(it.value === current));
+      b.addEventListener("click", function () { onPick(it.value); });
+      container.appendChild(b);
+    });
+  }
+
+  function paintOpts(container, values, current) {
+    Array.prototype.forEach.call(container.children, function (b, i) {
+      b.setAttribute("aria-pressed", String(values[i] === current));
+    });
+  }
+
+  function drawRing(step, totalSteps) {
+    var cx = 130, cy = 130, r = 95;
+    var parts = [];
+    var pos = [];
+    for (var i = 0; i < P; i++) {
+      var angle = (i / P) * 2 * Math.PI - Math.PI / 2;
+      pos.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+    }
+    for (i = 0; i < P; i++) {
+      var a = pos[i], b0 = pos[(i + 1) % P];
+      parts.push('<line class="edge active" x1="' + a.x + '" y1="' + a.y + '" x2="' + b0.x + '" y2="' + b0.y + '"></line>');
+    }
+    for (i = 0; i < P; i++) {
+      parts.push('<circle class="node" cx="' + pos[i].x + '" cy="' + pos[i].y + '" r="14"></circle>');
+      parts.push('<text class="nodeLabel" x="' + pos[i].x + '" y="' + (pos[i].y + 3) + '">' + i + '</text>');
+    }
+    el.ring.innerHTML = parts.join("");
+  }
+
+  function render() {
+    paintOpts(el.ps, PS, P);
+    paintOpts(el.ss, SS.map(function (s) { return s.bytes; }), S.bytes);
+
+    var totalSteps = 2 * (P - 1);
+    el.step.max = totalSteps - 1;
+    var step = Math.min(Number(el.step.value), totalSteps - 1);
+    el.stepVal.textContent = step + " of " + (totalSteps - 1);
+    el.rSteps.textContent = totalSteps;
+
+    var perRankBytes = (2 * (P - 1) / P) * S.bytes;
+    el.rBytes.textContent = bytesStr(perRankBytes);
+    el.rLimit.textContent = bytesStr(2 * S.bytes);
+
+    var phase = step < P - 1 ? "Reduce-scatter" : "All-gather";
+    var phaseStep = step < P - 1 ? step + 1 : step - (P - 1) + 1;
+    el.phaseLabel.textContent = phase;
+    el.stepOf.textContent = phaseStep + " of " + (P - 1);
+    el.phaseDesc.textContent = phase === "Reduce-scatter"
+      ? "Every rank sends its chunk to its ring neighbor and reduces the chunk it receives. After P\u22121 steps, rank i holds the fully reduced chunk i."
+      : "Every rank sends its now-complete chunk onward around the ring. After P\u22121 more steps, every rank holds every chunk.";
+
+    drawRing(step, totalSteps);
+
+    var chunkFrac = 1 / P;
+    el.verdict.innerHTML = "<strong>Every one of the " + P + " edges is active this step.</strong> " +
+      "Each rank moves S/P = " + bytesStr(S.bytes / P) + " this step. Over all " + totalSteps +
+      " steps that totals " + bytesStr(perRankBytes) + " per rank \u2014 as P grows the " +
+      "2(P\u22121)/P factor slides toward 2, so the byte volume per rank approaches " +
+      bytesStr(2 * S.bytes) + " and stops growing with P, even though the step count keeps rising.";
+  }
+
+  buildOpts(el.ps, PS.map(function (p) { return { value: p, label: String(p) }; }), "p", P,
+    function (v) { P = v; render(); });
+  buildOpts(el.ss, SS.map(function (s) { return { value: s.bytes, label: s.label }; }), "s", S.bytes,
+    function (v) { S = SS.filter(function (s) { return s.bytes === v; })[0]; render(); });
+
+  el.step.addEventListener("input", render);
+  render();
+}());
+</script>
+</body>
+</html>

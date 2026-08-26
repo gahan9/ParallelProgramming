@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concept players — GPU + ML Expert Tutor</title>
+<meta name="description" content="Twelve interactive concept players, one per concept cluster in the Parallel Programming curriculum — a control for every idea that a fixed drawing cannot fully teach.">
+<!--
+  Hub for live/concepts/*.html. Hardcoded, not fetched: every other live/ page (dashboard,
+  flashcards, slides) carries its data inline for the same reason - each surface stands alone
+  with no shared runtime (AGENTS.md trap #7). Only cheatsheets.html fetches JSON, and it says
+  why on screen. This page mirrors the twelve `clusters` entries in data/reference.json; if you
+  add a thirteenth concept player, add it in both places.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary:   #0891B2;
+    --deep:      #0F172A;
+    --accent:    #6366F1;
+    --highlight: #F59E0B;
+    --success:   #10B981;
+    --surface:   #F8FAFC;
+    --muted:     #64748B;
+    --trackd:    #DB2777;
+
+    --bg:     var(--deep);
+    --raised: #1B2436;
+    --sunk:   #131C2E;
+    --fg:     var(--surface);
+    --dim:    #94A3B8;
+    --rule:   #2C3A52;
+
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+
+  .top { border-top: 4px solid var(--primary); margin: 0 -1.25rem; }
+  nav.bar {
+    max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+    display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline;
+  }
+  nav.bar .brand {
+    font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--primary); margin-right: auto;
+  }
+  nav.bar a {
+    font-size: .84rem; text-decoration: none; color: var(--dim);
+    border-bottom: 1px solid transparent; padding-bottom: 2px;
+  }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 1.2rem 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0 0 .3rem; }
+  .cite-lede { color: var(--muted); font-size: .84rem; max-width: 70ch; margin: .5rem 0 0; }
+
+  /* ---- the same "a square is a unit" rail device the reference sheets use, here as
+     a 12-lane concept map instead of 30 modules, so the two surfaces read as one family ---- */
+  .railwrap { margin: 1.5rem 0 .3rem; }
+  .rail { display: flex; flex-wrap: wrap; gap: 4px; }
+  .lane {
+    width: 26px; height: 20px; border-radius: 3px; border: 0; padding: 0; cursor: pointer;
+    opacity: 1; transition: opacity .12s linear, transform .12s linear;
+    font: 700 10px var(--mono); color: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center;
+  }
+  .lane:hover { transform: translateY(-2px); }
+  .lane:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .lane.dim { opacity: .16; }
+  .lane.stub { opacity: .45; }
+  .railnote { font: 400 11.5px var(--mono); color: var(--muted); margin: .55rem 0 0; }
+  .railnote b { color: var(--fg); font-weight: 700; }
+
+  .pills { display: flex; flex-wrap: wrap; gap: .35rem; margin: 1.3rem 0 0; }
+  .pills button {
+    font: inherit; font-size: .8rem; cursor: pointer; color: var(--dim);
+    background: var(--sunk); border: 1px solid var(--rule); border-radius: 999px;
+    padding: .34rem .8rem;
+  }
+  .pills button:hover { border-color: var(--primary); color: var(--fg); }
+  .pills button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .pills button[aria-pressed="true"] { color: #06212A; font-weight: 700; }
+  .pills button[data-track="all"][aria-pressed="true"] { background: var(--primary); border-color: var(--primary); }
+  .pills button[data-track="A"][aria-pressed="true"] { background: var(--primary); border-color: var(--primary); }
+  .pills button[data-track="B"][aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pills button[data-track="C"][aria-pressed="true"] { background: var(--highlight); border-color: var(--highlight); }
+  .pills button[data-track="D"][aria-pressed="true"] { background: var(--trackd); border-color: var(--trackd); color: #fff; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: .9rem; margin-top: 1.3rem; }
+  .card {
+    background: var(--raised); border: 1px solid var(--rule); border-left: 4px solid var(--primary);
+    border-radius: 0 8px 8px 0; padding: 1.1rem 1.2rem 1rem; display: flex; flex-direction: column;
+  }
+  .card.tA { border-left-color: var(--primary); }
+  .card.tB { border-left-color: var(--accent); }
+  .card.tC { border-left-color: var(--highlight); }
+  .card.tD { border-left-color: var(--trackd); }
+  .card .kicker { font: 700 10.5px var(--mono); letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin: 0; }
+  .card h2 { margin: .3rem 0 .35rem; font-size: 1.08rem; letter-spacing: -.01em; line-height: 1.3; }
+  .card p.sub { margin: 0; font-size: .87rem; color: var(--dim); flex: 1; }
+  .card .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-top: .95rem; }
+  .card .play {
+    font: 700 .84rem var(--sans); text-decoration: none; color: #06212A;
+    background: var(--primary); border-radius: 6px; padding: .45rem .9rem;
+  }
+  .card.tB .play { background: var(--accent); color: #fff; }
+  .card.tC .play { background: var(--highlight); color: #331B02; }
+  .card.tD .play { background: var(--trackd); color: #fff; }
+  .card .play:hover { filter: brightness(1.08); }
+  .card .sub2 { font: 400 .78rem var(--mono); color: var(--muted); }
+  .card .sub2 a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--rule); }
+  .card .sub2 a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  .card.stub { opacity: .82; }
+  .card.stub .play { background: var(--sunk); color: var(--dim); border: 1px solid var(--rule); cursor: default; pointer-events: none; }
+
+  .stubnote { display: block; font: 400 .74rem var(--mono); color: var(--highlight); margin-top: .4rem; }
+
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <h1>Concept players</h1>
+  <p class="lede">
+    Twelve concept clusters, twelve controls. Each page turns the one number a module argues with
+    a fixed drawing into something you can drag — the same argument, but now you can ask "what
+    about halfway between?" and get an answer instead of a guess.
+  </p>
+  <p class="cite-lede">
+    Every reading is derived from the formula the linked module states and cites, not measured on
+    real hardware — each page says so plainly, the same way its module's own analytic labs do.
+    Want the fact without the control? <a href="../cheatsheets.html">the reference sheets</a>. Want
+    to be tested on it? <a href="../flashcards.html">the recall cards</a>.
+  </p>
+
+  <div class="railwrap">
+    <div class="rail" id="rail" role="group" aria-label="All twelve concept clusters, coloured by track"></div>
+    <p class="railnote" id="railnote"></p>
+  </div>
+
+  <div class="pills" id="pills" role="group" aria-label="Filter by track"></div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    <p>
+      <strong>The bar for a page here is that the geometry has to genuinely change with the
+      input.</strong> If a picture is the same shape at every setting, it stays a static
+      infographic in <a href="../../assets/README.md">assets/</a> — the canonical version every
+      module embeds and the one that still works with JavaScript off. Twelve concepts, twelve
+      players: every cluster in <a href="../cheatsheets.html">the reference sheets</a> now has one.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var COLOR = { A: "#0891B2", B: "#6366F1", C: "#F59E0B", D: "#DB2777" };
+
+  /* Mirrors the `clusters` array in ../data/reference.json. Kept inline, not fetched, so this
+     page works from a local file:// checkout exactly like the planner and the recall deck do -
+     the concept players themselves must survive file:// too, since that is how a reader who
+     cloned the repo opens them. */
+  var CLUSTERS = [
+    { id: "memory", track: "A", title: "Memory hierarchy & coalescing", sub: "Drag the access stride and watch cache lines fill or get thrown away.", mods: ["A02", "A06", "B01"], href: "coalescing.html" },
+    { id: "occupancy", track: "A", title: "Divergence & occupancy", sub: "Split a wavefront's branch and watch idle lane-cycles move without the total changing.", mods: ["A03", "A04", "A05"], href: "divergence.html" },
+    { id: "fusion", track: "A", title: "Fusion & FlashAttention traffic", sub: "Slide sequence length against head dimension and watch the fusion ratio 1 + N/d.", mods: ["A07", "A08", "A09"], href: "attention-traffic.html" },
+    { id: "roofline", track: "B", title: "Roofline & profiling", sub: "Move the intensity dot along an illustrative roofline and see what actually bounds it.", mods: ["B02", "B03"], href: "roofline.html" },
+    { id: "precision", track: "B", title: "Precision, numerics & fp8", sub: "Decode the same byte under FNUZ and OCP fp8 and watch the two answers disagree.", mods: ["B04"], href: "precision-formats.html" },
+    { id: "prefill-decode", track: "B", title: "Prefill, decode & serving", sub: "Slide tokens-in-flight against hidden size and watch the machine change character.", mods: ["B05", "B06"], href: "prefill-decode.html" },
+    { id: "framing", track: "C", title: "Decision thresholds & cost", sub: "Move the cost ratio between two error types and watch the optimal threshold slide.", mods: ["C01", "C02"], href: "decision-threshold.html" },
+    { id: "deployment", track: "C", title: "Optimization ladder", sub: "Stack cheap, low-risk levers first and watch how little of the expensive ones you need.", mods: ["C04", "C05", "C07"], href: "optimization-ladder.html" },
+    { id: "reliability", track: "C", title: "Drift & monitoring", sub: "Shift a live distribution against its baseline and watch a divergence score move.", mods: ["C03", "C06"], href: "drift-monitor.html" },
+    { id: "scaling-laws", track: "D", title: "Scaling limits & cluster shape", sub: "Add ranks and watch Amdahl's curve flatten, then communication turn it over.", mods: ["D01", "D05"], href: "scaling-limits.html" },
+    { id: "collectives", track: "D", title: "Ring all-reduce & collectives", sub: "Step through a ring all-reduce phase by phase and watch bytes-per-rank converge to 2S.", mods: ["D02", "D03", "B07"], href: "ring-allreduce.html" },
+    { id: "fabric", track: "D", title: "Interconnect & fabric tiers", sub: "Slide a message size across five fabric tiers and watch the order-of-magnitude gaps.", mods: ["D04", "D06"], href: "fabric-tiers.html" }
+  ];
+
+  var railEl = document.getElementById("rail");
+  var railNote = document.getElementById("railnote");
+  var pillsEl = document.getElementById("pills");
+  var gridEl = document.getElementById("grid");
+  var track = "all";
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function matches(c) { return track === "all" || c.track === track; }
+
+  function buildRail() {
+    railEl.innerHTML = "";
+    CLUSTERS.forEach(function (c) {
+      var b = document.createElement("button");
+      b.className = "lane";
+      b.style.background = COLOR[c.track];
+      b.dataset.id = c.id;
+      b.title = c.title;
+      b.textContent = c.track;
+      b.setAttribute("aria-label", c.title);
+      b.addEventListener("click", function () {
+        var card = document.getElementById("card-" + c.id);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          card.style.transition = "box-shadow .2s";
+          card.style.boxShadow = "0 0 0 2px " + COLOR[c.track];
+          setTimeout(function () { card.style.boxShadow = ""; }, 1400);
+        }
+      });
+      railEl.appendChild(b);
+    });
+  }
+
+  function paintRail() {
+    var live = 0;
+    Array.prototype.forEach.call(railEl.children, function (b) {
+      var c = CLUSTERS.filter(function (x) { return x.id === b.dataset.id; })[0];
+      var on = matches(c);
+      b.classList.toggle("dim", !on);
+      if (on) { live++; }
+    });
+    var scope = track === "all" ? "" : " in Track " + track;
+    railNote.innerHTML = "<b>" + live + "</b> of " + CLUSTERS.length +
+      " concept players match" + esc(scope) + " &middot; click a lane to jump to it";
+  }
+
+  function buildPills() {
+    var defs = [
+      { t: "all", label: "All tracks" },
+      { t: "A", label: "A \u00b7 GPU Programming" },
+      { t: "B", label: "B \u00b7 GPU + ML Performance" },
+      { t: "C", label: "C \u00b7 ML System Design" },
+      { t: "D", label: "D \u00b7 Distributed Computing" }
+    ];
+    defs.forEach(function (d) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.dataset.track = d.t;
+      b.textContent = d.label;
+      b.setAttribute("aria-pressed", String(d.t === track));
+      b.addEventListener("click", function () { track = d.t; render(); });
+      pillsEl.appendChild(b);
+    });
+  }
+
+  function paintPills() {
+    Array.prototype.forEach.call(pillsEl.children, function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.track === track));
+    });
+  }
+
+  function card(c) {
+    return '<article class="card t' + c.track + '" id="card-' + esc(c.id) + '">' +
+      '<p class="kicker">Track ' + c.track + " &middot; " + c.mods.join(", ") + "</p>" +
+      "<h2>" + esc(c.title) + "</h2>" +
+      '<p class="sub">' + esc(c.sub) + "</p>" +
+      '<div class="row">' +
+        '<a class="play" href="' + esc(c.href) + '">Play &rarr;</a>' +
+        '<span class="sub2"><a href="../cheatsheets.html#sheet-' + esc(c.id) + '">reference</a> &middot; ' +
+        '<a href="../flashcards.html?track=' + c.track + '">recall</a></span>' +
+      "</div>" +
+    "</article>";
+  }
+
+  function render() {
+    paintRail();
+    paintPills();
+    var items = CLUSTERS.filter(matches);
+    gridEl.innerHTML = items.map(card).join("");
+  }
+
+  buildRail();
+  buildPills();
+  render();
+}());
+</script>
+</body>
+</html>

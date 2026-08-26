@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Same weights, two machines — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive companion to the prefill/decode split: slide tokens-in-flight against hidden size and watch a transformer's arithmetic intensity cross from decode into prefill territory.">
+<!--
+  Interactive companion to assets/prefill-decode-split.svg (modules B05-B06).
+
+  Formula from B05 section 2: intensity = T*d / (d + 2T), where T is tokens processed together
+  (batch x sequence for prefill, batch alone for decode) and d is hidden size. The module's own
+  worked points - 1.0 at T=1, 247 at T=281, 1024 at T=2048, all at d=4096 - are reproduced exactly
+  by this page's defaults, and the ridge line at 247 FLOP/byte is B05's own cited MI300X figure,
+  not a new claim.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--accent); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--accent); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--accent); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--accent); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button { font: 600 .88rem var(--mono); cursor: pointer; color: var(--dim);
+                 background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                 min-width: 58px; min-height: 44px; padding: .5rem .7rem; }
+  .opts button:hover { border-color: var(--accent); color: var(--fg); }
+  .opts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.5rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .read.neutral b { color: var(--accent); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .axis { stroke: var(--rule); stroke-width: 1; }
+  .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+  .ridgeLine { stroke: var(--highlight); stroke-width: 1; stroke-dasharray: 3 4; }
+  .dot { fill: var(--highlight); stroke: var(--deep); stroke-width: 2; }
+  .tick { font: 400 10px "JetBrains Mono", monospace; fill: var(--dim); }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules B05&ndash;B06 &middot; concept player</p>
+  <h1>Same weights, two machines</h1>
+  <p class="lede">
+    One projection, one formula: intensity = Td / (d + 2T). Slide tokens-in-flight and watch decode
+    at batch 1 sit on the floor, then climb past the machine's ridge point into prefill territory
+    as batching or sequence length grows.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="dLabel">Hidden size d</span>
+      <div class="opts" id="ds" role="group" aria-labelledby="dLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="tLabel">Tokens in flight, T (batch &times; sequence): <span class="rangeval" id="tVal">1</span></span>
+      <input type="range" id="t" min="0" max="360" value="0" aria-labelledby="tLabel">
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read neutral"><b id="rIntensity">1.0</b><span>FLOP/byte, this T</span></div>
+    <div class="read" id="rBoundBox"><b id="rBound">Decode</b><span>which machine this looks like</span></div>
+    <div class="read"><b id="rCrossover">281</b><span>T where intensity = ridge (247)</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Intensity as T grows</h2>
+    <svg class="chart" id="chart" viewBox="0 0 640 320" role="img" aria-label="Intensity versus tokens in flight"></svg>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Exact arithmetic on the module's formula, not a measurement.</b> At d=4096 this reproduces
+    B05's own worked points exactly: 1.0 at T=1, roughly 247 at T=281 (the machine's cited ridge
+    point on MI300X), 1024 at T=2048.
+    <a href="../../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md#2-first-principles">B05
+    section 2</a> derives the formula; decode at batch 1 uses about 0.4% of the machine's
+    arithmetic because the cost there is entirely the weight read, not the multiply.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the same
+      argument is the infographic below, which
+      <a href="../../tracks/B-gpu-ml-performance/B05.transformer-performance/README.md">module B05</a>
+      embeds.
+    </p>
+    <img src="../../assets/prefill-decode-split.svg" alt="Decode at batch 1 sits at the floor of the intensity curve; prefill with a long sequence sits far up it, past the ridge point.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/prefill-decode-split.svg">prefill-decode-split.svg</a>, which the
+      module embeds. Fact without the control:
+      <a href="../cheatsheets.html#sheet-prefill-decode">the prefill/decode reference sheet</a>.
+      Test yourself: <a href="../flashcards.html?track=B">Track B recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var DS = [1024, 2048, 4096, 8192];
+  var RIDGE = 247; // B05's own cited MI300X ridge point, not a new claim
+  var T_MIN = 1, T_MAX = 4096;
+
+  var d = 4096;
+
+  var el = {
+    ds: document.getElementById("ds"),
+    t: document.getElementById("t"), tVal: document.getElementById("tVal"),
+    rIntensity: document.getElementById("rIntensity"), rBound: document.getElementById("rBound"),
+    rBoundBox: document.getElementById("rBoundBox"), rCrossover: document.getElementById("rCrossover"),
+    chart: document.getElementById("chart"), verdict: document.getElementById("verdict")
+  };
+
+  function sliderToT(v) {
+    var t = v / 360;
+    return Math.round(Math.pow(10, Math.log10(T_MIN) + t * (Math.log10(T_MAX) - Math.log10(T_MIN))));
+  }
+
+  function intensity(T, d0) { return (T * d0) / (d0 + 2 * T); }
+
+  var W = 640, H = 320, M = { l: 50, r: 16, t: 16, b: 34 };
+  function xPix(T) {
+    var t = (Math.log10(Math.max(T, T_MIN)) - Math.log10(T_MIN)) / (Math.log10(T_MAX) - Math.log10(T_MIN));
+    return M.l + t * (W - M.l - M.r);
+  }
+  var Y_MIN = 0.5, Y_MAX = 2000;
+  function yPix(v) {
+    var t = (Math.log10(Math.max(v, Y_MIN)) - Math.log10(Y_MIN)) / (Math.log10(Y_MAX) - Math.log10(Y_MIN));
+    return (H - M.b) - t * (H - M.t - M.b);
+  }
+
+  function drawChart(d0, T, val) {
+    var parts = [];
+    parts.push('<line class="axis" x1="' + M.l + '" y1="' + M.t + '" x2="' + M.l + '" y2="' + (H - M.b) + '"></line>');
+    parts.push('<line class="axis" x1="' + M.l + '" y1="' + (H - M.b) + '" x2="' + (W - M.r) + '" y2="' + (H - M.b) + '"></line>');
+    [1, 10, 100, 1000].forEach(function (t) {
+      var x = xPix(t);
+      parts.push('<line class="axis" x1="' + x + '" y1="' + M.t + '" x2="' + x + '" y2="' + (H - M.b) + '" opacity="0.35"></line>');
+      parts.push('<text class="tick" x="' + x + '" y="' + (H - M.b + 16) + '" text-anchor="middle">T=' + t + '</text>');
+    });
+    [1, 10, 100, 1000].forEach(function (t) {
+      var y = yPix(t);
+      parts.push('<line class="axis" x1="' + M.l + '" y1="' + y + '" x2="' + (W - M.r) + '" y2="' + y + '" opacity="0.35"></line>');
+      parts.push('<text class="tick" x="' + (M.l - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + t + '</text>');
+    });
+
+    var pts = [];
+    for (var i = 0; i <= 60; i++) {
+      var T = Math.pow(10, Math.log10(T_MIN) + (i / 60) * (Math.log10(T_MAX) - Math.log10(T_MIN)));
+      pts.push(xPix(T) + "," + yPix(intensity(T, d0)));
+    }
+    parts.push('<polyline class="curve" points="' + pts.join(" ") + '"></polyline>');
+
+    var yr = yPix(RIDGE);
+    parts.push('<line class="ridgeLine" x1="' + M.l + '" y1="' + yr + '" x2="' + (W - M.r) + '" y2="' + yr + '"></line>');
+    parts.push('<text class="tick" x="' + (W - M.r) + '" y="' + (yr - 5) + '" text-anchor="end" fill="#F59E0B">ridge 247</text>');
+
+    var dx = xPix(T), dy = yPix(val);
+    parts.push('<circle class="dot" cx="' + dx + '" cy="' + dy + '" r="6"></circle>');
+    el.chart.innerHTML = parts.join("");
+  }
+
+  function buildDs() {
+    el.ds.innerHTML = "";
+    DS.forEach(function (d0) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.dataset.d = d0;
+      b.textContent = d0;
+      b.setAttribute("aria-pressed", String(d0 === d));
+      b.addEventListener("click", function () { d = d0; render(); });
+      el.ds.appendChild(b);
+    });
+  }
+
+  function render() {
+    Array.prototype.forEach.call(el.ds.children, function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.d) === d));
+    });
+    var T = sliderToT(Number(el.t.value));
+    var val = intensity(T, d);
+    var crossover = Math.round((RIDGE * d) / (d - 2 * RIDGE));
+
+    el.tVal.textContent = T.toLocaleString();
+    el.rIntensity.textContent = val < 10 ? val.toFixed(2) : val.toFixed(0);
+    el.rCrossover.textContent = crossover.toLocaleString();
+    var bound = val < RIDGE ? "Decode-like" : "Prefill-like";
+    el.rBound.textContent = bound;
+    el.rBoundBox.className = "read " + (bound === "Prefill-like" ? "good" : "bad");
+
+    drawChart(d, T, val);
+
+    el.verdict.innerHTML = T <= 4
+      ? "<strong>This is decode at batch " + T + ".</strong> Intensity is " + val.toFixed(2) +
+        " FLOP/byte \u2014 the cost is almost entirely the weight read, and the multiply is nearly free. " +
+        "Quantizing the weights helps here because it shrinks the read, not the arithmetic."
+      : (val < RIDGE
+        ? "<strong>Still bandwidth-bound.</strong> At T=" + T.toLocaleString() + ", d=" + d + ", intensity is " +
+          val.toFixed(1) + " \u2014 below the " + RIDGE + " FLOP/byte ridge. Batching more tokens together " +
+          "(continuous batching, or a longer prefill) is what moves this number."
+        : "<strong>Past the ridge \u2014 this now looks like prefill.</strong> At T=" + T.toLocaleString() +
+          ", intensity is " + val.toFixed(0) + ", above the " + RIDGE + " FLOP/byte ridge. The machine is " +
+          "arithmetic-bound here, which is why batching keeps helping throughput without much more benefit " +
+          "past this point.");
+  }
+
+  buildDs();
+  el.t.addEventListener("input", render);
+  render();
+}());
+</script>
+</body>
+</html>

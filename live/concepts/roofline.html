@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The roofline, with the dot in your hands — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive roofline: drag arithmetic intensity along an illustrative roofline and watch whether the attainable performance is bandwidth-bound or compute-bound.">
+<!--
+  Interactive companion to assets/roofline.svg (modules B02-B03).
+
+  One formula, min(peak, intensity x bandwidth) - B02 section 2 - drawn as a real log-log plot
+  with the intensity dot draggable. Peak and bandwidth are ILLUSTRATIVE round numbers, not any
+  vendor's spec: this is a teaching tool for the shape of the curve, and the module says plainly
+  that published ceilings are a starting point, not an answer (B02 section 4) - its lab derives
+  real numbers from your own hardware, which this page cannot substitute for.
+
+  The plot is plain SVG positioned by a log-log mapping computed in the script below, not a
+  charting library.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--accent); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--accent); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--accent); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--accent); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button { font: 600 .88rem var(--mono); cursor: pointer; color: var(--dim);
+                 background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                 min-width: 58px; min-height: 44px; padding: .5rem .7rem; }
+  .opts button:hover { border-color: var(--accent); color: var(--fg); }
+  .opts button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .opts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.5rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .read.neutral b { color: var(--accent); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .axis { stroke: var(--rule); stroke-width: 1; }
+  .roofline { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+  .ridgeLine { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
+  .dot { fill: var(--highlight); stroke: var(--deep); stroke-width: 2; }
+  .tick { font: 400 10px "JetBrains Mono", monospace; fill: var(--dim); }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules B02&ndash;B03 &middot; concept player</p>
+  <h1>The roofline, with the dot in your hands</h1>
+  <p class="lede">
+    One formula draws the whole curve: attainable performance is the minimum of the machine's peak
+    arithmetic rate and intensity times its bandwidth. Slide the intensity and watch which term
+    wins &mdash; then move the roof itself.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="peakLabel">Illustrative peak, TFLOP/s: <span class="rangeval" id="peakVal">100</span></span>
+      <input type="range" id="peak" min="20" max="400" step="10" value="100" aria-labelledby="peakLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="bwLabel">Illustrative bandwidth, TB/s: <span class="rangeval" id="bwVal">2.0</span></span>
+      <input type="range" id="bw" min="2" max="60" step="1" value="20" aria-labelledby="bwLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="intLabel">Arithmetic intensity, FLOP/byte: <span class="rangeval" id="intVal">1.0</span></span>
+      <input type="range" id="intensity" min="0" max="300" value="150" aria-labelledby="intLabel">
+    </div>
+    <div class="ctl">
+      <span class="name">Common workloads</span>
+      <div class="opts" id="presets" role="group"></div>
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read neutral"><b id="rRidge">5.0</b><span>ridge point, FLOP/byte</span></div>
+    <div class="read"><b id="rAttain">10.0</b><span>TFLOP/s attainable</span></div>
+    <div class="read" id="rBoundBox"><b id="rBound">BW-bound</b><span>what limits you here</span></div>
+    <div class="read"><b id="rUtil">10%</b><span>of illustrative peak reached</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Log&ndash;log roofline</h2>
+    <svg class="chart" id="chart" viewBox="0 0 640 320" role="img" aria-label="Roofline chart"></svg>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Peak and bandwidth here are illustrative, not any vendor's spec.</b> They exist to let the
+    roof itself move so you can see the ridge point shift. Published ceilings are a starting
+    point, not an answer &mdash;
+    <a href="../../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#4-hands-on-labs">B02's
+    lab</a> derives real peak FLOP/s and bandwidth from your own hardware, and every kernel this
+    curriculum writes plots left of the ridge on real silicon
+    (<a href="../../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md#5-performance-analysis">B02
+    section 5</a>), which is the argument for fusion in one picture.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the same
+      argument is the infographic below, which
+      <a href="../../tracks/B-gpu-ml-performance/B02.roofline-and-arithmetic-intensity/README.md">module B02</a>
+      embeds.
+    </p>
+    <img src="../../assets/roofline.svg" alt="A roofline chart: a sloped bandwidth-bound line meeting a flat compute-bound line at the ridge point.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/roofline.svg">roofline.svg</a>, which the module embeds and which
+      stays correct with JavaScript off. Fact without the control:
+      <a href="../cheatsheets.html#sheet-roofline">the roofline reference sheet</a>. Test
+      yourself: <a href="../flashcards.html?track=B">Track B recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PRESETS = [
+    { label: "vector add", intensity: 0.08 },
+    { label: "naive GEMM", intensity: 0.25 },
+    { label: "tiled GEMM", intensity: 16 },
+    { label: "fused attn.", intensity: 40 }
+  ];
+
+  var el = {
+    peak: document.getElementById("peak"), peakVal: document.getElementById("peakVal"),
+    bw: document.getElementById("bw"), bwVal: document.getElementById("bwVal"),
+    intensity: document.getElementById("intensity"), intVal: document.getElementById("intVal"),
+    presets: document.getElementById("presets"),
+    rRidge: document.getElementById("rRidge"), rAttain: document.getElementById("rAttain"),
+    rBound: document.getElementById("rBound"), rBoundBox: document.getElementById("rBoundBox"),
+    rUtil: document.getElementById("rUtil"),
+    chart: document.getElementById("chart"), verdict: document.getElementById("verdict")
+  };
+
+  // intensity slider is linear 0..300 mapped to log10 domain [0.03, 300] for a natural drag feel
+  var I_MIN = 0.03, I_MAX = 300;
+  function sliderToIntensity(v) {
+    var t = v / 300;
+    return Math.pow(10, Math.log10(I_MIN) + t * (Math.log10(I_MAX) - Math.log10(I_MIN)));
+  }
+  function intensityToSlider(i) {
+    var t = (Math.log10(i) - Math.log10(I_MIN)) / (Math.log10(I_MAX) - Math.log10(I_MIN));
+    return Math.round(t * 300);
+  }
+
+  var W = 640, H = 320, M = { l: 46, r: 16, t: 16, b: 34 };
+  var X_MIN = 0.03, X_MAX = 300, Y_MIN = 0.3, Y_MAX = 500;
+
+  function xPix(intensity) {
+    var t = (Math.log10(intensity) - Math.log10(X_MIN)) / (Math.log10(X_MAX) - Math.log10(X_MIN));
+    return M.l + t * (W - M.l - M.r);
+  }
+  function yPix(perf) {
+    var t = (Math.log10(perf) - Math.log10(Y_MIN)) / (Math.log10(Y_MAX) - Math.log10(Y_MIN));
+    return (H - M.b) - t * (H - M.t - M.b);
+  }
+
+  function fmt(n, unit) {
+    if (n >= 100) { return n.toFixed(0) + (unit || ""); }
+    if (n >= 10) { return n.toFixed(1) + (unit || ""); }
+    return n.toFixed(2) + (unit || "");
+  }
+
+  function drawChart(peak, bw, intensity, attain) {
+    var ridge = peak / bw;
+    var parts = [];
+    parts.push('<line class="axis" x1="' + M.l + '" y1="' + M.t + '" x2="' + M.l + '" y2="' + (H - M.b) + '"></line>');
+    parts.push('<line class="axis" x1="' + M.l + '" y1="' + (H - M.b) + '" x2="' + (W - M.r) + '" y2="' + (H - M.b) + '"></line>');
+
+    [0.1, 1, 10, 100].forEach(function (t) {
+      var x = xPix(t);
+      parts.push('<line class="axis" x1="' + x + '" y1="' + M.t + '" x2="' + x + '" y2="' + (H - M.b) + '" opacity="0.35"></line>');
+      parts.push('<text class="tick" x="' + x + '" y="' + (H - M.b + 16) + '" text-anchor="middle">' + t + '</text>');
+    });
+    [1, 10, 100].forEach(function (t) {
+      var y = yPix(t);
+      parts.push('<line class="axis" x1="' + M.l + '" y1="' + y + '" x2="' + (W - M.r) + '" y2="' + y + '" opacity="0.35"></line>');
+      parts.push('<text class="tick" x="' + (M.l - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + t + '</text>');
+    });
+    parts.push('<text class="tick" x="' + (W / 2) + '" y="' + (H - 4) + '" text-anchor="middle">arithmetic intensity (FLOP/byte, log)</text>');
+
+    // roofline: bandwidth-bound segment then compute-bound segment
+    var x0 = xPix(X_MIN), y0 = yPix(X_MIN * bw);
+    var xr = xPix(ridge), yr = yPix(peak);
+    var x1 = xPix(X_MAX), y1 = yPix(peak);
+    parts.push('<polyline class="roofline" points="' + x0 + ',' + y0 + ' ' + xr + ',' + yr + ' ' + x1 + ',' + y1 + '"></polyline>');
+    parts.push('<line class="ridgeLine" x1="' + xr + '" y1="' + M.t + '" x2="' + xr + '" y2="' + (H - M.b) + '"></line>');
+    parts.push('<text class="tick" x="' + xr + '" y="' + (M.t + 10) + '" text-anchor="middle" fill="#94A3B8">ridge ' + fmt(ridge) + '</text>');
+
+    var dx = xPix(intensity), dy = yPix(attain);
+    parts.push('<circle class="dot" cx="' + dx + '" cy="' + dy + '" r="6"></circle>');
+
+    el.chart.innerHTML = parts.join("");
+  }
+
+  function render() {
+    var peak = Number(el.peak.value);
+    var bw = Number(el.bw.value) / 1; // TB/s == TFLOP/byte*s equivalent unit for this illustrative model
+    var intensity = sliderToIntensity(Number(el.intensity.value));
+    var ridge = peak / bw;
+    var attain = Math.min(peak, intensity * bw);
+    var bound = attain >= peak * 0.999 ? "Compute-bound" : "Bandwidth-bound";
+
+    el.peakVal.textContent = peak;
+    el.bwVal.textContent = bw.toFixed(1);
+    el.intVal.textContent = intensity < 1 ? intensity.toFixed(2) : intensity.toFixed(intensity < 10 ? 1 : 0);
+    el.rRidge.textContent = fmt(ridge);
+    el.rAttain.textContent = fmt(attain);
+    el.rBound.textContent = bound;
+    el.rBoundBox.className = "read " + (bound === "Compute-bound" ? "good" : "bad");
+    el.rUtil.textContent = ((attain / peak) * 100).toFixed(1) + "%";
+
+    drawChart(peak, bw, intensity, attain);
+
+    el.verdict.innerHTML = intensity < ridge
+      ? "<strong>Bandwidth-bound.</strong> At " + fmt(intensity) + " FLOP/byte, you are left of the ridge (" +
+        fmt(ridge) + "). Attainable performance is intensity &times; bandwidth = " + fmt(attain) +
+        " TFLOP/s. Faster arithmetic changes nothing here \u2014 only moving fewer bytes does."
+      : "<strong>Compute-bound.</strong> At " + fmt(intensity) + " FLOP/byte, you are right of the ridge (" +
+        fmt(ridge) + "). You are already at the illustrative peak of " + fmt(peak) +
+        " TFLOP/s; more bandwidth would not help.";
+  }
+
+  el.presets.innerHTML = "";
+  PRESETS.forEach(function (p) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = p.label;
+    b.addEventListener("click", function () {
+      el.intensity.value = intensityToSlider(p.intensity);
+      render();
+    });
+    el.presets.appendChild(b);
+  });
+
+  [el.peak, el.bw, el.intensity].forEach(function (input) {
+    input.addEventListener("input", render);
+  });
+  render();
+}());
+</script>
+</body>
+</html>

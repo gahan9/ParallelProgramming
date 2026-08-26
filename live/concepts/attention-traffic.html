@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fusion, the ratio you never store — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive companion to the attention-traffic infographic: slide sequence length against head dimension and watch the fused-versus-unfused traffic ratio 1 + N/d move.">
+<!--
+  Interactive companion to assets/attention-traffic.svg (modules A07-A09).
+
+  A09 section 2 states the ratio as one expression, 1 + N/d, and gives three worked points
+  (9x at N=1k, 33x at N=4k, 129x at N=16k, all at d=128). This page makes those the sliders'
+  default landing points, so a reader can reproduce the module's own numbers before pushing past
+  them, and adds the dtype control specifically to demonstrate the cited fact that dtype cancels
+  out of the ratio entirely.
+
+  Traffic figures are exact arithmetic on the module's own formula, not a measurement.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--primary); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--primary); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--primary); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button { font: 600 .88rem var(--mono); cursor: pointer; color: var(--dim);
+                 background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                 min-width: 58px; min-height: 44px; padding: .5rem .7rem; }
+  .opts button:hover { border-color: var(--primary); color: var(--fg); }
+  .opts button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .opts button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #06212A; font-weight: 700; }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.6rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .read.neutral b { color: var(--primary); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .9rem; }
+  .bars { display: flex; flex-direction: column; gap: .8rem; }
+  .barrow .barLabel { display: flex; justify-content: space-between; font: 400 11.5px var(--mono); color: var(--dim); margin-bottom: .3rem; }
+  .barTrack { background: var(--deep); border: 1px solid var(--rule); border-radius: 4px; height: 22px; overflow: hidden; }
+  .barFill { height: 100%; background: var(--primary); border-radius: 3px 0 0 3px; transition: width .15s ease; }
+  .barFill.unfused { background: var(--highlight); }
+  @media (prefers-reduced-motion: reduce) { .barFill { transition: none; } }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules A07&ndash;A09 &middot; concept player</p>
+  <h1>Fusion, the ratio you never store</h1>
+  <p class="lede">
+    Unfused attention writes the N&times;N score matrix to HBM and reads it straight back. Fused
+    attention never materializes it. Slide the sequence length against the head dimension and
+    watch the traffic ratio move &mdash; then switch dtype and watch it not move at all.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="nLabel">Sequence length N</span>
+      <div class="opts" id="ns" role="group" aria-labelledby="nLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="dLabel">Head dimension d</span>
+      <div class="opts" id="ds" role="group" aria-labelledby="dLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="dtLabel">Dtype (scales both bars, not the ratio)</span>
+      <div class="opts" id="dtypes" role="group" aria-labelledby="dtLabel"></div>
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read good"><b id="rFused">0</b><span>fused traffic, 8Nd</span></div>
+    <div class="read bad"><b id="rUnfused">0</b><span>unfused traffic, 8Nd + 8N&sup2;</span></div>
+    <div class="read neutral"><b id="rRatio">1&times;</b><span>ratio, 1 + N/d</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Bytes crossing the HBM boundary</h2>
+    <div class="bars">
+      <div class="barrow">
+        <p class="barLabel"><span>Fused (FlashAttention-style)</span><span id="fusedLabel"></span></p>
+        <div class="barTrack"><div class="barFill" id="fusedBar" style="width:8%"></div></div>
+      </div>
+      <div class="barrow">
+        <p class="barLabel"><span>Unfused (materializes the score matrix)</span><span id="unfusedLabel"></span></p>
+        <div class="barTrack"><div class="barFill unfused" id="unfusedBar" style="width:100%"></div></div>
+      </div>
+    </div>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Exact arithmetic on the module's formula, not a measurement.</b> Unfused traffic is
+    8Nd + 8N&sup2; bytes; fused is 8Nd. The dtype multiplier scales both bars equally, which is why
+    the ratio column never moves when you change it &mdash;
+    <a href="../../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md#2-first-principles">A09
+    section 2</a> states this explicitly: "the dtype cancels out of that ratio." At the default
+    d&#8201;=&#8201;128 the three N presets reproduce the module's own worked points: 9&times; at
+    N=1k, 33&times; at N=4k, 129&times; at N=16k.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the
+      same argument is the infographic below, which
+      <a href="../../tracks/A-gpu-programming/A09.advanced-triton-flash-attention/README.md">module A09</a>
+      embeds.
+    </p>
+    <img src="../../assets/attention-traffic.svg" alt="Unfused attention's HBM traffic grows with N squared; fused attention's traffic grows linearly with N, and the gap between them is the ratio 1 + N/d.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/attention-traffic.svg">attention-traffic.svg</a>, which the module
+      embeds and which stays correct with JavaScript off. Fact without the control:
+      <a href="../cheatsheets.html#sheet-fusion">the fusion reference sheet</a>. Test yourself:
+      <a href="../flashcards.html?track=A">Track A recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var NS = [512, 1024, 2048, 4096, 8192, 16384];
+  var DS = [64, 128, 256, 512];
+  var DTYPES = [
+    { k: "fp32", label: "fp32", mult: 1 },
+    { k: "fp16", label: "fp16 / bf16", mult: 0.5 },
+    { k: "fp8", label: "fp8", mult: 0.25 }
+  ];
+
+  var N = 4096;
+  var d = 128;
+  var dtype = DTYPES[0];
+
+  var el = {
+    ns: document.getElementById("ns"),
+    ds: document.getElementById("ds"),
+    dtypes: document.getElementById("dtypes"),
+    rFused: document.getElementById("rFused"),
+    rUnfused: document.getElementById("rUnfused"),
+    rRatio: document.getElementById("rRatio"),
+    fusedBar: document.getElementById("fusedBar"),
+    unfusedBar: document.getElementById("unfusedBar"),
+    fusedLabel: document.getElementById("fusedLabel"),
+    unfusedLabel: document.getElementById("unfusedLabel"),
+    verdict: document.getElementById("verdict")
+  };
+
+  function bytesStr(n) {
+    if (n >= 1e9) { return (n / 1e9).toFixed(2) + " GB"; }
+    if (n >= 1e6) { return (n / 1e6).toFixed(1) + " MB"; }
+    if (n >= 1e3) { return (n / 1e3).toFixed(1) + " KB"; }
+    return n + " B";
+  }
+
+  function build(container, items, key, current, onPick) {
+    container.innerHTML = "";
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.dataset[key] = it.value;
+      b.textContent = it.label;
+      b.setAttribute("aria-pressed", String(it.value === current));
+      b.addEventListener("click", function () { onPick(it.value); });
+      container.appendChild(b);
+    });
+  }
+
+  function paint(container, key, current) {
+    Array.prototype.forEach.call(container.children, function (b) {
+      var v = b.dataset[key];
+      b.setAttribute("aria-pressed", String(String(v) === String(current)));
+    });
+  }
+
+  function render() {
+    paint(el.ns, "n", N);
+    paint(el.ds, "d", d);
+    paint(el.dtypes, "k", dtype.k);
+
+    var fused = 8 * N * d * dtype.mult;
+    var unfused = (8 * N * d + 8 * N * N) * dtype.mult;
+    var ratio = 1 + N / d;
+
+    el.rFused.textContent = bytesStr(fused);
+    el.rUnfused.textContent = bytesStr(unfused);
+    el.rRatio.textContent = ratio.toFixed(ratio >= 10 ? 0 : 1) + "\u00d7";
+
+    var pctFused = Math.max(4, (fused / unfused) * 100);
+    el.fusedBar.style.width = pctFused + "%";
+    el.unfusedBar.style.width = "100%";
+    el.fusedLabel.textContent = bytesStr(fused);
+    el.unfusedLabel.textContent = bytesStr(unfused);
+
+    el.verdict.innerHTML = "<strong>" + ratio.toFixed(1) + "&times; more traffic, unfused.</strong> " +
+      "At N=" + N + ", d=" + d + " the score matrix alone is N&sup2; = " + (N * N).toLocaleString() +
+      " elements \u2014 read once, written once, in " + dtype.label + ". Fusing never creates it.";
+  }
+
+  build(el.ns, NS.map(function (n) { return { value: n, label: n.toLocaleString() }; }), "n", N,
+    function (v) { N = v; render(); });
+  build(el.ds, DS.map(function (d0) { return { value: d0, label: String(d0) }; }), "d", d,
+    function (v) { d = v; render(); });
+  build(el.dtypes, DTYPES.map(function (t) { return { value: t.k, label: t.label }; }), "k", dtype.k,
+    function (v) { dtype = DTYPES.filter(function (t) { return t.k === v; })[0]; render(); });
+
+  render();
+}());
+</script>
+</body>
+</html>

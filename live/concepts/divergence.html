@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Divergence, one branch split at a time — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive companion to the divergence infographic: split a wavefront's branch at any point and watch idle lane-cycles redistribute while the total time does not.">
+<!--
+  Interactive companion to assets/divergence.svg (module A03).
+
+  The fact A03 section 3 states is counterintuitive enough that a fixed picture under-argues
+  it: a divergent branch costs the SUM of both paths, not the max - regardless of how lopsided
+  the split is. This page fixes path lengths and lets the split point move, so the reader can
+  watch idle lane-cycles slide between the two phases while the total stays exactly a+b.
+
+  Numbers are counts, not a measurement: two phases of fixed cycle counts, lanes partitioned by
+  the split index. Real hardware also predicts branches and can skip a phase with zero active
+  lanes, which this model does not represent.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--primary); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--primary); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--primary); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--primary); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--primary); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button { font: 600 .92rem var(--mono); cursor: pointer; color: var(--dim);
+                 background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                 min-width: 46px; min-height: 44px; padding: .5rem .8rem; }
+  .opts button:hover { border-color: var(--primary); color: var(--fg); }
+  .opts button:focus-visible { outline: 2px solid var(--surface); outline-offset: 2px; }
+  .opts button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #06212A; font-weight: 700; }
+  input[type="range"] { width: 100%; accent-color: var(--primary); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.6rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .read.neutral b { color: var(--primary); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; overflow-x: auto; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; }
+  .phase { margin-bottom: 1.1rem; }
+  .phaseLabel { font: 700 11px var(--mono); color: var(--dim); margin: 0 0 .4rem; display: flex; justify-content: space-between; }
+  .lanes { display: flex; flex-wrap: wrap; gap: 2px; }
+  .lane { width: 13px; height: 22px; border-radius: 2px; background: var(--rule); }
+  .lane.active { background: var(--primary); }
+  .lane.idle { background: #3A2410; }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0 0; font: 400 11.5px var(--mono); color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+  .lane, .opts button { transition: background-color .12s linear, border-color .12s linear; }
+  @media (prefers-reduced-motion: reduce) { .lane, .opts button { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Module A03 &middot; concept player</p>
+  <h1>Divergence, one branch split at a time</h1>
+  <p class="lede">
+    A wavefront hits an <code>if / else</code>. Some lanes take one side, the rest take the other.
+    The hardware runs both sides in turn — so drag the split and watch which lanes sit idle move,
+    while the total time refuses to.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="widthLabel">Lockstep width</span>
+      <div class="opts" id="widths" role="group" aria-labelledby="widthLabel"></div>
+    </div>
+    <div class="ctl">
+      <span class="name" id="splitLabel">Lanes taking the <code>if</code> branch: <span class="rangeval" id="splitVal">32</span></span>
+      <input type="range" id="split" min="0" max="64" value="32" aria-labelledby="splitLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="ifLabel"><code>if</code> body length: <span class="rangeval" id="ifVal">8</span> cycles</span>
+      <input type="range" id="ifCycles" min="1" max="20" value="8" aria-labelledby="ifLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="elseLabel"><code>else</code> body length: <span class="rangeval" id="elseVal">8</span> cycles</span>
+      <input type="range" id="elseCycles" min="1" max="20" value="8" aria-labelledby="elseLabel">
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read bad"><b id="rTotal">16</b><span>cycles this branch costs</span></div>
+    <div class="read neutral"><b id="rUniform">8</b><span>cycles if every lane agreed</span></div>
+    <div class="read good" id="rWasteBox"><b id="rWaste">1024</b><span>idle lane-cycles wasted</span></div>
+    <div class="read"><b id="rTax">2.0&times;</b><span>tax over the uniform case</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>What the hardware actually runs, in order</h2>
+    <div class="phase">
+      <p class="phaseLabel"><span>Phase 1 &middot; <code>if</code> body</span><span id="ifDur"></span></p>
+      <div class="lanes" id="ifLanes"></div>
+    </div>
+    <div class="phase">
+      <p class="phaseLabel"><span>Phase 2 &middot; <code>else</code> body</span><span id="elseDur"></span></p>
+      <div class="lanes" id="elseLanes"></div>
+    </div>
+    <p class="legend">
+      <span><i style="background:#0891B2"></i>lane executing this phase</span>
+      <span><i style="background:#3A2410"></i>lane idle, waiting for the other side</span>
+    </p>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>These are counts, not a measurement.</b> Both phases always run to completion whenever at
+    least one lane needs them — that is what "the sum of both paths" means. Real hardware can
+    also predict a branch and skip a phase entirely if it turns out uniform after all, which this
+    model does not represent.
+    <a href="../../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md#3-deep-dive">A03's
+    deep dive</a> traces this on AMD's 64-bit <code>EXEC</code> mask; a uniform branch (split at 0
+    or at the full width) skips the untaken phase entirely, which is the "cycles if every lane
+    agreed" reading above.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the
+      same argument is the infographic below, which
+      <a href="../../tracks/A-gpu-programming/A03.execution-model-and-occupancy/README.md">module A03</a>
+      embeds.
+    </p>
+    <img src="../../assets/divergence.svg" alt="A wavefront splitting at an if/else: both branch paths execute in turn, and the cost is their sum, not their maximum.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/divergence.svg">divergence.svg</a>, which module A03 embeds and which
+      stays correct with JavaScript off. This page adds the one thing a fixed drawing cannot: the
+      split point as a dial. Fact without the control:
+      <a href="../cheatsheets.html#sheet-occupancy">the occupancy reference sheet</a>. Test
+      yourself: <a href="../flashcards.html?track=A">Track A recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var WIDTHS = [
+    { w: 32, label: "32 \u00b7 warp" },
+    { w: 64, label: "64 \u00b7 wavefront" }
+  ];
+
+  var width = 64;
+  var split = 32;
+  var ifC = 8;
+  var elseC = 8;
+
+  var el = {
+    widths: document.getElementById("widths"),
+    split: document.getElementById("split"),
+    splitVal: document.getElementById("splitVal"),
+    ifCycles: document.getElementById("ifCycles"),
+    ifVal: document.getElementById("ifVal"),
+    elseCycles: document.getElementById("elseCycles"),
+    elseVal: document.getElementById("elseVal"),
+    ifLanes: document.getElementById("ifLanes"),
+    elseLanes: document.getElementById("elseLanes"),
+    ifDur: document.getElementById("ifDur"),
+    elseDur: document.getElementById("elseDur"),
+    verdict: document.getElementById("verdict"),
+    rTotal: document.getElementById("rTotal"),
+    rUniform: document.getElementById("rUniform"),
+    rWaste: document.getElementById("rWaste"),
+    rWasteBox: document.getElementById("rWasteBox"),
+    rTax: document.getElementById("rTax")
+  };
+
+  function buildWidths() {
+    el.widths.innerHTML = "";
+    WIDTHS.forEach(function (w) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.dataset.w = w.w;
+      b.textContent = w.label;
+      b.setAttribute("aria-pressed", String(w.w === width));
+      b.addEventListener("click", function () {
+        width = w.w;
+        el.split.max = width;
+        split = Math.min(split, width);
+        el.split.value = split;
+        render();
+      });
+      el.widths.appendChild(b);
+    });
+  }
+
+  function paintWidths() {
+    Array.prototype.forEach.call(el.widths.children, function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.w) === width));
+    });
+  }
+
+  function laneRow(container, activeCount, total, cycles) {
+    var html = "";
+    for (var i = 0; i < total; i++) {
+      html += '<div class="lane ' + (i < activeCount ? "active" : "idle") + '"></div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function render() {
+    paintWidths();
+    split = Math.min(Number(el.split.value), width);
+    ifC = Number(el.ifCycles.value);
+    elseC = Number(el.elseCycles.value);
+    el.splitVal.textContent = split + " of " + width;
+    el.ifVal.textContent = ifC;
+    el.elseVal.textContent = elseC;
+
+    var ifActive = split;          // lanes taking the if branch
+    var elseActive = width - split; // lanes taking the else branch
+
+    laneRow(el.ifLanes, ifActive, width, ifC);
+    laneRow(el.elseLanes, elseActive, width, elseC);
+    el.ifDur.textContent = ifActive === 0 ? "skipped \u2014 no lane needs it" : ifC + " cycles \u00b7 " + ifActive + " active, " + elseActive + " idle";
+    el.elseDur.textContent = elseActive === 0 ? "skipped \u2014 no lane needs it" : elseC + " cycles \u00b7 " + elseActive + " active, " + ifActive + " idle";
+
+    var uniform = (split === 0 || split === width);
+    var total = uniform ? (split === 0 ? elseC : ifC) : (ifC + elseC);
+    var bestCase = Math.min(ifC, elseC);
+    var waste = uniform ? 0 : (elseActive * ifC + ifActive * elseC);
+    var tax = uniform ? 1 : total / bestCase;
+
+    el.rTotal.textContent = total;
+    el.rUniform.textContent = bestCase;
+    el.rWaste.textContent = waste;
+    el.rWasteBox.className = "read " + (waste === 0 ? "good" : "bad");
+    el.rTax.textContent = tax.toFixed(uniform ? 0 : 2) + "\u00d7";
+
+    if (uniform) {
+      el.verdict.innerHTML = "<strong>Uniform branch \u2014 no divergence.</strong> Every lane in this " +
+        width + "-wide group agrees, so the hardware skips the untaken side entirely. Cost is " + total +
+        " cycles, exactly what the taken side alone would cost.";
+    } else {
+      el.verdict.innerHTML = "<strong>" + tax.toFixed(2) + "&times; the best case.</strong> " + ifActive +
+        " lane" + (ifActive === 1 ? "" : "s") + " need the <code>if</code> body, " + elseActive +
+        " need <code>else</code> \u2014 the hardware runs both phases regardless, so the cost is " + ifC +
+        " + " + elseC + " = " + total + " cycles. Moving the split changes who is idle when, but the " +
+        total + "-cycle total does not move.";
+    }
+  }
+
+  el.widths && buildWidths();
+  [el.split, el.ifCycles, el.elseCycles].forEach(function (input) {
+    input.addEventListener("input", render);
+  });
+  render();
+}());
+</script>
+</body>
+</html>

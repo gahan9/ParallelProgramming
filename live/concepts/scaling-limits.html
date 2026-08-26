@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amdahl bends, then communication turns it over — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive companion to D01's scaling-limits argument: add ranks and watch Amdahl's speedup curve flatten, then watch the alpha-beta communication term turn it over past a computed crossover.">
+<!--
+  Interactive companion to assets/scaling-walls.svg (modules D01, D05).
+
+  D01 section 2's Amdahl speedup, 1/(s + (1-s)/p), plotted against D01 section 3's claim that
+  adding a communication term (here a simple per-rank overhead alpha) does not just plateau the
+  curve, it turns it over past some rank count. The turnover point, p* = sqrt((1-s)/alpha), is
+  exact calculus on the model stated below, not a measurement of any real cluster - no multi-node
+  measurement exists anywhere in this repository (D01 section 4, AGENTS.md verification boundary).
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B; --trackd: #DB2777;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--trackd); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--trackd); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--trackd); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--trackd); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--trackd); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  input[type="range"] { width: 100%; accent-color: var(--trackd); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.5rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .read.neutral b { color: var(--trackd); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .axis { stroke: var(--rule); stroke-width: 1; }
+  .amdahl { fill: none; stroke: var(--dim); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .real { fill: none; stroke: var(--trackd); stroke-width: 2.5; }
+  .peakLine { stroke: var(--success); stroke-width: 1; stroke-dasharray: 3 4; }
+  .dot { fill: var(--trackd); stroke: var(--deep); stroke-width: 2; }
+  .tick { font: 400 10px "JetBrains Mono", monospace; fill: var(--dim); }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules D01, D05 &middot; concept player</p>
+  <h1>Amdahl bends, then communication turns it over</h1>
+  <p class="lede">
+    Amdahl's law says a fixed problem's speedup flattens toward 1/s and never crosses it. Add a
+    communication term and the curve does something Amdahl alone never predicts: past some rank
+    count, it turns over and going wider makes you slower.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="sLabel">Serial fraction s: <span class="rangeval" id="sVal">0.02</span></span>
+      <input type="range" id="s" min="1" max="40" value="2" aria-labelledby="sLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="aLabel">Per-rank communication overhead &alpha;: <span class="rangeval" id="aVal">0.0001</span></span>
+      <input type="range" id="alpha" min="1" max="60" value="20" aria-labelledby="aLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="pLabel">Ranks p: <span class="rangeval" id="pVal">8</span></span>
+      <input type="range" id="p" min="0" max="240" value="60" aria-labelledby="pLabel">
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read neutral"><b id="rSpeedup">4.0&times;</b><span>speedup with communication, at this p</span></div>
+    <div class="read" id="rAmdahlBox"><b id="rAmdahl">4.0&times;</b><span>Amdahl-only speedup (no comm cost)</span></div>
+    <div class="read good"><b id="rPstar">223</b><span>p* — the rank count where it turns over</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Speedup versus ranks</h2>
+    <svg class="chart" id="chart" viewBox="0 0 640 320" role="img" aria-label="Speedup versus rank count"></svg>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Exact calculus on the stated model, not a measured cluster.</b> Total time is normalized to
+    s + (1&minus;s)/p + &alpha;p; the turnover point p* = &radic;((1&minus;s)/&alpha;) falls straight
+    out of setting its derivative to zero. No multi-node measurement exists anywhere in this
+    repository &mdash; every inter-node figure here is an analytic model and says so, the same
+    disclosure <a href="../../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#4-hands-on-labs">D01's
+    lab</a> carries in its own output banner.
+    <a href="../../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md#3-deep-dive">D01
+    section 3</a> derives the full alpha-beta form; this page uses the simplified per-rank term
+    that produces the same qualitative turnover.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. The static version of the same
+      argument is the infographic below, which
+      <a href="../../tracks/D-distributed-computing/D01.scaling-limits-and-communication-cost/README.md">module D01</a>
+      embeds.
+    </p>
+    <img src="../../assets/scaling-walls.svg" alt="Amdahl's speedup curve flattening toward 1/s, and a second curve with a communication term that rises then falls.">
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> The canonical asset is
+      <a href="../../assets/scaling-walls.svg">scaling-walls.svg</a>, which the module embeds.
+      Fact without the control: <a href="../cheatsheets.html#sheet-scaling-laws">the scaling-limits
+      reference sheet</a>. Test yourself: <a href="../flashcards.html?track=D">Track D recall
+      cards</a> (Track D's deck is still being written — the reference sheet says so plainly).
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var P_MIN = 1, P_MAX = 4096;
+
+  function sliderToP(v) {
+    var t = v / 240;
+    return Math.pow(10, Math.log10(P_MIN) + t * (Math.log10(P_MAX) - Math.log10(P_MIN)));
+  }
+  function pToSlider(p) {
+    var t = (Math.log10(p) - Math.log10(P_MIN)) / (Math.log10(P_MAX) - Math.log10(P_MIN));
+    return Math.round(t * 240);
+  }
+
+  function amdahl(s, p) { return 1 / (s + (1 - s) / p); }
+  function withComm(s, alpha, p) { return 1 / (s + (1 - s) / p + alpha * p); }
+
+  var el = {
+    s: document.getElementById("s"), sVal: document.getElementById("sVal"),
+    alpha: document.getElementById("alpha"), aVal: document.getElementById("aVal"),
+    p: document.getElementById("p"), pVal: document.getElementById("pVal"),
+    rSpeedup: document.getElementById("rSpeedup"), rAmdahl: document.getElementById("rAmdahl"),
+    rAmdahlBox: document.getElementById("rAmdahlBox"), rPstar: document.getElementById("rPstar"),
+    chart: document.getElementById("chart"), verdict: document.getElementById("verdict")
+  };
+
+  var W = 640, H = 320, M = { l: 50, r: 16, t: 16, b: 34 };
+  function xPix(p) {
+    var t = (Math.log10(Math.max(p, P_MIN)) - Math.log10(P_MIN)) / (Math.log10(P_MAX) - Math.log10(P_MIN));
+    return M.l + t * (W - M.l - M.r);
+  }
+  var Y_MAX = 60;
+  function yPix(v) { return (H - M.b) - Math.min(1, v / Y_MAX) * (H - M.t - M.b); }
+
+  function alphaFromSlider(v) {
+    // log scale from 1e-6 to 1e-2
+    var t = v / 60;
+    return Math.pow(10, -6 + t * 4);
+  }
+
+  function drawChart(s, alpha, p) {
+    var parts = [];
+    parts.push('<line class="axis" x1="' + M.l + '" y1="' + M.t + '" x2="' + M.l + '" y2="' + (H - M.b) + '"></line>');
+    parts.push('<line class="axis" x1="' + M.l + '" y1="' + (H - M.b) + '" x2="' + (W - M.r) + '" y2="' + (H - M.b) + '"></line>');
+    [1, 10, 100, 1000].forEach(function (t) {
+      var x = xPix(t);
+      parts.push('<line class="axis" x1="' + x + '" y1="' + M.t + '" x2="' + x + '" y2="' + (H - M.b) + '" opacity="0.35"></line>');
+      parts.push('<text class="tick" x="' + x + '" y="' + (H - M.b + 16) + '" text-anchor="middle">p=' + t + '</text>');
+    });
+    [10, 30, 50].forEach(function (v) {
+      var y = yPix(v);
+      parts.push('<line class="axis" x1="' + M.l + '" y1="' + y + '" x2="' + (W - M.r) + '" y2="' + y + '" opacity="0.35"></line>');
+      parts.push('<text class="tick" x="' + (M.l - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + v + '&times;</text>');
+    });
+
+    var ptsA = [], ptsR = [];
+    for (var i = 0; i <= 80; i++) {
+      var P = Math.pow(10, Math.log10(P_MIN) + (i / 80) * (Math.log10(P_MAX) - Math.log10(P_MIN)));
+      ptsA.push(xPix(P) + "," + yPix(amdahl(s, P)));
+      ptsR.push(xPix(P) + "," + yPix(withComm(s, alpha, P)));
+    }
+    parts.push('<polyline class="amdahl" points="' + ptsA.join(" ") + '"></polyline>');
+    parts.push('<polyline class="real" points="' + ptsR.join(" ") + '"></polyline>');
+
+    var pStar = Math.sqrt((1 - s) / alpha);
+    if (pStar >= P_MIN && pStar <= P_MAX) {
+      var xs = xPix(pStar);
+      parts.push('<line class="peakLine" x1="' + xs + '" y1="' + M.t + '" x2="' + xs + '" y2="' + (H - M.b) + '"></line>');
+      parts.push('<text class="tick" x="' + xs + '" y="' + (M.t + 10) + '" text-anchor="middle" fill="#10B981">p* ' + Math.round(pStar) + '</text>');
+    }
+
+    var dx = xPix(p), dy = yPix(withComm(s, alpha, p));
+    parts.push('<circle class="dot" cx="' + dx + '" cy="' + dy + '" r="6"></circle>');
+    el.chart.innerHTML = parts.join("");
+  }
+
+  function render() {
+    var s = Number(el.s.value) / 100;
+    var alpha = alphaFromSlider(Number(el.alpha.value));
+    var p = sliderToP(Number(el.p.value));
+    var pStar = Math.sqrt((1 - s) / alpha);
+
+    el.sVal.textContent = s.toFixed(2);
+    el.aVal.textContent = alpha.toExponential(1);
+    el.pVal.textContent = Math.round(p).toLocaleString();
+
+    var real = withComm(s, alpha, p);
+    var amd = amdahl(s, p);
+
+    el.rSpeedup.textContent = real.toFixed(2) + "\u00d7";
+    el.rAmdahl.textContent = amd.toFixed(2) + "\u00d7";
+    el.rAmdahlBox.className = "read " + (real < amd * 0.9 ? "bad" : "");
+    el.rPstar.textContent = Math.round(pStar).toLocaleString();
+
+    drawChart(s, alpha, p);
+
+    el.verdict.innerHTML = p < pStar
+      ? "<strong>Still climbing.</strong> At p=" + Math.round(p).toLocaleString() + ", speedup is " +
+        real.toFixed(2) + "\u00d7, within " + (((amd - real) / amd) * 100).toFixed(1) +
+        "% of the Amdahl-only curve. Communication is not yet the limiter."
+      : "<strong>Past the turnover.</strong> p* = " + Math.round(pStar).toLocaleString() +
+        " is where the communication term starts costing more than the extra ranks return. At p=" +
+        Math.round(p).toLocaleString() + " you are already " + (real < amd ? "losing to it \u2014 speedup is " +
+        real.toFixed(2) + "\u00d7 against Amdahl's " + amd.toFixed(2) + "\u00d7." : "right at the edge.");
+  }
+
+  [el.s, el.alpha, el.p].forEach(function (i) { i.addEventListener("input", render); });
+  render();
+}());
+</script>
+</body>
+</html>

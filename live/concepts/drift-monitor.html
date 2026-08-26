@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Healthy and quietly wrong — GPU + ML Expert Tutor</title>
+<meta name="description" content="Interactive drift monitor: shift a live feature distribution against its training baseline and watch a divergence score move, then tell covariate shift apart from label shift.">
+<!--
+  Interactive companion to C06's monitoring argument and the glossary's drift entry (module C06).
+
+  The distinction this page argues, from docs/GLOSSARY.md#drift: covariate shift is P(x) moving
+  while the model's P(y|x) mapping stays valid; label/concept shift is the relationship itself
+  changing, which no amount of retraining on old labels fixes. The divergence score is a standard
+  Population Stability Index computed on illustrative Gaussian bins, not a metric read off a real
+  production model - the 0.1 / 0.25 thresholds are a common industry rule of thumb, stated as
+  such, not a number this curriculum measured.
+
+  No framework, no CDN, no build step - same constraint as the rest of live/.
+-->
+<style>
+  :root {
+    --primary: #0891B2; --deep: #0F172A; --accent: #6366F1; --highlight: #F59E0B;
+    --success: #10B981; --surface: #F8FAFC; --muted: #64748B;
+    --bg: var(--deep); --raised: #1B2436; --sunk: #131C2E; --fg: var(--surface);
+    --dim: #94A3B8; --rule: #2C3A52;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: var(--primary); }
+  .top { border-top: 4px solid var(--highlight); margin: 0 -1.25rem; }
+  nav.bar { max-width: 1080px; margin: 0 auto; padding: .9rem 1.25rem 1.1rem;
+            display: flex; flex-wrap: wrap; gap: .9rem; align-items: baseline; }
+  nav.bar .brand { font: 700 11.5px var(--sans); letter-spacing: .16em; text-transform: uppercase;
+                   color: var(--highlight); margin-right: auto; }
+  nav.bar a { font-size: .84rem; text-decoration: none; color: var(--dim);
+              border-bottom: 1px solid transparent; padding-bottom: 2px; }
+  nav.bar a:hover { color: var(--fg); border-bottom-color: var(--highlight); }
+  nav.bar a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--highlight); }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase;
+             color: var(--highlight); margin: 1.3rem 0 .35rem; }
+  h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); margin: 0 0 .5rem; letter-spacing: -.025em; }
+  .lede { color: var(--dim); max-width: 66ch; margin: 0; }
+  .panel { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.1rem 1.2rem; margin-top: 1.5rem; }
+  .ctl + .ctl { margin-top: 1rem; }
+  .ctl > .name { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 color: var(--muted); display: block; margin-bottom: .5rem; }
+  input[type="range"] { width: 100%; accent-color: var(--highlight); height: 30px; }
+  .rangeval { font: 700 .92rem var(--mono); color: var(--fg); }
+  .opts { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .opts button { font: 600 .85rem var(--sans); cursor: pointer; color: var(--dim);
+                 background: var(--raised); border: 1px solid var(--rule); border-radius: 6px;
+                 min-height: 42px; padding: .5rem .9rem; }
+  .opts button[aria-pressed="true"] { background: var(--highlight); border-color: var(--highlight); color: #331B02; font-weight: 700; }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+  .read { background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .95rem; }
+  .read b { display: block; font: 700 1.5rem var(--mono); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .read span { font-size: .76rem; color: var(--dim); }
+  .read.good b { color: var(--success); }
+  .read.bad b { color: var(--highlight); }
+  .read.neutral b { color: var(--accent); }
+  .stage { background: var(--sunk); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 1.2rem 1.3rem 1.3rem; margin-top: 1.1rem; }
+  .stage h2 { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+              color: var(--muted); margin: 0 0 .8rem; }
+  .bins { display: flex; gap: 3px; align-items: flex-end; height: 160px; }
+  .binwrap { flex: 1; position: relative; height: 100%; display: flex; align-items: flex-end; gap: 1px; }
+  .binbar { flex: 1; border-radius: 2px 2px 0 0; }
+  .binbar.base { background: rgba(148,163,184,0.55); }
+  .binbar.cur { background: var(--highlight); }
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin: .8rem 0 0; font: 400 11.5px var(--mono); color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+  .verdict { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px dashed var(--rule);
+             font-size: .96rem; color: #DDE3EC; }
+  .verdict strong { color: var(--fg); }
+  .note { background: var(--raised); border-left: 4px solid var(--highlight); border-radius: 0 6px 6px 0;
+          padding: .9rem 1.1rem; margin-top: 1.4rem; font-size: .9rem; color: #DDE3EC; }
+  .note b { color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .82rem; }
+  footer p { max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <nav class="bar" aria-label="Live pages">
+    <span class="brand">Parallel Programming</span>
+    <a href="../dashboard.html">Planner</a>
+    <a href="../flashcards.html">Recall</a>
+    <a href="../cheatsheets.html">Reference</a>
+    <a href="index.html" aria-current="page">Play</a>
+    <a href="../slides.html">Deck</a>
+    <a href="../../CURRICULUM.md">Curriculum</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">Modules C03, C06 &middot; concept player</p>
+  <h1>Healthy and quietly wrong</h1>
+  <p class="lede">
+    A model can score perfectly on every system metric while the world underneath it moves. Shift
+    a live feature's distribution against its training baseline and watch a divergence score
+    climb — then flip whether the label relationship moved too.
+  </p>
+
+  <div class="panel">
+    <div class="ctl">
+      <span class="name" id="meanLabel">Live mean shift: <span class="rangeval" id="meanVal">+0.00</span></span>
+      <input type="range" id="mean" min="-30" max="30" value="0" aria-labelledby="meanLabel">
+    </div>
+    <div class="ctl">
+      <span class="name" id="spreadLabel">Live spread, relative to baseline: <span class="rangeval" id="spreadVal">1.0&times;</span></span>
+      <input type="range" id="spread" min="50" max="200" value="100" aria-labelledby="spreadLabel">
+    </div>
+    <div class="ctl">
+      <span class="name">Has P(y|x) — the label relationship — also changed?</span>
+      <div class="opts" id="labelToggle" role="group"></div>
+    </div>
+  </div>
+
+  <div class="reads">
+    <div class="read" id="rPsiBox"><b id="rPsi">0.00</b><span>divergence score (PSI-style)</span></div>
+    <div class="read neutral"><b id="rClass">Stable</b><span>what kind of drift this is</span></div>
+    <div class="read"><b id="rAlert">No</b><span>would this trip a monitor?</span></div>
+  </div>
+
+  <div class="stage">
+    <h2>Live distribution against training baseline</h2>
+    <div class="bins" id="bins"></div>
+    <p class="legend">
+      <span><i style="background:rgba(148,163,184,0.7)"></i>training baseline</span>
+      <span><i style="background:#F59E0B"></i>live traffic, right now</span>
+    </p>
+    <p class="verdict" id="verdict"></p>
+  </div>
+
+  <p class="note">
+    <b>Illustrative Gaussian bins, not a live production metric.</b> The divergence score is a
+    standard Population Stability Index computed over ten bins; the 0.1 / 0.25 thresholds shown
+    are a common industry rule of thumb for "watch this" and "act on this", not a number this
+    curriculum measured. The distinction is the citable part &mdash;
+    <a href="../../docs/GLOSSARY.md#drift">the glossary's drift entry</a>: covariate shift moves
+    P(x) while the model's mapping stays valid; label/concept shift moves the relationship itself,
+    which retraining on old labels cannot fix.
+  </p>
+
+  <noscript>
+    <p>
+      This page needs JavaScript, because the control is the point. Read
+      <a href="../../tracks/C-ml-system-design/C06.monitoring-drift-and-ethics/README.md">module C06</a>
+      for the same argument in prose.
+    </p>
+  </noscript>
+
+  <footer>
+    <p>
+      <strong>Where this sits.</strong> Fact without the control:
+      <a href="../cheatsheets.html#sheet-reliability">the reliability reference sheet</a>. Test
+      yourself: <a href="../flashcards.html?track=C">Track C recall cards</a>.
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var N_BINS = 10, X_MIN = -1, X_MAX = 2;
+  var BASE_MU = 0.5, BASE_SD = 0.35;
+
+  function pdf(x, mu, sd) { return Math.exp(-((x - mu) * (x - mu)) / (2 * sd * sd)) / (sd * Math.sqrt(2 * Math.PI)); }
+
+  function binMasses(mu, sd) {
+    var masses = [], step = (X_MAX - X_MIN) / N_BINS, sum = 0;
+    for (var i = 0; i < N_BINS; i++) {
+      var x = X_MIN + (i + 0.5) * step;
+      var m = pdf(x, mu, sd);
+      masses.push(m);
+      sum += m;
+    }
+    return masses.map(function (m) { return m / sum; });
+  }
+
+  function psi(base, cur) {
+    var total = 0;
+    for (var i = 0; i < base.length; i++) {
+      var b = Math.max(base[i], 1e-4), c = Math.max(cur[i], 1e-4);
+      total += (c - b) * Math.log(c / b);
+    }
+    return total;
+  }
+
+  var el = {
+    mean: document.getElementById("mean"), meanVal: document.getElementById("meanVal"),
+    spread: document.getElementById("spread"), spreadVal: document.getElementById("spreadVal"),
+    labelToggle: document.getElementById("labelToggle"),
+    rPsi: document.getElementById("rPsi"), rPsiBox: document.getElementById("rPsiBox"),
+    rClass: document.getElementById("rClass"), rAlert: document.getElementById("rAlert"),
+    bins: document.getElementById("bins"), verdict: document.getElementById("verdict")
+  };
+
+  var labelShifted = false;
+
+  function buildToggle() {
+    [{ v: false, label: "No — covariate shift only" }, { v: true, label: "Yes — label/concept shift" }].forEach(function (o) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = o.label;
+      b.setAttribute("aria-pressed", String(o.v === labelShifted));
+      b.addEventListener("click", function () { labelShifted = o.v; render(); });
+      el.labelToggle.appendChild(b);
+    });
+  }
+
+  function render() {
+    Array.prototype.forEach.call(el.labelToggle.children, function (b, i) {
+      b.setAttribute("aria-pressed", String((i === 1) === labelShifted));
+    });
+
+    var meanShift = Number(el.mean.value) / 100;
+    var spreadMult = Number(el.spread.value) / 100;
+    el.meanVal.textContent = (meanShift >= 0 ? "+" : "") + meanShift.toFixed(2);
+    el.spreadVal.textContent = spreadMult.toFixed(2) + "\u00d7";
+
+    var base = binMasses(BASE_MU, BASE_SD);
+    var cur = binMasses(BASE_MU + meanShift, BASE_SD * spreadMult);
+    var score = psi(base, cur);
+
+    el.rPsi.textContent = score.toFixed(3);
+    el.rPsiBox.className = "read " + (score < 0.1 ? "good" : (score < 0.25 ? "" : "bad"));
+    var cls = labelShifted ? "Label shift" : (score < 0.1 ? "Stable" : "Covariate shift");
+    el.rClass.textContent = cls;
+    var alert = labelShifted || score >= 0.1;
+    el.rAlert.textContent = alert ? "Yes" : "No";
+
+    var maxMass = Math.max.apply(null, base.concat(cur));
+    el.bins.innerHTML = base.map(function (b, i) {
+      var c = cur[i];
+      var hb = Math.max(2, (b / maxMass) * 100), hc = Math.max(2, (c / maxMass) * 100);
+      return '<div class="binwrap">' +
+        '<div class="binbar base" style="height:' + hb + '%"></div>' +
+        '<div class="binbar cur" style="height:' + hc + '%"></div>' +
+      '</div>';
+    }).join("");
+
+    if (labelShifted) {
+      el.verdict.innerHTML = "<strong>Label shift \u2014 retraining on old labels will not fix this.</strong> " +
+        "The relationship the model learned, P(y|x), no longer holds even where the inputs look the same. " +
+        "You need fresh labels, not just fresh inputs. PSI reads " + score.toFixed(3) +
+        " on the input distribution alone, which understates the problem here.";
+    } else if (score < 0.1) {
+      el.verdict.innerHTML = "<strong>Stable.</strong> PSI " + score.toFixed(3) +
+        " is below the common 0.1 watch threshold. The live distribution still looks like training.";
+    } else if (score < 0.25) {
+      el.verdict.innerHTML = "<strong>Covariate shift, moderate.</strong> PSI " + score.toFixed(3) +
+        " \u2014 P(x) has moved, but nothing here says the model's mapping is wrong. Worth a closer look, " +
+        "not necessarily a retrain.";
+    } else {
+      el.verdict.innerHTML = "<strong>Covariate shift, significant.</strong> PSI " + score.toFixed(3) +
+        " is well past the common 0.25 act-on-this threshold. The inputs the model sees in production no " +
+        "longer resemble what it trained on.";
+    }
+  }
+
+  buildToggle();
+  [el.mean, el.spread].forEach(function (i) { i.addEventListener("input", render); });
+  render();
+}());
+</script>
+</body>
+</html>
