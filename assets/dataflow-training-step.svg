@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" role="img" aria-labelledby="t d">
+<title id="t">One data-parallel training step, with the gradient all-reduce overlapping the backward pass</title>
+<desc id="d">A two-lane timeline of a single training step. The upper lane is compute: a forward pass over four layers, then a backward pass over the same four layers in reverse. The lower lane is the network. As each layer's backward finishes, that layer's gradient bucket is handed to the all-reduce, which runs at the same time as the next layer's backward. Three of the four buckets therefore finish inside the shadow of the backward pass and cost nothing in wall-clock time. The fourth cannot: when the last layer's backward ends there is no compute left to hide behind, so that final bucket is exposed and the optimizer step waits for it. A playhead sweeps across the timeline; at any vertical slice both lanes are busy, which is the point. Communication volume is two psi bytes per rank and does not grow with rank count, so a well-tuned job stays about ninety percent efficient at hundreds of ranks.</desc>
+
+<!--
+  brief:
+    id: dataflow-training-step
+    module: B07
+    track: B
+    visual_job: sequence
+    signature_device: none
+    motion_teaches: true
+    motion_claim: "compute and network are busy at the same instant - that simultaneity is why DDP works"
+    numbers: derived from B07 section 3.1; the block widths are an illustrative schedule, not a measured trace
+    static_fallback: "the whole schedule and both brackets are drawn; the playhead only marks 'now'"
+
+  Module B07. The reason data parallelism survives is that the all-reduce for layer i can
+  start the moment layer i's backward finishes, while layer i-1 is still computing. That
+  is a statement about two things happening AT THE SAME TIME, and neither a Mermaid
+  flowchart nor a bar chart can say it - a flowchart has no time axis, and a bar chart
+  has no second lane.
+
+  The tail matters as much as the overlap and is usually left out: when the last bucket
+  is handed over there is no backward left to hide it, so it is always exposed. The
+  graphic shows that rather than implying overlap is free.
+
+  BLOCK WIDTHS ARE AN ILLUSTRATIVE SCHEDULE. Real layer times are not uniform and the
+  hidden fraction depends on message size, fabric and compute per rank. B07's
+  collective_cost.py models it for your own numbers; the shape here is the argument, not
+  a measurement.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #6366F1; }
+  .eyebrow  { fill: #6366F1; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .lane     { fill: #64748B; font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1.4px; }
+  .blk      { font: 600 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .fwd      { fill: #1E3A5F; stroke: #2C5788; stroke-width: 1; }
+  .bwd      { fill: #6366F1; }
+  .comm     { fill: #0891B2; }
+  .commx    { fill: #B45309; }
+  .opt      { fill: #10B981; }
+  .axis     { stroke: #334155; stroke-width: 1.2; }
+  .tick     { stroke: #1B2436; stroke-width: 1; }
+  .brace    { stroke: #10B981; stroke-width: 1.4; fill: none; }
+  .bracex   { stroke: #F59E0B; stroke-width: 1.4; fill: none; }
+  .good     { fill: #10B981; font: 700 12px Inter, "Segoe UI", system-ui, sans-serif; }
+  .warn     { fill: #F59E0B; font: 700 12px Inter, "Segoe UI", system-ui, sans-serif; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .note     { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .play     { stroke: #F8FAFC; stroke-width: 1.5; opacity: .55; }
+
+  /* The playhead is the only moving part. Read any vertical slice of it and both lanes
+     are working - that simultaneity is the entire mechanism. */
+  .play { animation: sweep 7s linear infinite; }
+  @keyframes sweep { from { transform: translateX(0) } to { transform: translateX(950px) } }
+  @media (prefers-reduced-motion: reduce) { .play { animation: none; opacity: 0 } }
+</style>
+
+<rect class="ground" width="1200" height="500"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE B07 &#183; WHY DATA PARALLELISM STILL WINS</text>
+<text class="head"    x="54" y="92">The network works while the GPU is still busy</text>
+<text class="sub"     x="56" y="120">One training step. Each layer's gradients leave as soon as that layer's backward ends.</text>
+
+<!-- time axis -->
+<line class="axis" x1="150" y1="392" x2="1100" y2="392"/>
+<g class="tick">
+  <line x1="150" y1="176" x2="150" y2="392"/><line x1="470" y1="176" x2="470" y2="392"/>
+  <line x1="910" y1="176" x2="910" y2="392"/><line x1="1010" y1="176" x2="1010" y2="392"/>
+</g>
+<text class="tiny" x="150" y="410">step starts</text>
+<text class="tiny" x="424" y="410">backward begins</text>
+<text class="tiny" x="852" y="410">backward ends</text>
+<text class="tiny" x="1016" y="410">optimizer</text>
+
+<!-- ================= COMPUTE LANE ================= -->
+<text class="lane" x="56" y="212">COMPUTE</text>
+<text class="tiny" x="56" y="228">the GPU</text>
+
+<g class="fwd">
+  <rect x="150" y="192" width="76" height="40" rx="3"/><rect x="230" y="192" width="76" height="40" rx="3"/>
+  <rect x="310" y="192" width="76" height="40" rx="3"/><rect x="390" y="192" width="76" height="40" rx="3"/>
+</g>
+<g class="blk" fill="#93C5FD">
+  <text x="168" y="217">fwd L1</text><text x="248" y="217">fwd L2</text>
+  <text x="328" y="217">fwd L3</text><text x="408" y="217">fwd L4</text>
+</g>
+
+<g class="bwd">
+  <rect x="470" y="192" width="106" height="40" rx="3"/><rect x="580" y="192" width="106" height="40" rx="3"/>
+  <rect x="690" y="192" width="106" height="40" rx="3"/><rect x="800" y="192" width="106" height="40" rx="3"/>
+</g>
+<g class="blk" fill="#F8FAFC">
+  <text x="494" y="217">bwd L4</text><text x="604" y="217">bwd L3</text>
+  <text x="714" y="217">bwd L2</text><text x="824" y="217">bwd L1</text>
+</g>
+
+<rect class="opt" x="1010" y="192" width="90" height="40" rx="3"/>
+<text class="blk" x="1024" y="217" fill="#04241A">optimizer</text>
+
+<!-- ================= NETWORK LANE ================= -->
+<text class="lane" x="56" y="300">NETWORK</text>
+<text class="tiny" x="56" y="316">all-reduce</text>
+
+<g class="comm">
+  <rect x="580" y="280" width="100" height="40" rx="3"/>
+  <rect x="690" y="280" width="100" height="40" rx="3"/>
+  <rect x="800" y="280" width="100" height="40" rx="3"/>
+</g>
+<rect class="commx" x="910" y="280" width="100" height="40" rx="3"/>
+
+<g class="blk" fill="#04222B">
+  <text x="600" y="305">grad L4</text><text x="710" y="305">grad L3</text><text x="820" y="305">grad L2</text>
+</g>
+<text class="blk" x="930" y="305" fill="#FDE68A">grad L1</text>
+
+<!-- hand-off ticks: each bucket starts where its layer's backward ended -->
+<g stroke="#334155" stroke-width="1" stroke-dasharray="2 3">
+  <line x1="580" y1="232" x2="580" y2="280"/><line x1="690" y1="232" x2="690" y2="280"/>
+  <line x1="800" y1="232" x2="800" y2="280"/><line x1="910" y1="232" x2="910" y2="280"/>
+</g>
+
+<!-- verdicts -->
+<path class="brace" d="M 580 342 V 350 H 900 V 342"/>
+<text class="good" x="600" y="368">three buckets hide inside the backward pass</text>
+
+<path class="bracex" d="M 910 342 V 350 H 1010 V 342"/>
+<text class="warn" x="898" y="368">the last one is exposed</text>
+
+<!-- playhead -->
+<line class="play" x1="150" y1="176" x2="150" y2="392"/>
+
+<text class="note" x="56" y="444">Volume is <tspan fill="#7DD3FC">2 &#215; psi</tspan> bytes per rank and does not grow with rank count, so a well-tuned job stays around 90% efficient at hundreds of ranks.</text>
+<text class="tiny" x="56" y="468">Block widths are an illustrative schedule, not a measured trace: real layer times are uneven, and how much hides depends on message size, fabric and compute per rank.</text>
+<text class="tiny" x="56" y="486">Derived from B07 section 3.1. Run its collective_cost.py against your own fabric rather than reading timings off this picture.</text>
+</svg>

@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 624" width="1200" height="624" role="img" aria-labelledby="t d">
+<title id="t">The curriculum's analogies, mapped to the machine vocabulary they stand for</title>
+<desc id="d">A two-column table. The left column holds ten everyday images used across the curriculum, set in prose type: a stadium of fifty thousand students, a warehouse across town, a truck that leaves full either way, a workbench inside the building, a rowing eight, books checked out to a shared table, a banquet order followed by one a la carte plate, a practice test with the answers printed on the back, the evening call where crews merge their edits, and sealed offices passing notes through a door slot. An arrow carries each to the right column, set in monospace, which names what it actually is: thousands of threads running one kernel, global memory, one memory transaction, shared memory or LDS, a warp of thirty-two or a wavefront of sixty-four, shared-memory tiling, prefill and decode, label leakage, the gradient all-reduce, and MPI message passing. A moving band highlights one pair at a time so the rows cannot be misread against each other. Each row names the module it comes from, and every one of those modules states in its own Section 1 where its analogy stops being true.</desc>
+
+<!--
+  brief:
+    id: analogy-bridge
+    module: - (curriculum-wide)
+    track: -
+    visual_job: identity
+    signature_device: two_typefaces
+    motion_teaches: true
+    motion_claim: "these two columns are one referent seen twice, row by row"
+    numbers: none - this asset carries vocabulary, not measurements
+    static_fallback: "the whole table is drawn; the band only says which pair to read together"
+
+  Every module in this curriculum explains its concept twice, once in plain words and
+  once in the machine's. Those pairings were scattered across thirty Section 1s and had
+  never been shown side by side, which is the one thing a table can do that prose cannot.
+
+  The signature here is TYPOGRAPHIC, not the lane grid: the everyday world is set in
+  Inter and the machine in JetBrains Mono. The reader can tell which vocabulary they are
+  in without reading a word, and the arrow between them is the only ornament.
+
+  Motion: a single band steps down the rows. With ten rows and two columns, slipping by
+  one row is a real reading error, and the band prevents it. That is the whole reason it
+  moves - there is no sequence in a vocabulary map, so nothing else here animates.
+
+  Every analogy listed is load-bearing and every module says where its own breaks. Two
+  of them, A01 and A02, currently do not, which is a gap in those modules rather than
+  something this graphic can fix, so the footer points at the section rather than
+  claiming all thirty are complete.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #0891B2; }
+  .eyebrow  { fill: #0891B2; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .colhead  { fill: #64748B; font: 700 10.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1.6px; }
+  .world    { fill: #E2E8F0; font: 400 13.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .machine  { fill: #7DD3FC; font: 600 13px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .modtag   { font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .divide   { stroke: #1E293B; stroke-width: 1; }
+  .arrow    { stroke: #475569; stroke-width: 1.2; fill: none; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .note     { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .band     { fill: #0891B2; opacity: .10; }
+
+  /* One band, ten stops. Reading row 6 on the left against row 7 on the right is the
+     failure this prevents; there is nothing else here worth animating. */
+  .band { animation: scan 13s steps(10, end) infinite; }
+  @keyframes scan { from { transform: translateY(0) } to { transform: translateY(340px) } }
+  @media (prefers-reduced-motion: reduce) { .band { animation: none; opacity: 0 } }
+</style>
+
+<rect class="ground" width="1200" height="624"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">EVERY CONCEPT TWICE &#183; ONCE IN PLAIN WORDS, ONCE IN THE MACHINE'S</text>
+<text class="head"    x="54" y="92">The same idea, said two ways</text>
+<text class="sub"     x="56" y="120">Ten images this curriculum teaches with, and what each one actually is.</text>
+
+<defs>
+  <marker id="a" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M 0 1 L 6 4 L 0 7 z" fill="#475569"/>
+  </marker>
+</defs>
+
+<text class="colhead" x="70"   y="170">IN THE WORLD</text>
+<text class="colhead" x="568"  y="170">IN THE MACHINE</text>
+<text class="colhead" x="1060" y="170">MODULE</text>
+<line class="divide" x1="70" y1="182" x2="1144" y2="182"/>
+
+<!-- the moving pair highlight -->
+<rect class="band" x="62" y="196" width="1090" height="30" rx="3"/>
+
+<!-- rows: pitch 34, first baseline 216 -->
+<g class="arrow" marker-end="url(#a)">
+  <path d="M 476 212 H 552"/><path d="M 476 246 H 552"/><path d="M 476 280 H 552"/>
+  <path d="M 476 314 H 552"/><path d="M 476 348 H 552"/><path d="M 476 382 H 552"/>
+  <path d="M 476 416 H 552"/><path d="M 476 450 H 552"/><path d="M 476 484 H 552"/>
+  <path d="M 476 518 H 552"/>
+</g>
+
+<text class="world"   x="70"   y="216">A stadium of 50,000 diligent students</text>
+<text class="machine" x="568"  y="216">thousands of threads, one kernel</text>
+<text class="modtag"  x="1060" y="216" fill="#0891B2">A01</text>
+
+<text class="world"   x="70"   y="250">A warehouse across town</text>
+<text class="machine" x="568"  y="250">global memory (HBM)</text>
+<text class="modtag"  x="1060" y="250" fill="#0891B2">A02</text>
+
+<text class="world"   x="70"   y="284">A truck that leaves full either way</text>
+<text class="machine" x="568"  y="284">one memory transaction</text>
+<text class="modtag"  x="1060" y="284" fill="#0891B2">A02</text>
+
+<text class="world"   x="70"   y="318">A workbench inside the building</text>
+<text class="machine" x="568"  y="318">shared memory / LDS</text>
+<text class="modtag"  x="1060" y="318" fill="#0891B2">A02</text>
+
+<text class="world"   x="70"   y="352">A rowing eight: one call, every oar</text>
+<text class="machine" x="568"  y="352">warp of 32, wavefront of 64</text>
+<text class="modtag"  x="1060" y="352" fill="#0891B2">A03</text>
+
+<text class="world"   x="70"   y="386">Books checked out to a shared table</text>
+<text class="machine" x="568"  y="386">shared-memory tiling</text>
+<text class="modtag"  x="1060" y="386" fill="#0891B2">A06</text>
+
+<text class="world"   x="70"   y="420">A banquet order, then one &#224; la carte plate</text>
+<text class="machine" x="568"  y="420">prefill, then decode</text>
+<text class="modtag"  x="1060" y="420" fill="#6366F1">B05</text>
+
+<text class="world"   x="70"   y="454">The evening call where crews merge edits</text>
+<text class="machine" x="568"  y="454">the gradient all-reduce</text>
+<text class="modtag"  x="1060" y="454" fill="#6366F1">B07</text>
+
+<text class="world"   x="70"   y="488">A practice test with the answers on the back</text>
+<text class="machine" x="568"  y="488">label leakage</text>
+<text class="modtag"  x="1060" y="488" fill="#F59E0B">C02</text>
+
+<text class="world"   x="70"   y="522">Sealed offices, notes through a door slot</text>
+<text class="machine" x="568"  y="522">MPI message passing</text>
+<text class="modtag"  x="1060" y="522" fill="#DB2777">D02</text>
+
+<line class="divide" x1="70" y1="544" x2="1144" y2="544"/>
+
+<text class="note" x="70" y="568">An analogy that misleads is worse than none, so each module's Section 1 also says where its own stops being true &#8212; read that part.</text>
+<text class="tiny" x="70" y="590">The break is where the engineering lives: lanes do not tire the way rowers do, two gradients cannot</text>
+<text class="tiny" x="70" y="606">disagree the way two builders can, and a diner never slows the table down the way one more sequence does.</text>
+</svg>

@@ -8,7 +8,13 @@ carry most of the explanatory load; these assets exist for the four jobs Mermaid
 | Show a **proportion** honestly | No scale — every box is the same size | [`where-time-goes.svg`](where-time-goes.svg) |
 | Draw a **curve** | No plotting, no log axes | [`roofline.svg`](roofline.svg) |
 | Show something happening **in sequence** | Static; a graph of two branches can't say "one after the other" | [`divergence.svg`](divergence.svg) |
+| Show two things happening **at once** | One node, one moment; no time axis and no second lane | [`dataflow-training-step.svg`](dataflow-training-step.svg) |
 | Carry a visual **identity** | Themeable, but not designed | [`hero-lanes.svg`](hero-lanes.svg) |
+
+Simultaneity was added as a job when the data-flow assets landed. It is not the same as sequence: a
+sequence diagram can say *A then B*, but nothing in Mermaid can say *A and B are both happening
+right now, and that overlap is the whole mechanism*. If your subject is a schedule rather than a
+graph, this is the row you are on.
 
 If a diagram is boxes and arrows, use Mermaid — it is editable in place, diffs cleanly, and the brand
 init block in [`../docs/BRAND.md`](../docs/BRAND.md) already themes it. Reach for SVG only when you
@@ -115,6 +121,7 @@ argument — they should look like readings, not like copy.
 |---|---|---|---|
 | `hero-lanes.svg` | — | Lockstep sweep | Wordmark + signature device |
 | `curriculum-map.svg` | — | Start beacon | Row length encodes module count |
+| `analogy-bridge.svg` | — | Pair highlight | Ten analogies mapped to what they are; type, not colour, marks the two worlds |
 | `where-time-goes.svg` | A01 | Kernel tick | Real `rocprofv3` run, gfx950 |
 | `coalescing.svg` | A02 | Discarded bytes | 8 lanes ? 1 line vs 8 lines |
 | `divergence.svg` | A03 | THEN/ELSE antiphase | Cost is the sum, not the max |
@@ -123,6 +130,8 @@ argument — they should look like readings, not like copy.
 | `attention-traffic.svg` | A09 | Four HBM crossings | 132 MiB vs 4 MiB per head; the skipped span is dashed |
 | `roofline.svg` | B02 | Vector-add pulse | Log-log, 5 kernels plotted |
 | `prefill-decode-split.svg` | B05 | Decode point pulse | Log-log; intensity is batch size until it saturates |
+| `dataflow-decode-loop.svg` | B05 | Per-token weight read | One read for the whole prefill, one per token forever after |
+| `dataflow-training-step.svg` | B07 | Playhead sweep | Two lanes; the all-reduce hides under backward, except the tail |
 | `scaling-walls.svg` | D01 | Turning-point pulse | Log-log; Amdahl ceilings vs the communication downturn |
 | `ring-allreduce.svg` | D03, B07 | Three-panel phase cue | Start, after reduce-scatter, after all-gather |
 | `fabric-tiers.svg` | D04 | HBM breathe | Log bandwidth axis; the on-package-to-wire cliff |
@@ -135,7 +144,19 @@ asset, and a second file would be one more thing to leave stale.
 
 Candidates worth adding, all with something Mermaid can't express: the KV-cache growth curve against
 batch and context (B06), and the pipeline-bubble timeline that shows why interleaved schedules beat
-naive ones (B07).
+naive ones (B07) — a second job for the two-lane device that `dataflow-training-step.svg` introduces.
+
+## Analogies are a first-class surface
+
+Every module teaches its concept twice, and `analogy-bridge.svg` is the ten-row summary of the
+pairing. The full set of thirty, each with the point where the module says its own analogy stops
+being true, lives in [`../live/data/reference.json`](../live/data/reference.json) under `analogies`
+and renders as a tab on the reference sheets. `check_reference_data.py` enforces that every entry
+cites the Section 1 it came from.
+
+Two of the thirty, A01 and A02, do not currently state a break. That is a gap in those modules
+against [`../docs/MODULE_TEMPLATE.md`](../docs/MODULE_TEMPLATE.md), not something a graphic can
+paper over, so the card says so plainly and the checker prints a note.
 
 ## If you need a GIF
 

@@ -450,6 +450,15 @@ as soon as layer `i`'s backward finishes, while layer `i-1` is still computing.
 With bucketing, communication hides almost entirely behind the backward pass — a
 well-tuned DDP job can be ~90% efficient at hundreds of ranks.
 
+That overlap is a claim about two things happening at the same instant, which a
+flowchart cannot express because it has no time axis:
+
+![Three gradient buckets finish inside the backward pass; the last one has no compute left to hide behind](../../../assets/dataflow-training-step.svg)
+
+Note the tail. When the final bucket is handed over there is no backward left to
+cover it, so some exposure is structural rather than a tuning failure — which is why
+"~90%" and not "100%".
+
 **When it wins:** the model fits on one device and you want more throughput.
 **Failure mode:** the model does not fit — full stop. Also, scaling data
 parallelism means growing the *global batch*, and past some critical batch size

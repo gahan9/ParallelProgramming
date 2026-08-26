@@ -11,6 +11,15 @@ This repository is run in **expert tutor mode**. Every module is built to a sing
 > would nod along** — with runnable dual-vendor code, measured performance, cited research,
 > and an honest account of the tradeoffs.
 
+Concretely, that means every concept arrives twice — once as something you already understand,
+and once as the thing the machine is actually doing:
+
+![Ten everyday images from the curriculum, each paired with what it actually is in the machine](assets/analogy-bridge.svg)
+
+All thirty are browsable, with their break points, on the
+[reference sheets](live/cheatsheets.html). The break is the part worth reading: an analogy that
+misleads is worse than none, so each module says where its own stops being true.
+
 It is dual-track by design: examples run on **AMD (ROCm / HIP, `hipcc`, `gfx942`/MI300)** and
 **NVIDIA (CUDA, `nvcc`)**, with a portable **Triton** track that runs on both. NVIDIA-only
 advanced material (CuTe / CUTLASS / CuTile) is clearly marked optional.

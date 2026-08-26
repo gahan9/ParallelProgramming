@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 538" width="1200" height="538" role="img" aria-labelledby="t d">
+<title id="t">Prefill reads the weights once; decode reads all of them again for every single token</title>
+<desc id="d">A data-flow diagram in two parts, sharing one bar at the top that represents the whole model sitting in HBM: 16.06 gigabytes for Llama-3-8B in fp16. Below it, a single wide prefill block consumes 2048 tokens in one pass and reads the weights once, amortised over every token in the prompt. To its right, eight narrow decode steps each produce exactly one token, and an arrow runs from the weight bar down into every one of them, lighting in turn: each token drags the entire model across the memory bus again. That is why the ceiling is bandwidth divided by model bytes. On an MI300X at 5.3 terabytes per second the ceiling is 330 tokens per second, falling to 309 once an 8192-token KV cache is read too; on an H100 at 3.35 terabytes per second it is 209. Quantising the weights to int8 halves the bytes and doubles the ceiling to 660.</desc>
+
+<!--
+  brief:
+    id: dataflow-decode-loop
+    module: B05
+    track: B
+    visual_job: sequence
+    signature_device: none
+    motion_teaches: true
+    motion_claim: "the whole weight matrix is re-read once per token, over and over"
+    numbers: derived in B05 section 2.5 - 5300 GB/s over 16.06 GB = 330 tok/s; datasheet bandwidths
+    static_fallback: "every arrow is drawn; motion only says which token is being produced now"
+
+  Module B05. The decode ceiling is one division, and the module does the arithmetic
+  well. What the arithmetic does not convey is the REPETITION: that the same 16 GB is
+  dragged across the bus again for token 2, and token 3, and token 900. Readers accept
+  the formula and still design as though the weights were loaded once.
+
+  Motion is the argument here. The read arrow firing once per decode step, forever, is
+  the thing that makes "bandwidth divided by model bytes" feel inevitable rather than
+  arbitrary. Prefill gets exactly one arrow, at the same visual weight, which is the
+  contrast.
+
+  Numbers are B05 section 2.5's, derived from datasheet bandwidth and a counted
+  parameter set - not a measured serving run. Your deployment will land lower.
+-->
+
+<style>
+  .ground   { fill: #0F172A; }
+  .rule     { fill: #6366F1; }
+  .eyebrow  { fill: #6366F1; font: 700 12.5px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 3.2px; }
+  .head     { fill: #F8FAFC; font: 700 30px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: -.7px; }
+  .sub      { fill: #94A3B8; font: 400 15px Inter, "Segoe UI", system-ui, sans-serif; }
+  .secname  { fill: #64748B; font: 700 11px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1.6px; }
+  .hbm      { fill: #1E293B; stroke: #334155; stroke-width: 1; }
+  .hbmfill  { fill: #6366F1; opacity: .30; }
+  .hbmlbl   { fill: #C7D2FE; font: 700 13px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .stage    { font: 700 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .pre      { fill: #10B981; }
+  .dec      { fill: #6366F1; }
+  .wire     { stroke: #334155; stroke-width: 1.4; fill: none; }
+  .prewire  { stroke: #10B981; stroke-width: 2; fill: none; }
+  .tiny     { fill: #64748B; font: 400 11.5px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .note     { fill: #CBD5E1; font: 400 12.5px Inter, "Segoe UI", system-ui, sans-serif; }
+  .num      { fill: #F8FAFC; font: 700 15px "JetBrains Mono", Consolas, ui-monospace, monospace; }
+  .col      { fill: #64748B; font: 700 10.5px "JetBrains Mono", Consolas, ui-monospace, monospace; letter-spacing: 1px; }
+  .divide   { stroke: #1E293B; stroke-width: 1; }
+
+  /* Eight steps, eight reads of the whole model. The repetition is the lesson, so it is
+     the only thing that moves. */
+  .r { stroke: #6366F1; stroke-width: 2; fill: none; opacity: .18; }
+  .r1 { animation: fire 4s steps(1,end) infinite; }
+  .r2 { animation: fire 4s steps(1,end) infinite; animation-delay: .5s; }
+  .r3 { animation: fire 4s steps(1,end) infinite; animation-delay: 1s; }
+  .r4 { animation: fire 4s steps(1,end) infinite; animation-delay: 1.5s; }
+  .r5 { animation: fire 4s steps(1,end) infinite; animation-delay: 2s; }
+  .r6 { animation: fire 4s steps(1,end) infinite; animation-delay: 2.5s; }
+  .r7 { animation: fire 4s steps(1,end) infinite; animation-delay: 3s; }
+  .r8 { animation: fire 4s steps(1,end) infinite; animation-delay: 3.5s; }
+  @keyframes fire { 0%, 12.4% { opacity: 1; stroke: #A5B4FC } 12.5%, 100% { opacity: .18; stroke: #6366F1 } }
+  @media (prefers-reduced-motion: reduce) {
+    .r1,.r2,.r3,.r4,.r5,.r6,.r7,.r8 { animation: none; opacity: .55 }
+  }
+</style>
+
+<rect class="ground" width="1200" height="538"/>
+<rect class="rule" width="1200" height="4"/>
+
+<text class="eyebrow" x="56" y="52">MODULE B05 &#183; ONE DIVISION SETS THE CEILING</text>
+<text class="head"    x="54" y="92">Every token drags the whole model across the bus</text>
+<text class="sub"     x="56" y="120">Llama-3-8B, fp16. Prefill pays for the weight read once. Decode pays for it per token.</text>
+
+<defs>
+  <marker id="a" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M 0 1 L 6 4 L 0 7 z" fill="#10B981"/>
+  </marker>
+  <!-- Mid-tone between the lit and unlit stroke, so one static head reads in both states. -->
+  <marker id="r" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M 0 1 L 6 4 L 0 7 z" fill="#818CF8"/>
+  </marker>
+</defs>
+
+<!-- ================= the weights, in HBM ================= -->
+<text class="secname" x="56" y="162">HBM &#183; THE WEIGHTS EVERY STEP MUST READ IN FULL</text>
+<rect class="hbm"     x="150" y="176" width="950" height="38" rx="3"/>
+<rect class="hbmfill" x="151" y="177" width="948" height="36" rx="3"/>
+<text class="hbmlbl"  x="170" y="201">16.06 GB of weights</text>
+<text class="tiny"    x="900" y="201">+ 1.07 GB KV at 8k ctx</text>
+
+<!-- ================= prefill: one read, amortised ================= -->
+<text class="secname" x="56" y="262">PREFILL</text>
+<text class="tiny"    x="56" y="278">one pass</text>
+<path class="prewire" d="M 240 214 V 288" marker-end="url(#a)"/>
+<rect class="pre" x="150" y="292" width="190" height="46" rx="3"/>
+<text class="stage" x="168" y="313" fill="#04241A">2048 tokens</text>
+<text class="stage" x="168" y="330" fill="#04241A">in one pass</text>
+<text class="tiny" x="150" y="358">1 weight read, shared</text>
+<text class="tiny" x="150" y="374">by 2048 tokens</text>
+
+<line class="divide" x1="366" y1="240" x2="366" y2="380"/>
+
+<!-- ================= decode: one read per token, forever ================= -->
+<text class="secname" x="392" y="262">DECODE &#183; ONE TOKEN EACH, AND EACH RE-READS EVERYTHING</text>
+
+<g marker-end="url(#r)">
+  <path class="r r1" d="M 434 214 V 284"/><path class="r r2" d="M 518 214 V 284"/>
+  <path class="r r3" d="M 602 214 V 284"/><path class="r r4" d="M 686 214 V 284"/>
+  <path class="r r5" d="M 770 214 V 284"/><path class="r r6" d="M 854 214 V 284"/>
+  <path class="r r7" d="M 938 214 V 284"/><path class="r r8" d="M 1022 214 V 284"/>
+</g>
+
+<g class="dec">
+  <rect x="404" y="292" width="60" height="46" rx="3"/><rect x="488" y="292" width="60" height="46" rx="3"/>
+  <rect x="572" y="292" width="60" height="46" rx="3"/><rect x="656" y="292" width="60" height="46" rx="3"/>
+  <rect x="740" y="292" width="60" height="46" rx="3"/><rect x="824" y="292" width="60" height="46" rx="3"/>
+  <rect x="908" y="292" width="60" height="46" rx="3"/><rect x="992" y="292" width="60" height="46" rx="3"/>
+</g>
+<g class="stage" fill="#E0E7FF">
+  <text x="424" y="321">tok 1</text><text x="508" y="321">tok 2</text><text x="592" y="321">tok 3</text><text x="676" y="321">tok 4</text>
+  <text x="760" y="321">tok 5</text><text x="844" y="321">tok 6</text><text x="928" y="321">tok 7</text><text x="1012" y="321">tok 8</text>
+</g>
+<text class="tiny" x="1064" y="321">&#8230;</text>
+<text class="tiny" x="404" y="358">8 tokens, 8 full reads of the model. The arithmetic per token is trivial; the read is not.</text>
+
+<line class="divide" x1="56" y1="396" x2="1144" y2="396"/>
+
+<!-- ================= the ceiling ================= -->
+<text class="col" x="56"  y="420">CEILING = BANDWIDTH / MODEL BYTES</text>
+<text class="col" x="404" y="420">MI300X 5.3 TB/s</text>
+<text class="col" x="600" y="420">+ KV AT 8K</text>
+<text class="col" x="760" y="420">H100 3.35 TB/s</text>
+<text class="col" x="944" y="420">INT8 WEIGHTS</text>
+
+<text class="num" x="404" y="444" fill="#10B981">330 tok/s</text>
+<text class="num" x="600" y="444" fill="#F59E0B">309 tok/s</text>
+<text class="num" x="760" y="444" fill="#F59E0B">209 tok/s</text>
+<text class="num" x="944" y="444" fill="#10B981">660 tok/s</text>
+
+<text class="note" x="56" y="478">Halving the bytes doubles the ceiling, which is the entire business case for quantizing on the decode path &#8212; and it follows from one division.</text>
+<text class="tiny" x="56" y="502">Derived in B05 section 2.5 from counted parameters and datasheet bandwidth, not from a measured serving run.</text>
+<text class="tiny" x="56" y="520">A real deployment lands lower, and batching is what lifts decode off this floor &#8212; see the prefill/decode intensity curve.</text>
+</svg>

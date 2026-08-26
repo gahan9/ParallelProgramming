@@ -258,6 +258,14 @@ ceiling *doubles* to 660 tokens/s. That is the entire business case for
 [quantization](../../../docs/GLOSSARY.md#quantization) on the decode
 path, and it follows from one division.
 
+The formula is easy to accept and still design against, because what it does not convey is the
+*repetition* — that the same 16 GB is dragged across the bus again for token 2, and token 3, and
+token 900:
+
+![Prefill reads the weights once for 2048 tokens; every decode step reads all of them again for one](../../../assets/dataflow-decode-loop.svg)
+
+Prefill gets one arrow for the whole prompt. Decode gets one per token, forever.
+
 ---
 
 ## 3. Deep Dive

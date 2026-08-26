@@ -71,10 +71,15 @@ than a better one you can't.
 Recall and reference are different activities, and merging them makes both worse. The cards ask you
 a question; these answer one you already have, mid-lab, without making you re-read a 900-line module.
 
-- **Three tiers, three questions.** A *track* sheet says what that part of the curriculum owns and
+- **Four tiers, four questions.** A *track* sheet says what that part of the curriculum owns and
   what you need before starting it. A *concept* sheet crosses modules, because the concepts do —
   twelve of them, from memory hierarchy to fabric tiers. A *module* card is the "what was the one
-  idea in A04 again" answer, one per module.
+  idea in A04 again" answer, one per module. An *analogy* card gives the everyday version and then
+  the machine's, set in two different typefaces so you can see at a glance which world you are in.
+- **Every analogy comes with its own limits.** The card states where the module says the picture
+  stops being true, because that is the half people skip and the half the engineering lives in. Two
+  modules, A01 and A02, do not state one yet; those cards say so rather than implying the analogy is
+  airtight.
 - **Every bullet is cited** to the module section or glossary entry that derives it, and the numbers
   are the module's numbers. Nothing here is restated from memory.
 - **Search and filter.** Type to search every sheet at once; `/` focuses the box and `Escape` clears

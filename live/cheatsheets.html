@@ -190,6 +190,28 @@
 
   .thumb { display: block; width: 100%; margin: .9rem 0 0; border-radius: 4px; border: 1px solid var(--rule); }
 
+  /* ---- analogy card: two typefaces, because the type IS the distinction ---- */
+  .sheet.analogy .world {
+    margin: .7rem 0 0; font-size: 1.02rem; line-height: 1.4; color: var(--fg);
+  }
+  .sheet.analogy .isreally {
+    margin: .5rem 0 .45rem; display: flex; align-items: center; gap: .6rem;
+    font: 400 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .sheet.analogy .isreally::after {
+    content: ""; flex: 1; height: 1px; background: var(--rule);
+  }
+  .sheet.analogy .machine {
+    margin: 0; font: 600 .93rem var(--mono); color: #7DD3FC; line-height: 1.45;
+  }
+  .sheet.analogy .breaks {
+    margin: .95rem 0 0; padding-left: .8rem; border-left: 2px solid var(--highlight);
+    font-size: .87rem; color: #DDE3EC;
+  }
+  .sheet.analogy .breaks b { color: var(--highlight); font-weight: 700; }
+  .sheet.analogy .breaks.nogap { border-left-color: var(--muted); color: var(--dim); font-style: italic; }
+  .sheet.analogy .breaks.nogap b { color: var(--muted); }
+
   /* module tier is a denser card: a one-liner plus its facts, no ornament */
   .sheet.mod { padding: .85rem 1rem .8rem; }
   .sheet.mod h3 { font-size: .95rem; }
@@ -291,11 +313,13 @@
 
   <footer>
     <p>
-      <strong>Three tiers, three questions.</strong> A <em>track</em> sheet answers "what does this
+      <strong>Four tiers, four questions.</strong> A <em>track</em> sheet answers "what does this
       part of the curriculum own, and what do I need before starting it". A <em>concept</em> sheet
       answers "what do I need to hold in my head about memory, or collectives, or precision" &mdash;
       it crosses modules, because the concepts do. A <em>module</em> card answers "what was the one
-      idea in A04 again".
+      idea in A04 again". An <em>analogy</em> card answers "what is this actually like", and then
+      immediately tells you where that picture stops being true &mdash; which is the half people skip
+      and the half the engineering lives in.
     </p>
     <p>
       <strong>Print it.</strong> <kbd>Ctrl-P</kbd> gives one concept sheet per landscape page with the
@@ -317,9 +341,10 @@
   var TRACKS = ["A", "B", "C", "D"];
   var COLOR = { A: "#0891B2", B: "#6366F1", C: "#F59E0B", D: "#DB2777" };
   var TIERS = [
-    { id: "clusters", label: "Concepts" },
-    { id: "tracks",   label: "Tracks" },
-    { id: "modules",  label: "Modules" }
+    { id: "clusters",  label: "Concepts" },
+    { id: "tracks",    label: "Tracks" },
+    { id: "modules",   label: "Modules" },
+    { id: "analogies", label: "Analogies" }
   ];
 
   var out      = document.getElementById("out");
@@ -353,7 +378,8 @@
      not have identical shapes, so every optional field is probed rather than assumed -
      a missing key must narrow the search, never throw and blank the page. */
   function haystack(s) {
-    var parts = [s.id, s.title, s.sub, s.one_liner, s.owns, s.prereq];
+    var parts = [s.id, s.title, s.sub, s.one_liner, s.owns, s.prereq,
+                 s.world, s.machine, s.breaks];
     if (Array.isArray(s.bullets)) {
       s.bullets.forEach(function (b) { parts.push(b.text, b.cite && b.cite.label); });
     }
@@ -498,6 +524,27 @@
       "</article>";
   }
 
+  /* The analogy card is the only one that sets two typefaces against each other:
+     the everyday sentence in prose, the machine's name for the same thing in mono.
+     That contrast is the content - it is how you tell which vocabulary you are in. */
+  function analogyCard(a) {
+    var mod = DATA.modules.filter(function (x) { return x.id === a.id; })[0];
+    var brk = a.breaks
+      ? '<p class="breaks"><b>Where it breaks.</b> ' + esc(a.breaks) + "</p>"
+      : '<p class="breaks nogap">This module does not yet state where its analogy breaks. ' +
+        "Treat the mapping above as the useful part and the edges as unmarked.</p>";
+    return '<article class="sheet analogy t' + a.track + '" id="analogy-' + esc(a.id) + '">' +
+      '<div class="head"><div>' +
+        '<p class="kicker">' + esc(a.id) + (mod ? " &middot; " + esc(mod.title) : "") + "</p>" +
+      "</div>" + pinBtn("analogy-" + a.id) + "</div>" +
+      '<p class="world">' + esc(a.world) + "</p>" +
+      '<p class="isreally"><span>is really</span></p>' +
+      '<p class="machine">' + esc(a.machine) + "</p>" +
+      brk +
+      '<div class="meta"><a href="' + esc(a.cite.href) + '">' + esc(a.cite.label) + "</a></div>" +
+      "</article>";
+  }
+
   function moduleCard(m) {
     return '<article class="sheet mod t' + m.track + '" id="sheet-' + esc(m.id) + '">' +
       '<div class="head"><div>' +
@@ -530,9 +577,10 @@
     }
 
     var body, cls;
-    if (tier === "clusters")     { cls = "two";  body = items.map(clusterCard).join(""); }
-    else if (tier === "tracks")  { cls = "two";  body = items.map(trackCard).join(""); }
-    else                         { cls = "mods"; body = items.map(moduleCard).join(""); }
+    if (tier === "clusters")       { cls = "two";  body = items.map(clusterCard).join(""); }
+    else if (tier === "tracks")    { cls = "two";  body = items.map(trackCard).join(""); }
+    else if (tier === "analogies") { cls = "two";  body = items.map(analogyCard).join(""); }
+    else                           { cls = "mods"; body = items.map(moduleCard).join(""); }
 
     var label = TIERS.filter(function (t) { return t.id === tier; })[0].label;
     out.innerHTML = '<h2 class="sec">' + esc(label) +

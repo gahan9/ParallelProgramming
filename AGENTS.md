@@ -24,9 +24,10 @@ analogy, then expert depth - with runnable labs, cited sources, and an honest tr
 | Read-aloud | `docs/javascripts/read-aloud.js` + matching CSS, injected site-wide via `extra_javascript`. Browser `speechSynthesis`, no dependency. Skips code blocks and collapsed `<details>`; rewrites technical vocabulary before speaking |
 | Site UX | `navigation.tabs` + `prune` so a module page's sidebar shows only its own track, not all 30. `docs/javascripts/panel-toggle.js` hides the nav and TOC panels (persisted in `localStorage`); `docs/javascripts/gfm-alerts.js` upgrades GitHub `> [!NOTE]` blockquotes into Material admonitions, which keeps the source readable on both surfaces. Dark mode verified in a real browser, both schemes |
 | Live pages | `live/` - study planner, 49 cited recall cards (with a `L`isten control), reference sheets, one concept player, 14-slide deck. Self-contained HTML |
-| Reference sheets | `live/cheatsheets.html` + `live/data/reference.json` - 4 track, 12 concept and 30 module sheets, search + track filter, print CSS. **Every bullet carries a `cite`; that is the contract.** The 30-lane rail is the signature and is load-bearing (filtering dims it). Data is fetched, so this page alone needs HTTP locally - it says so on screen |
+| Reference sheets | `live/cheatsheets.html` + `live/data/reference.json` - 4 track, 12 concept, 30 module and 30 analogy sheets, search + track filter, print CSS. **Every bullet carries a `cite`; that is the contract**, enforced by `check_reference_data.py`. The 30-lane rail is the signature and is load-bearing (filtering dims it). Data is fetched, so this page alone needs HTTP locally - it says so on screen |
+| Analogies | Every module teaches its concept twice. All 30 pairings live in `reference.json` under `analogies` (everyday phrasing, what it actually is, and where the module says the picture stops being true) and render as a tab. `assets/analogy-bridge.svg` is the ten-row summary. **A01 and A02 state no break** - a real gap against MODULE_TEMPLATE section 1, surfaced by the checker rather than hidden |
 | Concept players | `live/concepts/` - interactive versions where a *control* teaches better than a drawing. `coalescing.html` is the pilot (stride + lockstep width). Bar for adding one: the geometry must genuinely change with the input, else it stays an SVG |
-| Infographics | `assets/` - 14 hand-authored SVGs for what Mermaid cannot express, each with a `brief:` comment header. GIF is deliberately refused; the SVGs are already animated and `scripts/export_visual.sh` derives one into gitignored `exports/` when an external surface truly needs a file |
+| Infographics | `assets/` - 17 hand-authored SVGs for what Mermaid cannot express, each with a `brief:` comment header. Five jobs now, not four: proportion, curve, sequence, **simultaneity** (two lanes busy at one instant - the data-flow assets) and identity. GIF is deliberately refused; the SVGs are already animated and `scripts/export_visual.sh` derives one into gitignored `exports/` when an external surface truly needs a file |
 | Content studio | `content/` - video/Shorts scripts. Packs exist for A01 and A02 only |
 | Cursor canvas | `canvases/curriculum-dashboard.canvas.tsx` (outside the repo, in the Cursor project dir) |
 | Git | `main` clean and pushed; every workflow run green |
@@ -38,6 +39,8 @@ README.md CURRICULUM.md          catalog + module index/tracker
 AGENTS.md                        this file
 build_docs.py                    stages the publishable files into _docs/ (see Traps)
 check_links.py                   resolves every relative link + anchor on both surfaces (Traps #8)
+check_reference_data.py          reference.json: every bullet cited, every href + anchor resolving
+check_live_js.py                 node --check on the inline script of every live/ page
 build_reference_index.py         regenerates the "cited by" table in docs/REFERENCES.md
 mkdocs.yml                       site config; nav lists all 30 modules
 docs/                            SETUP, MODULE_TEMPLATE, BRAND, GLOSSARY, REFERENCES
@@ -97,37 +100,24 @@ python build_reference_index.py --check        # fails if REFERENCES.md's index 
 python build_docs.py
 python -m mkdocs build --clean --strict --site-dir ./site
 
-# Inline JS in the live pages - a syntax error leaves a page silently dead
-node --check <extracted script>
+# Inline JS in the live pages - a syntax error leaves a page silently dead, because
+# nothing between the editor and the browser parses it
+python check_live_js.py
 
-# reference.json: every bullet cited, and every href + anchor actually resolving.
-# check_links.py cannot see inside JSON, so this is the only thing that catches a
-# renamed heading breaking a cheatsheet citation (Traps #14).
-python - <<'PY'
-import json, re, pathlib
-base = pathlib.Path('live')
-d = json.load(open('live/data/reference.json', encoding='utf-8'))
-slug = lambda h: re.sub(r'\s', '-', re.sub(r'[^\w\s-]', '', h.strip().lower()))
-hrefs, bad = set(), []
-for key in ('tracks', 'clusters', 'modules'):
-    for s in d[key]:
-        hrefs.update(s[k] for k in ('href', 'svg', 'concept') if s.get(k))
-        for b in s.get('bullets', []):
-            hrefs.add(b['cite']['href'])
-for h in sorted(hrefs):
-    path, _, anchor = h.partition('#')
-    p = (base / path).resolve()
-    if not p.exists():
-        bad.append(f'MISSING FILE {h}')
-    elif anchor and p.suffix == '.md':
-        heads = [slug(m[1]) for m in re.findall(r'^(#{1,6})\s+(.*)$', p.read_text(encoding='utf-8'), re.M)]
-        if anchor not in heads:
-            bad.append(f'MISSING ANCHOR {h}')
-print('\n'.join(bad) or f'{len(hrefs)} hrefs resolve')
-PY
+# reference.json: every bullet cited, every href + anchor resolving, no dangling
+# cluster or module ids. check_links.py cannot see inside JSON (Traps #14), so this is
+# the only thing that catches a renamed heading breaking a cheatsheet citation.
+python check_reference_data.py
 
 # The reference sheets fetch their data, so exercise them over HTTP, not file://
 python -m http.server 8000    # then open /live/cheatsheets.html and search for something
+
+# Rendered layout: the checks above cannot see text running off a canvas or two labels
+# landing on each other, both of which have shipped here before. Load each SVG in a
+# headless browser and compare getBoundingClientRect against the viewBox. Chrome:
+#   chrome --headless --disable-gpu --virtual-time-budget=15000 --dump-dom <harness url>
+# Beware getBBox(): it ignores an enclosing transform, so it reports false collisions
+# on any asset whose plot is translated. Use client rects.
 
 # SVGs must be well-formed XML and pure ASCII
 # (XmlDocument.LoadXml + a scan for [^\x09\x0A\x0D\x20-\x7E])
@@ -210,6 +200,13 @@ $env:GITHUB_TOKEN = ""; gh run list --limit 1
    showing stale results instead of failing visibly - the worst kind of bug, because it looks like it
    works. The count is now derived and the reader guards with `Array.isArray`. Whenever you add a
    field, check no sibling shape already uses that name for something else.
+16. **An SVG that validates can still be unreadable.** Well-formed XML and pure ASCII say nothing
+   about whether the text *fits*. Three shipped assets rendered their axis caption and top tick
+   underneath the headline, and two more clipped a caption off the right edge - none of it visible
+   in the source, because the overlap only exists once a font is applied. Measure in a real browser.
+   And use `getBoundingClientRect`, not `getBBox`: `getBBox` reports coordinates in the element's
+   own user space and ignores an enclosing `transform`, so every asset whose plot is translated
+   reports collisions that are not there.
 
 Both surfaces matter equally: the curriculum is read on GitHub *and* on the docs site, and Traps #8,
 #11 and #12 are all the same failure - a change verified on one surface only.
@@ -268,16 +265,20 @@ Known likely first-build friction:
 2. **Content packs** for A04, A06, A07, B02 - each needs a real measured number to lead with, which
    is why they are blocked on item 1. `content/README.md` now names the lead visual and the exact
    lab output each is waiting on, so a pack is a script plus a number, nothing else.
-3. **Recall cards for Track D.** The deck is 49 cards over Tracks A, B and C; Track D was added after
+3. **A01 and A02 need a "where the analogy breaks" section.** MODULE_TEMPLATE section 1 requires one
+   and the other 28 modules have it; these two do not. A01's stadium and A02's warehouse are the two
+   analogies a beginner meets first, so they are the worst two to leave unbounded.
+   `check_reference_data.py` prints a note until they land.
+4. **Recall cards for Track D.** The deck is 49 cards over Tracks A, B and C; Track D was added after
    it was built and has none. The reference sheets link to `flashcards.html?track=D` and the deck
    says plainly that the track is empty, so the gap is visible rather than silent. Every card needs a
    real source.
-4. **Two more concept players.** `live/concepts/coalescing.html` proved the pattern. The ring
+5. **Two more concept players.** `live/concepts/coalescing.html` proved the pattern. The ring
    all-reduce phase stepper (D03) and the roofline intensity slider (B02) are the two where a control
    genuinely beats the static asset. Same bar: the geometry has to change with the input.
-5. **Bump Node 20 actions.** CI warns that `checkout@v4`, `configure-pages@v5`, `setup-python@v5`,
+6. **Bump Node 20 actions.** CI warns that `checkout@v4`, `configure-pages@v5`, `setup-python@v5`,
    and `upload-artifact@v4` are being forced onto Node 24. Nothing is broken; it is upkeep.
-6. **Legacy cleanup.** `tracks/A-gpu-programming/01.hello_world/Makefile` still calls bare
+7. **Legacy cleanup.** `tracks/A-gpu-programming/01.hello_world/Makefile` still calls bare
    `rocprofv3` instead of `$(ROCPROFV3)`, so it fails when ROCm is not on `PATH` - the bug fixed
    everywhere else. Kept as raw reference material, superseded by A01.
 
@@ -298,5 +299,6 @@ Rough effort record, kept because the operator asks for usage tracking.
 | 2026-08-09 | Reconciled the two 2026-08-08 sessions and pushed both. The Pages deploy had been red for a day: splitting a half-finished tree into commits left `docs/REFERENCES.md`'s generated index describing citations that were not in the same commit, and `build_reference_index.py --check` failed the build exactly as designed - but nobody looked at the run. Landing the rest of the rollout fixed it |
 | 2026-08-08 | Docs-site UX pass in a parallel session: found that `md_in_html` had been silently publishing all 24 Section 9 answer blocks as raw Markdown (Traps #11); pinned the Mermaid dark-mode variables (Traps #12); added `navigation.tabs`/`prune`, the nav+TOC toggles and the GFM-alert upgrader. Its `??? note` collapsibles then broke the syllabus tables on GitHub, migrated to `<details markdown="1">` |
 | 2026-08-10 | Output cache on `gfx950`/ROCm 7: `scripts/collect_outputs.sh` + `sanitize_output.py`, 46 sanitized artifacts under `outputs/`, SETUP §6 + MODULE_TEMPLATE hook; A01/A02 exercise headers refreshed |
+| 2026-08-26 | **Analogy surface + animated data flow.** Three assets: `analogy-bridge.svg` (ten everyday images against what they actually are, the two worlds separated by typeface rather than colour), `dataflow-training-step.svg` (B07's gradient all-reduce hiding under the backward pass, and the tail that structurally cannot hide) and `dataflow-decode-loop.svg` (B05's whole model dragged across the bus once per token). Simultaneity added as a fifth SVG job: a flowchart has no time axis and a bar chart has no second lane. All 30 module analogies extracted verbatim into `reference.json` with the point each module says its own breaks, rendering as a fourth tab. Found that **A01 and A02 state no break at all**, which MODULE_TEMPLATE section 1 requires - the card and the checker both say so rather than hiding it. Two verification steps that AGENTS.md documented as bash heredocs never ran on this repo's PowerShell, so they are now `check_reference_data.py` and `check_live_js.py`. Browser-tool access was gone this session; headless Chrome with `--dump-dom` replaced it, and caught two footers overflowing the canvas |
 | 2026-08-24 | **Visual learning system.** Four new infographics closing the candidate list (`reduction-tree` A04, `tile-reuse` A06, `attention-traffic` A09, `prefill-decode-split` B05), each with an inline `brief:` header instead of a sidecar file; `ring-allreduce.svg` finally linked from B07. New reference-sheet surface: `live/cheatsheets.html` over a cited `live/data/reference.json` (4 track + 12 concept + 30 module sheets, search, track filter, print CSS, 30-lane rail). First concept player, `live/concepts/coalescing.html`. Two real bugs found by testing in a browser rather than by reading: `reference.json` used `modules` for both a count and an array, which threw inside the render and left stale results on screen (Traps #15); the recall deck's track filter was a hand-written A/B/C list, so Track D could never appear - both are now derived. Track D's `#DB2777` added to `BRAND.md` and the brand skill, where it had been missing since the track landed |
 | 2026-08-11 | **Track D added (D01-D06, ~24k lines).** Distributed computing *below* the ML layer, since B07/C03 already own sharding and fault tolerance: Amdahl/Gustafson/Hockney alpha-beta, MPI, NCCL/RCCL, RDMA and the fabric tiers, topology, and a scale-boundary capstone. 20 new sources (every DOI web-verified against the publisher before it was written), 17 glossary terms, 4 new animated SVGs, fourth track colour `#DB2777`. Authored D01 by hand as the gold standard, then five parallel subagents for D02-D06 and six more for the labs - one died on a network stall and was simply relaunched. Two subagents caught real arithmetic errors in prose they were implementing against (D01's `m*` crossover claim was backwards; D05's block-mapping rail claim was wrong), which is the argument for making every table reproducible by a tool rather than asserting it |
