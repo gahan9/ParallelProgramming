@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Vector Addition - GPU Profiling Guide</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="vector-addition---gpu-profiling-guide">Vector Addition - GPU Profiling Guide</h1>
+<p>This directory contains two versions of a vector addition program:</p>
+<ul>
+<li><strong><code>vector_add.cpp</code></strong>: Baseline version with fixed array size (N=1024)</li>
+<li><strong><code>vector_add_dynamic.cpp</code></strong>: Enhanced version that dynamically queries GPU resources and optimizes array size</li>
+</ul>
+<h2 id="building">Building</h2>
+<pre><code class="language-bash">make all              <span class="hljs-comment"># Build both executables</span>
+make                  <span class="hljs-comment"># Same as &#x27;make all&#x27;</span>
+make <span class="hljs-built_in">test</span>             <span class="hljs-comment"># Build and run baseline version</span>
+make test_dynamic     <span class="hljs-comment"># Build and run dynamic version</span>
+</code></pre>
+<h2 id="profiling">Profiling</h2>
+<h3 id="quick-start">Quick Start</h3>
+<pre><code class="language-bash"><span class="hljs-comment"># Profile baseline version</span>
+make profile
+
+<span class="hljs-comment"># Profile dynamic version</span>
+make profile_dynamic
+
+<span class="hljs-comment"># Profile both versions for comparison</span>
+make profile_both
+
+<span class="hljs-comment"># Profile with detailed metrics</span>
+make profile_detailed
+
+<span class="hljs-comment"># Profile kernel execution time</span>
+make profile_kernel
+</code></pre>
+<h3 id="manual-profiling">Manual Profiling</h3>
+<p>You can also run profiling manually:</p>
+<pre><code class="language-bash"><span class="hljs-comment"># Basic profiling</span>
+rocprofv3 --summary --output-format csv ./vector_add_dynamic.exe
+
+<span class="hljs-comment"># Detailed profiling with system and HSA traces</span>
+rocprofv3 --summary --sys-trace --hsa-trace --output-format csv -d profiling_output ./vector_add_dynamic.exe
+
+<span class="hljs-comment"># Kernel-specific profiling</span>
+rocprofv3 --summary --kernel-trace --output-format csv -d profiling_output ./vector_add_dynamic.exe
+</code></pre>
+<h3 id="profiling-output">Profiling Output</h3>
+<p>Profiling results are stored in <code>profiling_output/</code> directory:</p>
+<ul>
+<li><strong><code>baseline/</code></strong>: Results from baseline version</li>
+<li><strong><code>dynamic/</code></strong>: Results from dynamic version</li>
+<li><strong><code>detailed/</code></strong>: Detailed performance counter results</li>
+<li><strong><code>kernel/</code></strong>: Kernel execution timing results</li>
+</ul>
+<p>Key files to examine:</p>
+<ul>
+<li><code>results.csv</code>: Summary statistics</li>
+<li><code>results.json</code>: Detailed trace data (if JSON format used)</li>
+<li><code>kernel_trace.csv</code>: Kernel execution timeline</li>
+</ul>
+<h2 id="what-to-watch-out-for">What to Watch Out For</h2>
+<h3 id="1-memory-bandwidth-utilization">1. <strong>Memory Bandwidth Utilization</strong></h3>
+<p><strong>What to check:</strong></p>
+<ul>
+<li>Look for <code>MemoryBandwidth</code> or <code>MemoryThroughput</code> metrics in profiling output</li>
+<li>Compare achieved bandwidth vs. theoretical peak bandwidth</li>
+</ul>
+<p><strong>Red flags:</strong></p>
+<ul>
+<li>Memory bandwidth utilization &lt; 50% suggests memory-bound operations</li>
+<li>Large gaps between memory transfers indicate poor overlap</li>
+</ul>
+<p><strong>How to interpret:</strong></p>
+<pre><code>Achieved Bandwidth / Peak Bandwidth = Efficiency
+- &gt; 80%: Excellent
+- 50-80%: Good
+- &lt; 50%: Needs optimization
+</code></pre>
+<h3 id="2-compute-utilization">2. <strong>Compute Utilization</strong></h3>
+<p><strong>What to check:</strong></p>
+<ul>
+<li><code>GPUUtilization</code> or <code>ComputeUnitUtilization</code> metrics</li>
+<li>Kernel occupancy (threads per compute unit)</li>
+</ul>
+<p><strong>Red flags:</strong></p>
+<ul>
+<li>GPU utilization &lt; 60% indicates underutilization</li>
+<li>Low occupancy suggests thread block size issues</li>
+</ul>
+<p><strong>How to interpret:</strong></p>
+<ul>
+<li>High utilization with low performance = compute-bound</li>
+<li>Low utilization = likely memory-bound or synchronization issues</li>
+</ul>
+<h3 id="3-kernel-execution-time">3. <strong>Kernel Execution Time</strong></h3>
+<p><strong>What to check:</strong></p>
+<ul>
+<li><code>KernelDuration</code> or <code>KernelTime</code> in profiling output</li>
+<li>Compare kernel time vs. total execution time</li>
+</ul>
+<p><strong>Red flags:</strong></p>
+<ul>
+<li>Kernel time &lt;&lt; total time = overhead from memory transfers</li>
+<li>Very short kernel times (&lt; 1μs) = may not be representative</li>
+</ul>
+<p><strong>Optimization targets:</strong></p>
+<ul>
+<li>Kernel should dominate execution time for compute-bound workloads</li>
+<li>For memory-bound: focus on reducing transfer overhead</li>
+</ul>
+<h3 id="4-memory-transfer-overhead">4. <strong>Memory Transfer Overhead</strong></h3>
+<p><strong>What to check:</strong></p>
+<ul>
+<li><code>hipMemcpy</code> timing vs. kernel execution time</li>
+<li>Host-to-device and device-to-host transfer times</li>
+</ul>
+<p><strong>Red flags:</strong></p>
+<ul>
+<li>Transfer time &gt; kernel time = memory transfer bottleneck</li>
+<li>Multiple small transfers instead of batched transfers</li>
+</ul>
+<p><strong>Best practices:</strong></p>
+<ul>
+<li>Overlap transfers with computation when possible</li>
+<li>Use pinned memory for faster transfers</li>
+<li>Batch small transfers into larger ones</li>
+</ul>
+<h3 id="5-work-distribution">5. <strong>Work Distribution</strong></h3>
+<p><strong>What to check:</strong></p>
+<ul>
+<li>Number of threads vs. array size</li>
+<li>Threads per block configuration</li>
+</ul>
+<p><strong>Red flags:</strong></p>
+<ul>
+<li>Threads per block not a multiple of warp/wavefront size (32/64)</li>
+<li>Too many or too few blocks per grid</li>
+</ul>
+<p><strong>Optimal configuration:</strong></p>
+<ul>
+<li>Threads per block: 256 or 512 (multiple of 64 for AMD)</li>
+<li>Enough blocks to fill all compute units</li>
+</ul>
+<h3 id="6-error-checking">6. <strong>Error Checking</strong></h3>
+<p><strong>Always verify:</strong></p>
+<ul>
+<li>No HIP errors in profiling output</li>
+<li>Correctness of results (program should verify this)</li>
+<li>Memory allocation success</li>
+</ul>
+<h2 id="baseline-analysis">Baseline Analysis</h2>
+<h3 id="baseline-version-vector_addcpp">Baseline Version (<code>vector_add.cpp</code>)</h3>
+<p><strong>Characteristics:</strong></p>
+<ul>
+<li>Fixed array size: N = 1024 elements</li>
+<li>Total memory: 3 × 1024 × 4 bytes = 12 KB</li>
+<li>Threads per block: 256</li>
+<li>Blocks per grid: (1024 + 256 - 1) / 256 = 4 blocks</li>
+</ul>
+<p><strong>Expected Performance:</strong></p>
+<ul>
+<li><strong>Compute operations</strong>: 1024 additions (1 FLOP per element)</li>
+<li><strong>Memory operations</strong>:
+<ul>
+<li>Read: 2 × 1024 × 4 bytes = 8 KB (A and B)</li>
+<li>Write: 1 × 1024 × 4 bytes = 4 KB (C)</li>
+<li>Total: 12 KB transferred</li>
+</ul>
+</li>
+<li><strong>Arithmetic Intensity</strong>: 1 FLOP / 12 bytes = 0.083 FLOP/byte (very low)</li>
+</ul>
+<p><strong>Limitations:</strong></p>
+<ul>
+<li>Too small to effectively utilize GPU</li>
+<li>Memory transfer overhead dominates</li>
+<li>Underutilizes compute units</li>
+<li>Not representative of real-world workloads</li>
+</ul>
+<h3 id="dynamic-version-vector_add_dynamiccpp">Dynamic Version (<code>vector_add_dynamic.cpp</code>)</h3>
+<p><strong>Characteristics:</strong></p>
+<ul>
+<li>Array size determined by GPU capabilities</li>
+<li>Typically uses 80% of available free memory</li>
+<li>Optimized for both memory and compute utilization</li>
+<li>Scales with GPU resources</li>
+</ul>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Better GPU utilization</li>
+<li>More representative of real workloads</li>
+<li>Adapts to different GPU configurations</li>
+<li>Better for performance analysis</li>
+</ul>
+<h2 id="roofline-model-analysis">Roofline Model Analysis</h2>
+<h3 id="understanding-the-roofline-model">Understanding the Roofline Model</h3>
+<p>The Roofline model is a performance analysis tool that relates:</p>
+<ul>
+<li><strong>Arithmetic Intensity</strong> (AI): FLOPs per byte transferred</li>
+<li><strong>Performance</strong>: Achieved GFLOP/s</li>
+<li><strong>Peak Performance</strong>: Limited by compute or memory bandwidth</li>
+</ul>
+<h3 id="vector-addition-roofline-analysis">Vector Addition Roofline Analysis</h3>
+<h4 id="arithmetic-intensity-calculation">Arithmetic Intensity Calculation</h4>
+<p>For vector addition: C[i] = A[i] + B[i]</p>
+<p><strong>Operations per element:</strong></p>
+<ul>
+<li>1 addition (1 FLOP)</li>
+<li>2 reads (A[i], B[i])</li>
+<li>1 write (C[i])</li>
+</ul>
+<p><strong>Memory transferred per element:</strong></p>
+<ul>
+<li>3 × sizeof(float) = 12 bytes</li>
+</ul>
+<p><strong>Arithmetic Intensity:</strong></p>
+<pre><code>AI = FLOPs / Bytes = 1 FLOP / 12 bytes = 0.083 FLOP/byte
+</code></pre>
+<h4 id="performance-bounds">Performance Bounds</h4>
+<p><strong>1. Memory-Bound Region (Low AI)</strong></p>
+<p>For AI = 0.083 FLOP/byte:</p>
+<pre><code>Peak Performance = Memory Bandwidth × AI
+
+Example (assuming 1 TB/s memory bandwidth):
+Peak = 1000 GB/s × 0.083 FLOP/byte = 83 GFLOP/s
+</code></pre>
+<p><strong>2. Compute-Bound Region (High AI)</strong></p>
+<p>For compute-bound kernels:</p>
+<pre><code>Peak Performance = Peak Compute Throughput
+
+Example (assuming 25 TFLOPS):
+Peak = 25,000 GFLOP/s
+</code></pre>
+<h4 id="roofline-plot-interpretation">Roofline Plot Interpretation</h4>
+<pre><code>Performance (GFLOP/s)
+    |
+    |                    /---- Compute Roofline
+    |                   /
+    |                  /
+    |                 /
+    |                /
+    |               /
+    |              /
+    |             /
+    |            /  Memory Roofline
+    |           /  (slope = bandwidth)
+    |          /
+    |         /
+    |        /
+    |       /
+    |      /
+    |     /
+    |    /
+    |   /
+    |  /
+    | /
+    |/_____________________________
+    0.01  0.1   1    10   100   1000
+              Arithmetic Intensity (FLOP/byte)
+</code></pre>
+<p><strong>Vector addition (AI = 0.083) falls in the memory-bound region.</strong></p>
+<h3 id="performance-expectations">Performance Expectations</h3>
+<h4 id="baseline-version-n1024">Baseline Version (N=1024)</h4>
+<p><strong>Expected performance:</strong></p>
+<ul>
+<li>Very low GFLOP/s due to overhead</li>
+<li>Memory transfer dominates</li>
+<li>Not suitable for roofline analysis (too small)</li>
+</ul>
+<h4 id="dynamic-version-large-n">Dynamic Version (Large N)</h4>
+<p><strong>Expected performance:</strong></p>
+<ul>
+<li>Should approach memory bandwidth limit</li>
+<li>Performance ≈ Memory Bandwidth × 0.083 FLOP/byte</li>
+<li>Example: 1000 GB/s × 0.083 = ~83 GFLOP/s</li>
+</ul>
+<h3 id="measuring-performance">Measuring Performance</h3>
+<p>To calculate actual performance from profiling:</p>
+<pre><code class="language-python"><span class="hljs-comment"># From profiling output</span>
+kernel_time_seconds = kernel_duration_ms / <span class="hljs-number">1000.0</span>
+array_size = N  <span class="hljs-comment"># from program output</span>
+flops = array_size  <span class="hljs-comment"># 1 FLOP per element</span>
+
+gflops = (flops / kernel_time_seconds) / <span class="hljs-number">1e9</span>
+memory_bandwidth_gb_s = (<span class="hljs-number">3</span> * array_size * <span class="hljs-number">4</span>) / kernel_time_seconds / <span class="hljs-number">1e9</span>
+arithmetic_intensity = flops / (<span class="hljs-number">3</span> * array_size * <span class="hljs-number">4</span>)
+
+<span class="hljs-built_in">print</span>(<span class="hljs-string">f&quot;Performance: <span class="hljs-subst">{gflops:<span class="hljs-number">.2</span>f}</span> GFLOP/s&quot;</span>)
+<span class="hljs-built_in">print</span>(<span class="hljs-string">f&quot;Memory Bandwidth: <span class="hljs-subst">{memory_bandwidth_gb_s:<span class="hljs-number">.2</span>f}</span> GB/s&quot;</span>)
+<span class="hljs-built_in">print</span>(<span class="hljs-string">f&quot;Arithmetic Intensity: <span class="hljs-subst">{arithmetic_intensity:<span class="hljs-number">.4</span>f}</span> FLOP/byte&quot;</span>)
+</code></pre>
+<h3 id="optimization-opportunities">Optimization Opportunities</h3>
+<p><strong>1. Increase Arithmetic Intensity</strong></p>
+<ul>
+<li>Fuse multiple operations (e.g., C = A + B + D)</li>
+<li>Reduce memory accesses through data reuse</li>
+<li>Use shared memory for repeated accesses</li>
+</ul>
+<p><strong>2. Improve Memory Access Patterns</strong></p>
+<ul>
+<li>Ensure coalesced memory accesses</li>
+<li>Use vectorized loads when possible</li>
+<li>Minimize memory transactions</li>
+</ul>
+<p><strong>3. Reduce Overhead</strong></p>
+<ul>
+<li>Overlap computation and memory transfers</li>
+<li>Use streams for concurrent operations</li>
+<li>Minimize kernel launch overhead</li>
+</ul>
+<p><strong>4. Optimize Kernel Configuration</strong></p>
+<ul>
+<li>Tune threads per block</li>
+<li>Ensure sufficient parallelism</li>
+<li>Balance occupancy and register usage</li>
+</ul>
+<h2 id="example-profiling-workflow">Example Profiling Workflow</h2>
+<pre><code class="language-bash"><span class="hljs-comment"># 1. Build both versions</span>
+make all
+
+<span class="hljs-comment"># 2. Run dynamic version to see calculated array size</span>
+./vector_add_dynamic.exe
+
+<span class="hljs-comment"># 3. Profile dynamic version</span>
+make profile_dynamic
+
+<span class="hljs-comment"># 4. Examine results</span>
+<span class="hljs-built_in">cat</span> profiling_output/dynamic/results.csv
+
+<span class="hljs-comment"># 5. Calculate performance metrics</span>
+<span class="hljs-comment"># Use the kernel time and array size from output</span>
+<span class="hljs-comment"># Apply the formulas above</span>
+
+<span class="hljs-comment"># 6. Compare with baseline (if needed)</span>
+make profile_both
+</code></pre>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="profiling-issues">Profiling Issues</h3>
+<p><strong>Problem:</strong> <code>rocprofv3: command not found</code></p>
+<ul>
+<li><strong>Solution:</strong> Ensure ROCm is installed and in PATH</li>
+<li>Check: <code>which rocprofv3</code> or <code>ls $(HIP_PATH)/bin/rocprofv3</code></li>
+</ul>
+<p><strong>Problem:</strong> No profiling output</p>
+<ul>
+<li><strong>Solution:</strong> Check GPU permissions and ROCm installation</li>
+<li>Verify: <code>rocminfo</code> shows GPU information</li>
+</ul>
+<p><strong>Problem:</strong> Profiling shows zero or invalid metrics</p>
+<ul>
+<li><strong>Solution:</strong> Some metrics require specific GPU architectures</li>
+<li>Try: <code>make profile_kernel</code> for basic timing</li>
+</ul>
+<h3 id="performance-issues">Performance Issues</h3>
+<p><strong>Problem:</strong> Low GPU utilization</p>
+<ul>
+<li>Check: Array size is large enough</li>
+<li>Verify: Thread block configuration</li>
+<li>Consider: Increasing work per thread</li>
+</ul>
+<p><strong>Problem:</strong> Memory bandwidth not saturated</p>
+<ul>
+<li>Check: Memory access patterns</li>
+<li>Verify: Coalesced memory accesses</li>
+<li>Consider: Increasing array size</li>
+</ul>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://rocm.docs.amd.com/projects/rocprofiler/en/latest/">ROCm Profiling Tools</a></li>
+<li><a href="https://crd.lbl.gov/departments/computer-science/par/research/roofline/">Roofline Model Paper</a></li>
+<li><a href="https://rocm.docs.amd.com/projects/HIP/en/latest/">HIP Programming Guide</a></li>
+</ul>
+<h2 id="cleanup">Cleanup</h2>
+<pre><code class="language-bash">make clean          <span class="hljs-comment"># Remove executables and object files</span>
+make clean_profile  <span class="hljs-comment"># Remove profiling output</span>
+make clean_all      <span class="hljs-comment"># Remove everything</span>
+</code></pre>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>
