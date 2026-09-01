@@ -34,7 +34,7 @@ Cadence: **1 post/week**. LinkedIn + Short echo within 48 h of each Medium post 
 |----|----------|--------|---------------------------------------------------|-------------|----------------|
 | 1 | 001 | A01 | *Your GPU kernel took 44 µs. The program took 72 ms.* | kernel = 0.06% of wall clock | ✅ blog.md ready — re-run first |
 | 2 | 002 | A02 | *Your GPU kernel passed. It still wasted ~85% of bandwidth* | ~700 → ~3,400 GB/s | ✅ `content/social/002-a02-coalescing-bandwidth/blog.md` ready — re-run first |
-| 3 | 003 | A01 | *This kernel corrupts memory and still prints the right answer* | N=1000, block=256 → 24 threads OOB | ✅ shorts script exists; needs blog.md |
+| 3 | 003 | A01 | *This kernel corrupts memory and still prints the right answer* | N=1000, block=256 → 24 threads OOB | ✅ `content/social/003-a01-bounds-silent-corruption/blog.md` ready — arithmetic, no GPU re-run |
 | 4 | 004 | A04 | *Nine ways to reduce: the reduction ladder's stage-1-to-stage-9 spread* | TBD — re-run ladder | ⬜ needs measurement |
 | 5 | 005 | A06 | *Naive vs tiled GEMM: what shared memory actually buys* | TBD — re-run GEMM | ⬜ needs measurement |
 | 6 | 006 | A07 | *The poisoned row: one `nan` and your softmax lies* | poisoned-row repro | ⬜ needs measurement |

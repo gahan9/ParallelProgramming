@@ -109,7 +109,7 @@ NVIDIA: `make cuda SM_ARCH=<sm_XX> && make run-cuda`. Optional: `make profile-hi
 
 ## What's next
 
-Next candidates in the series: a bounds-guard kernel that corrupts memory and still looks right (A01 drill), or the reduction ladder's stage spread (A04) once re-run on your GPU.
+Next in the series: a bounds-guard kernel that corrupts memory and still looks right ([Post 003 · A01](../003-a01-bounds-silent-corruption/blog.md)). After that: the reduction ladder's stage spread (A04) once re-run on your GPU.
 
 ---
 
@@ -127,6 +127,6 @@ Next candidates in the series: a bounds-guard kernel that corrupts memory and st
 ---
 
 *Parallel Spectrum · Post 002 · Track A*
-*Prev: [001 — kernel vs path](https://gahan9.medium.com/your-gpu-kernel-took-44-microseconds-the-program-took-72-milliseconds-09c5e3b920c1) · Next: bounds / silent corruption (planned) · Code: [`A02.memory-hierarchy-and-coalescing`](https://github.com/gahan9/ParallelProgramming/tree/main/tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing)*
+*Prev: [001 — kernel vs path](https://gahan9.medium.com/your-gpu-kernel-took-44-microseconds-the-program-took-72-milliseconds-09c5e3b920c1) · Next: [003 — bounds / silent corruption](../003-a01-bounds-silent-corruption/blog.md) · Code: [`A02.memory-hierarchy-and-coalescing`](https://github.com/gahan9/ParallelProgramming/tree/main/tracks/A-gpu-programming/A02.memory-hierarchy-and-coalescing)*
 
 *Numbers above are from a documented reference run; yours will differ. Run the lab — that's the point.*

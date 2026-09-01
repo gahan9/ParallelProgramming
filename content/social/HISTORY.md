@@ -22,7 +22,9 @@ Status legend: `draft` · `ready` · `posted` · `archived`
 
 |---|------|------|-------|--------|-----------------|--------|------|------|--------|
 
-| 002 | 2026-08-10 | `a02-coalescing-bandwidth` | A | A02 | PASSED at ~15% BW · ~700 → ~3,400 GB/s (~5×) | ready | `a01-kernel-vs-path` | *TBD-003* | [`002-a02-coalescing-bandwidth/`](002-a02-coalescing-bandwidth/) |
+| 003 | 2026-08-31 | `a01-bounds-silent-corruption` | A | A01 | PASSED · 24 threads still wrote past N (1000 / 256) | ready | `a02-coalescing-bandwidth` | *TBD-004* | [`003-a01-bounds-silent-corruption/`](003-a01-bounds-silent-corruption/) |
+
+| 002 | 2026-08-10 | `a02-coalescing-bandwidth` | A | A02 | PASSED at ~15% BW · ~700 → ~3,400 GB/s (~5×) | ready | `a01-kernel-vs-path` | `a01-bounds-silent-corruption` | [`002-a02-coalescing-bandwidth/`](002-a02-coalescing-bandwidth/) |
 
 | 001 | 2026-08-02 | `a01-kernel-vs-path` | A | A01 | Kernel 44 µs · program ~72 ms (0.06%) | posted | — | `a02-coalescing-bandwidth` | [`001-a01-kernel-vs-path/`](001-a01-kernel-vs-path/) |
 
@@ -42,9 +44,9 @@ Keep the through-line honest across posts:
 
 1. **001 — Measure the path, not just the kernel** (A01) ← *posted*
 
-2. **002 — Coalescing: same math, different bandwidth** (A02 · ~700 → ~3400 GB/s) ← *you are here*
+2. **002 — Coalescing: same math, different bandwidth** (A02 · ~700 → ~3400 GB/s) ← *ready, unpublished*
 
-3. *Planned 003 — Bounds guard / silent corruption* (A01 Short 2 angle, or drill)
+3. **003 — Bounds guard / silent corruption** (A01 · 24 extra threads) ← *you are here*
 
 4. *Planned 004 — Reduction ladder spread* (A04) once re-run on your GPU
 
@@ -101,6 +103,12 @@ Append a row when something goes live (URL optional until you have it).
 | 002 | LinkedIn | — | — | Copy in `linkedin.md`; attach `visual.png`; Medium URL in first comment |
 
 | 002 | YouTube Shorts | — | — | Aligns with `content/A02-memory-coalescing/shorts.md` Short 2 |
+
+| 003 | Medium | — | — | Draft ready in pack `blog.md` — arithmetic post; no GPU re-run required |
+
+| 003 | LinkedIn | — | — | Copy in `linkedin.md`; attach `visual.png`; Medium URL in first comment; use 001-callback variant if 002 still unpublished |
+
+| 003 | YouTube Shorts | — | — | Aligns with `content/A01-foundations/shorts.md` Short 2 |
 
 
 
